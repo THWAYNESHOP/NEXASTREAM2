@@ -1,0 +1,30 @@
+pluginManagement {
+    repositories {
+        gradlePluginPortal()
+        google()
+        mavenCentral()
+    }
+}
+
+plugins {
+    id 'org.gradle.toolchains.foojay-resolver-convention' version '0.10.0'
+}
+
+dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+
+rootProject.name = "NexaStream"
+
+include ':app'
+project(':app').projectDir = new File('nexastream_project/app')
+
+include ':retrofit-jsoup-converter'
+project(':retrofit-jsoup-converter').projectDir = new File('nexastream_project/retrofit-jsoup-converter')
+
+include ':navigation'
+project(':navigation').projectDir = new File('nexastream_project/navigation')

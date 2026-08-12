@@ -1,0 +1,30 @@
+# Gradle
+.gradle/
+**/build/
+build/
+
+# IDE - Android Studio / IntelliJ
+.idea/
+*.iml
+*.iws
+.project
+.settings/
+.classpath
+bin/
+gen/
+local.properties
+.artifacts/
+.agents/
+.junie/
+.kotlin/
+
+# Secrets
+google-services.json
+
+# Backup/Old folders
+/nexastream/
+/New folder/
+
+# System
+.DS_Store
+Thumbs.db
