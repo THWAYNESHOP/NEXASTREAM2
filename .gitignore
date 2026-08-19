@@ -28,3 +28,10 @@ google-services.json
 # System
 .DS_Store
 Thumbs.db
+
+# Logs
+*.log
+
+# Project specific
+.gradle-user/
+**/ .gradle-user/

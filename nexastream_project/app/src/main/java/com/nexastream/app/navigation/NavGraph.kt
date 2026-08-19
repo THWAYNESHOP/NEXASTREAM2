@@ -1,6 +1,7 @@
 package com.nexastream.app.navigation
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -8,9 +9,11 @@ import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import com.nexastream.app.ui.screens.home.HomeScreen
 import com.nexastream.app.ui.screens.details.DetailScreen
+import com.nexastream.app.ui.screens.downloads.DownloadsScreen
 import com.nexastream.app.ui.screens.player.PlayerScreen
 import com.nexastream.app.ui.screens.providers.ProvidersScreen
 import com.nexastream.app.ui.screens.search.SearchScreen
+import com.nexastream.app.providers.Provider
 import com.nexastream.app.utils.UserPreferences
 
 @Composable
@@ -59,6 +62,23 @@ fun NavGraph(navController: NavHostController) {
 
         composable(Screen.TvShows.route) {
             HomeScreen(onMovieClick = { id -> navController.navigate(Screen.Details.createRoute(id)) })
+        }
+
+        composable(Screen.Downloads.route) {
+            if (Provider.supportsDownloads(UserPreferences.currentProvider)) {
+                DownloadsScreen(
+                    onPlayClick = { id ->
+                        navController.navigate(Screen.Player.createRoute(id))
+                    }
+                )
+            } else {
+                LaunchedEffect(Unit) {
+                    navController.navigate(Screen.Home.route) {
+                        popUpTo(Screen.Downloads.route) { inclusive = true }
+                        launchSingleTop = true
+                    }
+                }
+            }
         }
         
         composable(

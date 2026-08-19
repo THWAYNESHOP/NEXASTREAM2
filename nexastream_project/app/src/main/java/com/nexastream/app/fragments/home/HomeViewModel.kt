@@ -37,41 +37,37 @@ class HomeViewModel @Inject constructor(
     private val _userDataCache = MutableStateFlow<UserDataCache.UserData?>(null)
     private var currentProvider: Provider? = null
 
-    @OptIn(ExperimentalCoroutinesApi::class)
-    val state: Flow<State> = combine6(
-        _state,
-        // CONTINUE WATCHING
-        combine(
-            _userDataCache.transformLatest { cache ->
-                if (cache != null && cache.continueWatchingMovies.isNotEmpty()) {
-                    emit(cache.continueWatchingMovies.map { it.toMovie() })
-                } else {
-                    emitAll(database.movieDao().getWatchingMovies())
-                }
-            },
-            _userDataCache.transformLatest { cache ->
-                if (cache != null && cache.continueWatchingEpisodes.isNotEmpty()) {
-                    emit(cache.continueWatchingEpisodes.map { it.toEpisode() })
-                } else {
-                    emitAll(database.episodeDao().getWatchingEpisodes())
-                }
-            },
-            _userDataCache.transformLatest { cache ->
-                if (cache != null && cache.continueWatchingEpisodes.isNotEmpty()) {
-                    emit(cache.continueWatchingEpisodes.map { it.toEpisode() })
-                } else {
-                    emitAll(database.episodeDao().getNextEpisodesToWatch())
-                }
-            },
-            database.tvShowDao().getAll(),
-        ) { watchingMovies: List<Movie>, watchingEpisodes: List<Episode>, watchNextEpisodes: List<Episode>, tvShows: List<TvShow> ->
-            val allEpisodes = (watchingEpisodes + watchNextEpisodes).distinctBy { e -> e.id }
-            val tvShowsMap = tvShows.associateBy { t -> t.id }
-
-            val seasonIds = allEpisodes.mapNotNull { e -> e.season?.id }.distinct()
-            val seasonsMap = if (seasonIds.isEmpty()) emptyMap() else {
-                database.seasonDao().getByIds(seasonIds).associateBy { s -> s.id }
+    private val continueWatchingFlow: Flow<List<AppAdapter.Item>> = combine(
+        _userDataCache.transformLatest { cache ->
+            if (cache != null && cache.continueWatchingMovies.isNotEmpty()) {
+                emit(cache.continueWatchingMovies.map { it.toMovie() })
+            } else {
+                emitAll(database.movieDao().getWatchingMovies())
             }
+        },
+        _userDataCache.transformLatest { cache ->
+            if (cache != null && cache.continueWatchingEpisodes.isNotEmpty()) {
+                emit(cache.continueWatchingEpisodes.map { it.toEpisode() })
+            } else {
+                emitAll(database.episodeDao().getWatchingEpisodes())
+            }
+        },
+        _userDataCache.transformLatest { cache ->
+            if (cache != null && cache.continueWatchingEpisodes.isNotEmpty()) {
+                emit(cache.continueWatchingEpisodes.map { it.toEpisode() })
+            } else {
+                emitAll(database.episodeDao().getNextEpisodesToWatch())
+            }
+        },
+        database.tvShowDao().getAll(),
+    ) { watchingMovies: List<Movie>, watchingEpisodes: List<Episode>, watchNextEpisodes: List<Episode>, tvShows: List<TvShow> ->
+        val allEpisodes = (watchingEpisodes + watchNextEpisodes).distinctBy { e -> e.id }
+        Triple(watchingMovies, allEpisodes, tvShows)
+    }.flatMapLatest { (watchingMovies, allEpisodes, tvShows) ->
+        val seasonIds = allEpisodes.mapNotNull { e -> e.season?.id }.distinct()
+        database.seasonDao().getByIdsAsFlow(seasonIds).map { seasons ->
+            val tvShowsMap = tvShows.associateBy { t -> t.id }
+            val seasonsMap = seasons.associateBy { s -> s.id }
 
             val enrichedEpisodes = currentProvider?.let { provider ->
                 repository.enrichContinueWatchingEpisodes(
@@ -93,8 +89,13 @@ class HomeViewModel @Inject constructor(
                         else -> 0L
                     }
                 } as List<AppAdapter.Item>
-        }.flowOn(Dispatchers.IO),
+        }
+    }.flowOn(Dispatchers.IO)
 
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val state: Flow<State> = combine6(
+        _state,
+        continueWatchingFlow,
         // FAVORITES
         _userDataCache.transformLatest { cache ->
             if (cache != null && cache.favoritesMovies.isNotEmpty()) {

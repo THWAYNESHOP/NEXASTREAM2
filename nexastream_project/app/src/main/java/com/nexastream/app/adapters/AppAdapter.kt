@@ -13,6 +13,7 @@ import com.nexastream.app.adapters.viewholders.MovieViewHolder
 import com.nexastream.app.adapters.viewholders.PeopleViewHolder
 import com.nexastream.app.adapters.viewholders.ProviderViewHolder
 import com.nexastream.app.adapters.viewholders.SeasonViewHolder
+import com.nexastream.app.adapters.viewholders.SportMatchViewHolder
 import com.nexastream.app.adapters.viewholders.TvShowViewHolder
 import com.nexastream.app.databinding.ContentCategorySwiperMobileBinding
 import com.nexastream.app.databinding.ContentCategorySwiperTvBinding
@@ -54,10 +55,14 @@ import com.nexastream.app.databinding.ItemProviderMobileBinding
 import com.nexastream.app.databinding.ItemProviderTvBinding
 import com.nexastream.app.databinding.ItemSeasonMobileBinding
 import com.nexastream.app.databinding.ItemSeasonTvBinding
+import com.nexastream.app.databinding.ItemSportMatchMobileBinding
+import com.nexastream.app.databinding.ItemSportMatchTvBinding
 import com.nexastream.app.databinding.ItemTvShowGridBinding
 import com.nexastream.app.databinding.ItemTvShowGridMobileBinding
 import com.nexastream.app.databinding.ItemTvShowMobileBinding
 import com.nexastream.app.databinding.ItemTvShowTvBinding
+import com.nexastream.app.models.SportMatch
+import com.nexastream.app.utils.UserPreferences
 import com.nexastream.app.models.Category
 import com.nexastream.app.models.Episode
 import com.nexastream.app.models.Genre
@@ -136,6 +141,9 @@ class AppAdapter(
 
         SEASON_MOBILE_ITEM,
         SEASON_TV_ITEM,
+
+        SPORT_MATCH_ITEM,
+        TV_CHANNEL_ITEM,
 
         TV_SHOW_MOBILE_ITEM,
         TV_SHOW_TV_ITEM,
@@ -397,6 +405,38 @@ class AppAdapter(
                 )
             )
 
+            Type.SPORT_MATCH_ITEM -> SportMatchViewHolder(
+                if (parent.context.packageManager.hasSystemFeature(android.content.pm.PackageManager.FEATURE_LEANBACK)) {
+                    ItemSportMatchTvBinding.inflate(
+                        LayoutInflater.from(parent.context),
+                        parent,
+                        false,
+                    )
+                } else {
+                    ItemSportMatchMobileBinding.inflate(
+                        LayoutInflater.from(parent.context),
+                        parent,
+                        false,
+                    )
+                }
+            )
+
+            Type.TV_CHANNEL_ITEM -> TvShowViewHolder( // Reusing for now
+                if (parent.context.packageManager.hasSystemFeature(android.content.pm.PackageManager.FEATURE_LEANBACK)) {
+                    ItemTvShowTvBinding.inflate(
+                        LayoutInflater.from(parent.context),
+                        parent,
+                        false,
+                    )
+                } else {
+                    ItemTvShowMobileBinding.inflate(
+                        LayoutInflater.from(parent.context),
+                        parent,
+                        false,
+                    )
+                }
+            )
+
             Type.TV_SHOW_MOBILE_ITEM -> TvShowViewHolder(
                 ItemTvShowMobileBinding.inflate(
                     LayoutInflater.from(parent.context),
@@ -538,6 +578,9 @@ class AppAdapter(
             is SeasonViewHolder -> holder.bind(
                 items[adjustedPosition] as Season
             ) // Tu original no pasaba listener, lo respeto
+            is SportMatchViewHolder -> holder.bind(
+                items[adjustedPosition] as SportMatch
+            )
             is TvShowViewHolder -> holder.bind(
                 items[adjustedPosition] as TvShow
             ) // Los listeners se manejan dentro del ViewHolder

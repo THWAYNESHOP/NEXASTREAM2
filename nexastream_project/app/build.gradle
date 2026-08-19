@@ -1,12 +1,12 @@
 plugins {
-    id 'com.android.application'
-    id 'org.jetbrains.kotlin.android'
-    id 'androidx.navigation.safeargs.kotlin'
+    alias(libs.plugins.android.application)
+    alias(libs.plugins.kotlin.android)
+    alias(libs.plugins.safeargs)
     id 'kotlin-parcelize'
-    id 'com.google.devtools.ksp'
-    id 'org.jetbrains.kotlin.plugin.serialization'
-    id 'org.jetbrains.kotlin.plugin.compose' version '2.0.21'
-    id 'com.google.dagger.hilt.android'
+    alias(libs.plugins.ksp)
+    alias(libs.plugins.kotlin.serialization)
+    alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.hilt)
 }
 
 android {
@@ -20,13 +20,15 @@ android {
         applicationId "com.nexastream.app"
         minSdk 24
         targetSdk 35
-        versionCode 1
-        versionName "1.0.0"
+        versionCode 3
+        versionName "1.0.2"
 
         buildConfigField "String", "APP_LAYOUT", "\"${properties.getProperty("APP_LAYOUT", "mobile")}\""
-        buildConfigField "String", "TMDB_API_KEY", "\"${properties.getProperty("TMDB_API_KEY", "c63c538c7ac3256ef3fd2f3a3fb352aa")}\""
+        buildConfigField "String", "TMDB_API_KEY", "\"${properties.getProperty("TMDB_API_KEY", "")}\""
         buildConfigField "String", "RABBITSTREAM_SOURCE_API", "\"${properties.getProperty("RABBITSTREAM_SOURCE_API", "https://rabbitstream.net/ajax/v2/embed-4/getSources?id=")}\""
         buildConfigField "String", "SUBDL_API_KEY", "\"${properties.getProperty("SUBDL_API_KEY", "")}\""
+        buildConfigField "String", "TRAKT_CLIENT_ID", "\"${properties.getProperty("TRAKT_CLIENT_ID", "")}\""
+        buildConfigField "String", "TRAKT_CLIENT_SECRET", "\"${properties.getProperty("TRAKT_CLIENT_SECRET", "")}\""
     }
 
     sourceSets {
@@ -79,81 +81,81 @@ dependencies {
     implementation project(':retrofit-jsoup-converter')
     implementation project(':navigation')
 
-    implementation 'androidx.core:core-ktx:1.15.0'
-    implementation 'androidx.appcompat:appcompat:1.7.0'
-    implementation 'androidx.fragment:fragment-ktx:1.8.5'
-    implementation 'com.google.android.material:material:1.12.0'
-    implementation 'androidx.constraintlayout:constraintlayout:2.2.0'
-    implementation 'androidx.legacy:legacy-support-v4:1.0.0'
-    implementation 'androidx.navigation:navigation-fragment-ktx:2.8.3'
-    implementation 'androidx.navigation:navigation-ui-ktx:2.8.3'
-    implementation 'androidx.navigation:navigation-compose:2.8.3'
-    implementation 'androidx.preference:preference-ktx:1.2.1'
-    implementation 'androidx.leanback:leanback:1.2.0'
-    implementation 'androidx.leanback:leanback-preference:1.2.0'
-    implementation 'com.google.dagger:hilt-android:2.51.1'
-    ksp 'com.google.dagger:hilt-compiler:2.51.1'
-    implementation 'androidx.work:work-runtime-ktx:2.10.0'
-    implementation 'androidx.room:room-runtime:2.6.1'
-    implementation 'androidx.room:room-ktx:2.6.1'
-    ksp 'androidx.room:room-compiler:2.6.1'
-    implementation 'androidx.media3:media3-ui:1.5.1'
-    implementation 'androidx.media3:media3-exoplayer:1.5.1'
-    implementation 'androidx.media3:media3-exoplayer-hls:1.5.1'
-    implementation 'androidx.media3:media3-exoplayer-dash:1.5.1'
-    implementation 'androidx.media3:media3-session:1.5.1'
-    implementation 'androidx.media3:media3-cast:1.5.1'
-    implementation 'androidx.media3:media3-datasource-okhttp:1.5.1'
-    implementation 'androidx.tvprovider:tvprovider:1.1.0'
-    implementation 'org.java-websocket:Java-WebSocket:1.5.7'
-    implementation 'org.conscrypt:conscrypt-android:2.5.3'
-    implementation 'androidx.paging:paging-runtime-ktx:3.3.4'
-    implementation 'androidx.compose.ui:ui:1.7.6'
-    implementation 'androidx.compose.ui:ui-tooling-preview:1.7.6'
-    implementation 'androidx.compose.material:material:1.7.6'
-    implementation 'androidx.compose.material:material-icons-extended:1.7.6'
-    implementation 'androidx.compose.material3:material3:1.3.1'
-    implementation 'androidx.compose.material3:material3-window-size-class:1.3.1'
-    implementation 'io.coil-kt:coil-compose:2.6.0'
-    implementation 'androidx.browser:browser:1.7.0'
-    implementation 'androidx.tv:tv-foundation:1.0.0'
-    implementation 'androidx.tv:tv-material:1.0.0'
-    implementation 'androidx.activity:activity-compose:1.9.3'
-    implementation 'androidx.lifecycle:lifecycle-runtime-ktx:2.8.7'
-    implementation 'androidx.lifecycle:lifecycle-runtime-compose:2.8.7'
-    implementation 'androidx.lifecycle:lifecycle-viewmodel-compose:2.8.7'
-    implementation 'androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.7'
-    implementation 'androidx.lifecycle:lifecycle-livedata-ktx:2.8.7'
-    implementation 'androidx.lifecycle:lifecycle-process:2.8.7'
-    implementation 'androidx.startup:startup-runtime:1.2.0'
+    implementation(libs.androidx.core.ktx)
+    implementation(libs.androidx.appcompat)
+    implementation(libs.androidx.fragment.ktx)
+    implementation(libs.material)
+    implementation(libs.androidx.constraintlayout)
+    implementation('androidx.legacy:legacy-support-v4:1.0.0') // Keep legacy as is or add to toml if needed
+    implementation(libs.androidx.navigation.fragment.ktx)
+    implementation(libs.androidx.navigation.ui.ktx)
+    implementation(libs.androidx.navigation.compose)
+    implementation(libs.androidx.hilt.navigation.compose)
+    implementation(libs.androidx.preference.ktx)
+    implementation(libs.androidx.leanback)
+    implementation(libs.androidx.leanback.preference)
+    implementation(libs.hilt.android)
+    ksp(libs.hilt.compiler)
+    implementation(libs.androidx.work.runtime.ktx)
+    implementation(libs.androidx.room.runtime)
+    implementation(libs.androidx.room.ktx)
+    ksp(libs.androidx.room.compiler)
+    implementation(libs.androidx.media3.ui)
+    implementation(libs.androidx.media3.exoplayer)
+    implementation(libs.androidx.media3.exoplayer.hls)
+    implementation(libs.androidx.media3.exoplayer.dash)
+    implementation(libs.androidx.media3.session)
+    implementation(libs.androidx.media3.cast)
+    implementation(libs.androidx.media3.datasource.okhttp)
+    implementation(libs.androidx.tvprovider)
+    implementation(libs.java.websocket)
+    implementation(libs.conscrypt.android)
+    implementation(libs.androidx.paging.runtime.ktx)
+    implementation(libs.androidx.ui)
+    implementation(libs.androidx.ui.tooling.preview)
+    implementation(libs.androidx.material)
+    implementation(libs.androidx.material.icons.extended)
+    implementation(libs.androidx.material3)
+    implementation(libs.androidx.material3.window.size)
+    implementation(libs.coil.compose)
+    implementation(libs.androidx.browser)
+    implementation(libs.androidx.tv.foundation)
+    implementation(libs.androidx.tv.material)
+    implementation(libs.androidx.activity.compose)
+    implementation(libs.androidx.lifecycle.runtime.ktx)
+    implementation(libs.androidx.lifecycle.runtime.compose)
+    implementation(libs.androidx.lifecycle.viewmodel.compose)
+    implementation(libs.androidx.lifecycle.viewmodel.ktx)
+    implementation(libs.androidx.lifecycle.livedata.ktx)
+    implementation(libs.androidx.lifecycle.process)
+    implementation(libs.androidx.startup.runtime)
 
-    implementation 'com.google.code.gson:gson:2.11.0'
-    implementation 'com.squareup.retrofit2:retrofit:2.11.0'
-    implementation 'com.squareup.retrofit2:converter-gson:2.11.0'
-    implementation 'com.squareup.retrofit2:converter-scalars:2.11.0'
-    implementation 'com.squareup.okhttp3:okhttp:4.12.0'
-    implementation 'com.squareup.okhttp3:logging-interceptor:4.12.0'
-    implementation 'com.squareup.okhttp3:okhttp-dnsoverhttps:4.12.0'
-    implementation 'com.github.bumptech.glide:glide:4.16.0'
-    implementation 'com.github.bumptech.glide:compose:1.0.0-beta01'
-    implementation 'com.github.bumptech.glide:okhttp3-integration:4.16.0'
-    implementation 'androidx.palette:palette-ktx:1.0.0'
-    implementation 'com.google.android.exoplayer:extension-cronet:2.19.1'
-    implementation 'com.google.android.exoplayer:extension-cast:2.19.1'
+    implementation(libs.gson)
+    implementation(libs.retrofit)
+    implementation(libs.retrofit.converter.gson)
+    implementation(libs.retrofit.converter.scalars)
+    implementation(libs.okhttp)
+    implementation(libs.okhttp.logging.interceptor)
+    implementation(libs.okhttp.dnsoverhttps)
+    implementation(libs.glide)
+    implementation(libs.glide.compose)
+    implementation(libs.glide.okhttp3)
+    implementation(libs.androidx.palette.ktx)
 
-    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0'
-    implementation 'org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3'
-    implementation 'org.jsoup:jsoup:1.18.1'
-    implementation 'com.google.zxing:core:3.5.3'
-    implementation 'org.mozilla:rhino:1.7.15'
+    implementation(libs.kotlinx.coroutines.android)
+    implementation(libs.kotlinx.serialization.json)
+    implementation(libs.jsoup)
+    implementation(libs.zxing.core)
+    implementation(libs.mozilla.rhino)
 
-    coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.1.4'
+    coreLibraryDesugaring(libs.desugar.jdk.libs)
 
-    testImplementation 'junit:junit:4.13.2'
-    androidTestImplementation 'androidx.test.ext:junit:1.2.1'
-    androidTestImplementation 'androidx.test.espresso:espresso-core:3.6.1'
-    androidTestImplementation platform('androidx.compose:compose-bom:2024.10.01')
-    androidTestImplementation 'androidx.compose.ui:ui-test-junit4'
-    debugImplementation 'androidx.compose.ui:ui-tooling'
-    debugImplementation 'androidx.compose.ui:ui-test-manifest'
+    testImplementation(libs.junit)
+    androidTestImplementation(libs.androidx.junit)
+    androidTestImplementation(libs.androidx.espresso.core)
+    androidTestImplementation(libs.androidx.room.testing)
+    androidTestImplementation(platform(libs.androidx.compose.bom))
+    androidTestImplementation(libs.androidx.ui.test.junit4)
+    debugImplementation(libs.androidx.ui.tooling)
+    debugImplementation(libs.androidx.ui.test.manifest)
 }

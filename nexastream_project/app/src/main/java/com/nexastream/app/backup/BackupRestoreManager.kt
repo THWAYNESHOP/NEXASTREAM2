@@ -79,7 +79,7 @@ class BackupRestoreManager(
         }
     }
 
-    fun exportUserData(): String? {
+    suspend fun exportUserData(): String? {
         return try {
             val root = JSONObject()
             root.put("version", 4)

@@ -50,6 +50,9 @@ class TvShow(
 
     var isWatching: Boolean = true
 
+    @Ignore
+    var liveMetadata: LiveChannelMetadata? = null
+
     val episodeToWatch: Episode?
         get() {
             val sortedSeasons = seasons
@@ -134,7 +137,7 @@ class TvShow(
         cast = cast,
         recommendations = recommendations,
         isFavorite = isFavorite,
-    )
+    ).also { it.liveMetadata = liveMetadata }
 
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
@@ -152,13 +155,7 @@ class TvShow(
         if (poster != other.poster) return false
         if (banner != other.banner) return false
         if (imdbId != other.imdbId) return false
-        if (seasons != other.seasons) return false
-        if (genres != other.genres) return false
-        if (directors != other.directors) return false
-        if (cast != other.cast) return false
-        if (recommendations != other.recommendations) return false
         if (released != other.released) return false
-        if (isFavorite != other.isFavorite) return false
         if (favoritedAtMillis != other.favoritedAtMillis) return false
         if (isWatching != other.isWatching) return false
         if (isFavorite != other.isFavorite) return false
@@ -177,15 +174,10 @@ class TvShow(
         result = 31 * result + (poster?.hashCode() ?: 0)
         result = 31 * result + (banner?.hashCode() ?: 0)
         result = 31 * result + (imdbId?.hashCode() ?: 0)
-        result = 31 * result + seasons.hashCode()
-        result = 31 * result + genres.hashCode()
-        result = 31 * result + directors.hashCode()
-        result = 31 * result + cast.hashCode()
-        result = 31 * result + recommendations.hashCode()
         result = 31 * result + (released?.hashCode() ?: 0)
-        result = 31 * result + isFavorite.hashCode()
         result = 31 * result + (favoritedAtMillis?.hashCode() ?: 0)
         result = 31 * result + isWatching.hashCode()
+        result = 31 * result + isFavorite.hashCode()
         result = 31 * result + (if (::itemType.isInitialized) itemType.hashCode() else 0)
         return result
     }

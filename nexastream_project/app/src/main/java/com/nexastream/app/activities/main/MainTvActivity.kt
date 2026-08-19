@@ -124,7 +124,7 @@ class MainTvActivity : FragmentActivity() {
             }
 
             when (destination.id) {
-                R.id.search, R.id.home, R.id.movies, R.id.tv_shows, R.id.settings -> {
+                R.id.search, R.id.home, R.id.movies, R.id.tv_shows, R.id.live_guide, R.id.downloads, R.id.settings -> {
                     binding.navMain.visibility = View.VISIBLE
                     updateNavigationVisibility()
                 }
@@ -165,7 +165,7 @@ class MainTvActivity : FragmentActivity() {
                     R.id.home -> {
                         if (binding.navMain.hasFocus()) finish() else binding.navMain.requestFocus()
                     }
-                    R.id.settings, R.id.search, R.id.movies, R.id.tv_shows -> {
+                    R.id.settings, R.id.search, R.id.movies, R.id.tv_shows, R.id.live_guide, R.id.downloads -> {
                         navigateToProviderHome(navController)
                         binding.navMain.requestFocus()
                     }
@@ -198,11 +198,15 @@ class MainTvActivity : FragmentActivity() {
     
     private fun updateNavigationVisibility() {
         UserPreferences.currentProvider?.let { provider ->
+            val isIptv = provider is IptvProvider
             binding.navMain.menu.findItem(R.id.movies)?.isVisible = Provider.supportsMovies(provider)
             val tvShowsItem = binding.navMain.menu.findItem(R.id.tv_shows)
             tvShowsItem?.isVisible = Provider.supportsTvShows(provider)
-            tvShowsItem?.title = if (provider is IptvProvider)
+            tvShowsItem?.title = if (isIptv)
                 getString(R.string.main_menu_all_channels) else getString(R.string.main_menu_tv_shows)
+
+            binding.navMain.menu.findItem(R.id.downloads)?.isVisible = Provider.supportsDownloads(provider)
+            binding.navMain.menu.findItem(R.id.live_guide)?.isVisible = isIptv
         }
     }
 

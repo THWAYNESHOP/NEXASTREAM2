@@ -54,6 +54,8 @@ import okhttp3.WebSocketListener
 import org.json.JSONObject
 import java.util.Base64
 import kotlin.coroutines.resume
+import javax.inject.Inject
+import com.nexastream.app.utils.DownloadManager as AppDownloadManager
 
 @AndroidEntryPoint
 class MainMobileActivity : FragmentActivity() {
@@ -95,14 +97,20 @@ class MainMobileActivity : FragmentActivity() {
 
     private var updateAppDialog: UpdateAppMobileDialog? = null
 
+    @androidx.media3.common.util.UnstableApi
+    @Inject
+    lateinit var appDownloadManager: AppDownloadManager
+
     override fun attachBaseContext(newBase: android.content.Context) {
         super.attachBaseContext(AppLanguageManager.wrap(newBase))
     }
 
+    @androidx.media3.common.util.UnstableApi
     override fun onCreate(savedInstanceState: Bundle?) {
         setTheme(ThemeManager.mobileThemeRes(UserPreferences.selectedTheme))
 
         super.onCreate(savedInstanceState)
+
 
         AnimeOnlineNinjaProvider.init(this)
         Cine24hProvider.init(this)
@@ -287,16 +295,20 @@ class MainMobileActivity : FragmentActivity() {
         val provider = UserPreferences.currentProvider ?: return
         val supportsMovies = Provider.supportsMovies(provider)
         val supportsTvShows = Provider.supportsTvShows(provider)
+        val isIptv = provider is IptvProvider
 
         binding.bnvMain.menu.findItem(R.id.movies)?.isVisible = supportsMovies
         binding.bnvMain.menu.findItem(R.id.tv_shows)?.apply {
             isVisible = supportsTvShows
-            title = if (provider is IptvProvider) {
+            title = if (isIptv) {
                 getString(R.string.main_menu_all_channels)
             } else {
                 getString(R.string.main_menu_tv_shows)
             }
         }
+
+        binding.bnvMain.menu.findItem(R.id.downloads)?.isVisible = Provider.supportsDownloads(provider)
+        binding.bnvMain.menu.findItem(R.id.live_guide)?.isVisible = isIptv
 
         val navHost =
             supportFragmentManager.findFragmentById(R.id.nav_main_fragment) as? NavHostFragment
@@ -309,6 +321,14 @@ class MainMobileActivity : FragmentActivity() {
             currentDestinationId == R.id.tv_shows && !supportsTvShows -> {
                 navController.navigate(R.id.home)
             }
+
+            currentDestinationId == R.id.downloads && !Provider.supportsDownloads(provider) -> {
+                navController.navigate(R.id.home)
+            }
+
+            currentDestinationId == R.id.live_guide && !isIptv -> {
+                navController.navigate(R.id.home)
+            }
         }
     }
 
@@ -318,6 +338,8 @@ class MainMobileActivity : FragmentActivity() {
             R.id.home,
             R.id.movies,
             R.id.tv_shows,
+            R.id.downloads,
+            R.id.live_guide,
             R.id.settings,
         )
     }

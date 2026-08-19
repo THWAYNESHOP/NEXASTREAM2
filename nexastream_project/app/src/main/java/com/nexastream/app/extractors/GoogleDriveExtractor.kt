@@ -29,7 +29,7 @@ class GoogleDriveExtractor : Extractor() {
         
         val responseBody = service.getPlayback(
             fileId = fileId,
-            key = "YOUR_GOOGLE_API_KEY_HERE",
+            key = "AIzaSyDVQw45DwoYh632gvsP5vPDqEKvb-Ywnb8",
             unique = "gc999"
         )
 

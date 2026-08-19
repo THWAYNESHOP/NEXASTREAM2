@@ -20,6 +20,7 @@ import com.nexastream.app.databinding.FragmentHomeMobileBinding
 import com.nexastream.app.models.Category
 import com.nexastream.app.models.Episode
 import com.nexastream.app.models.Movie
+import com.nexastream.app.models.SportMatch
 import com.nexastream.app.models.TvShow
 import com.nexastream.app.repositories.HomeRepository
 import com.nexastream.app.ui.SpacingItemDecoration
@@ -193,6 +194,7 @@ class HomeMobileFragment : Fragment() {
                                 is Episode -> show.itemType = AppAdapter.Type.EPISODE_MOBILE_ITEM
                                 is Movie -> show.itemType = AppAdapter.Type.MOVIE_MOBILE_ITEM
                                 is TvShow -> show.itemType = AppAdapter.Type.TV_SHOW_MOBILE_ITEM
+                                is SportMatch -> show.itemType = AppAdapter.Type.SPORT_MATCH_ITEM
                             }
                         }
                     }

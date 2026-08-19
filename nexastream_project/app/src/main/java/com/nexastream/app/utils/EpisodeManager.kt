@@ -6,6 +6,10 @@ import com.nexastream.app.models.TvShow
 import com.nexastream.app.models.Video
 import com.nexastream.app.models.Video.Type.Episode
 
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
+
 object EpisodeManager {
     private val episodes = mutableListOf<Episode>()
     var currentIndex = 0
@@ -188,36 +192,37 @@ object EpisodeManager {
         return episodes.isEmpty() || episodes.none { it.id == episode.id }
     }
 
-    fun convertToVideoTypeEpisodes(episodes: List<com.nexastream.app.models.Episode>, database: AppDatabase, seasonNumber: Int): List<Episode> {
-        val videoEpisodes = episodes.map { ep ->
-            val seasonId = ep.season?.id ?: ""
-            val tvShowId = ep.tvShow?.id ?: ""
-            val seasonFromDb = database.seasonDao().getById(seasonId)
-            val tvShowFromDb = database.tvShowDao().getById(tvShowId)
-            val tvShowTitle = tvShowFromDb?.title?.takeUnless { it.isBlank() }
-                ?: ep.tvShow?.title
-                ?: ""
-            Episode(
-                id = ep.id,
-                number = ep.number,
-                title = ep.title,
-                poster = ep.poster,
-                overview = ep.overview,
-                tvShow = Episode.TvShow(
-                    id = tvShowId,
-                    title = tvShowTitle,
-                    poster = tvShowFromDb?.poster ?: ep.tvShow?.poster,
-                    banner = tvShowFromDb?.banner ?: ep.tvShow?.banner,
-                    releaseDate = tvShowFromDb?.released?.format("yyyy-MM-dd") ?: ep.tvShow?.released?.format("yyyy-MM-dd"),
-                    imdbId = tvShowFromDb?.imdbId ?: ep.tvShow?.imdbId
-                ),
-                season = Episode.Season(
-                    number = seasonFromDb?.number ?: seasonNumber,
-                    title = seasonFromDb?.title ?: ep.season?.title
+    suspend fun convertToVideoTypeEpisodes(episodes: List<com.nexastream.app.models.Episode>, database: AppDatabase, seasonNumber: Int): List<Episode> = coroutineScope {
+        episodes.map { ep ->
+            async {
+                val seasonId = ep.season?.id ?: ""
+                val tvShowId = ep.tvShow?.id ?: ""
+                val seasonFromDb = database.seasonDao().getById(seasonId)
+                val tvShowFromDb = database.tvShowDao().getById(tvShowId)
+                val tvShowTitle = tvShowFromDb?.title?.takeUnless { it.isBlank() }
+                    ?: ep.tvShow?.title
+                    ?: ""
+                Episode(
+                    id = ep.id,
+                    number = ep.number,
+                    title = ep.title,
+                    poster = ep.poster,
+                    overview = ep.overview,
+                    tvShow = Episode.TvShow(
+                        id = tvShowId,
+                        title = tvShowTitle,
+                        poster = tvShowFromDb?.poster ?: ep.tvShow?.poster,
+                        banner = tvShowFromDb?.banner ?: ep.tvShow?.banner,
+                        releaseDate = tvShowFromDb?.released?.format("yyyy-MM-dd") ?: ep.tvShow?.released?.format("yyyy-MM-dd"),
+                        imdbId = tvShowFromDb?.imdbId ?: ep.tvShow?.imdbId
+                    ),
+                    season = Episode.Season(
+                        number = seasonFromDb?.number ?: seasonNumber,
+                        title = seasonFromDb?.title ?: ep.season?.title
+                    )
                 )
-            )
-        }
-        return videoEpisodes
+            }
+        }.awaitAll()
     }
 
 

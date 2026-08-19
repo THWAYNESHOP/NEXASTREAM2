@@ -3,7 +3,8 @@
     <style name="AppTheme.Mobile" parent="Theme.AppCompat">
         <item name="windowActionBar">false</item>
         <item name="windowNoTitle">true</item>
-        <item name="app_background_color">#181818</item>
+        <item name="app_background_color">#141414</item>
+        <item name="colorAccent">@color/netflix_red</item>
         <item name="home_gradient_drawable">@drawable/bg_home_gradient_default</item>
         <item name="movie_banner_gradient_drawable">@drawable/bg_movie_banner_gradient_default</item>
         <item name="tv_show_banner_gradient_drawable">@drawable/bg_tv_show_banner_gradient_default</item>
@@ -27,6 +28,19 @@
         <item name="movie_banner_gradient_drawable">@drawable/bg_movie_banner_gradient_amoled</item>
         <item name="tv_show_banner_gradient_drawable">@drawable/bg_tv_show_banner_gradient_amoled</item>
         <item name="category_swiper_gradient_drawable">@drawable/fg_category_swiper_amoled</item>
+    </style>
+
+    <style name="AppTheme.Mobile.NetflixNoir" parent="AppTheme.Mobile">
+        <item name="app_background_color">#141414</item>
+        <item name="android:windowBackground">@drawable/bg_splash_screen</item>
+        <item name="android:colorBackground">#141414</item>
+        <item name="colorAccent">@color/netflix_red</item>
+        <item name="android:textColorPrimary">#FFFFFF</item>
+        <item name="android:textColorSecondary">#B3B3B3</item>
+        <item name="home_gradient_drawable">@drawable/bg_home_gradient_default</item>
+        <item name="movie_banner_gradient_drawable">@drawable/bg_movie_banner_gradient_default</item>
+        <item name="tv_show_banner_gradient_drawable">@drawable/bg_tv_show_banner_gradient_default</item>
+        <item name="category_swiper_gradient_drawable">@drawable/fg_category_swiper_default</item>
     </style>
 
     <style name="AppTheme.Mobile.SunsetCinema" parent="AppTheme.Mobile">
@@ -135,13 +149,32 @@
 
     <!-- Tema di Default per TV -->
     <style name="AppTheme.Tv" parent="Theme.Leanback">
-        <item name="app_background_color">#181818</item>
+        <item name="app_background_color">#141414</item>
         <item name="preferenceTheme">@style/PreferenceThemeOverlayLeanback</item>
         <item name="alertDialogTheme">@style/Theme.AppCompat.Dialog.Alert</item>
-        <item name="colorAccent">#FFFFFF</item>
-        <item name="colorControlActivated">#FFFFFF</item>
+        <item name="colorAccent">@color/netflix_red</item>
+        <item name="colorControlActivated">@color/netflix_red</item>
         <item name="colorControlNormal">#BDBDBD</item>
         <item name="android:windowBackground">@drawable/bg_splash_screen</item>
+        <item name="home_gradient_drawable">@drawable/bg_home_gradient_default</item>
+        <item name="movie_banner_gradient_drawable">@drawable/bg_movie_banner_gradient_default</item>
+        <item name="tv_show_banner_gradient_drawable">@drawable/bg_tv_show_banner_gradient_default</item>
+        <item name="category_swiper_gradient_drawable">@drawable/fg_category_swiper_default</item>
+    </style>
+
+    <style name="AppTheme.NetflixNoir" parent="Theme.Leanback">
+        <item name="app_background_color">#141414</item>
+        <item name="preferenceTheme">@style/PreferenceThemeOverlayLeanback</item>
+        <item name="alertDialogTheme">@style/Theme.AppCompat.Dialog.Alert</item>
+        <item name="colorAccent">@color/netflix_red</item>
+        <item name="colorControlActivated">@color/netflix_red</item>
+        <item name="colorControlNormal">#B3B3B3</item>
+        <item name="android:textColorPrimary">#FFFFFF</item>
+        <item name="android:textColorSecondary">#B3B3B3</item>
+        <item name="defaultBrandColor">#141414</item>
+        <item name="defaultSearchColor">#141414</item>
+        <item name="defaultSearchBrightColor">#262626</item>
+        <item name="defaultSearchIconColor">#FFFFFF</item>
         <item name="home_gradient_drawable">@drawable/bg_home_gradient_default</item>
         <item name="movie_banner_gradient_drawable">@drawable/bg_movie_banner_gradient_default</item>
         <item name="tv_show_banner_gradient_drawable">@drawable/bg_tv_show_banner_gradient_default</item>

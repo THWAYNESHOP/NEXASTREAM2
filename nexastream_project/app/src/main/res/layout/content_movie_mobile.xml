@@ -152,8 +152,7 @@
         app:layout_constraintEnd_toStartOf="@id/btn_movie_trailer"
         app:layout_constraintHorizontal_chainStyle="packed"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/tv_movie_genres"
-        app:layout_goneMarginEnd="10dp" />
+        app:layout_constraintTop_toBottomOf="@id/tv_movie_genres" />
 
     <ProgressBar
         android:id="@+id/pb_movie_progress"
@@ -175,12 +174,24 @@
         style="@style/AppTheme.Widget.Mobile.Button.Secondary"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginStart="24dp"
+        android:layout_marginStart="10dp"
+        android:layout_marginTop="26dp"
+        android:text="@string/movie_trailer"
+        app:layout_constraintEnd_toStartOf="@id/btn_movie_download"
+        app:layout_constraintStart_toEndOf="@id/btn_movie_watch_now"
+        app:layout_constraintTop_toBottomOf="@id/tv_movie_genres" />
+
+    <TextView
+        android:id="@+id/btn_movie_download"
+        style="@style/AppTheme.Widget.Mobile.Button.Secondary"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="10dp"
         android:layout_marginTop="26dp"
         android:layout_marginEnd="10dp"
-        android:text="@string/movie_trailer"
+        android:text="@string/movie_download"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toEndOf="@id/btn_movie_watch_now"
+        app:layout_constraintStart_toEndOf="@id/btn_movie_trailer"
         app:layout_constraintTop_toBottomOf="@id/tv_movie_genres" />
 
     <androidx.constraintlayout.widget.Barrier

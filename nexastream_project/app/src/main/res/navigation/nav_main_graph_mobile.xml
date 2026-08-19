@@ -232,6 +232,18 @@
             app:destination="@id/settings_about" />
     </fragment>
     <fragment
+        android:id="@+id/downloads"
+        android:name="com.nexastream.app.fragments.downloads.DownloadsFragment"
+        android:label="fragment_downloads" >
+        <action
+            android:id="@+id/action_downloads_to_player"
+            app:destination="@id/player" />
+    </fragment>
+    <fragment
+        android:id="@+id/live_guide"
+        android:name="com.nexastream.app.fragments.live_guide.LiveGuideFragment"
+        android:label="@string/main_menu_live_guide" />
+    <fragment
         android:id="@+id/settings_about"
         android:name="com.nexastream.app.fragments.settings.about.SettingsAboutMobileFragment"
         android:label="fragment_settings_about_mobile" />

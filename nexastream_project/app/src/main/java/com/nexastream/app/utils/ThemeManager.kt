@@ -8,6 +8,7 @@ import com.nexastream.app.R
 
 object ThemeManager {
     const val DEFAULT = "default"
+    const val NETFLIX_NOIR = "netflix_noir"
     const val NERO_AMOLED_OLED = "nero_amoled_oled"
     const val SUNSET_CINEMA = "sunset_cinema"
     const val STEEL_BLUE = "steel_blue"
@@ -30,6 +31,7 @@ object ThemeManager {
 
     @StyleRes
     fun mobileThemeRes(theme: String): Int = when (theme) {
+        NETFLIX_NOIR -> R.style.AppTheme_Mobile_NetflixNoir
         NERO_AMOLED_OLED -> R.style.AppTheme_Mobile_NeroAmoledOled
         SUNSET_CINEMA -> R.style.AppTheme_Mobile_SunsetCinema
         STEEL_BLUE -> R.style.AppTheme_Mobile_SteelBlue
@@ -44,6 +46,7 @@ object ThemeManager {
 
     @StyleRes
     fun tvThemeRes(theme: String): Int = when (theme) {
+        NETFLIX_NOIR -> R.style.AppTheme_NetflixNoir
         NERO_AMOLED_OLED -> R.style.AppTheme_NeroAmoledOled
         SUNSET_CINEMA -> R.style.AppTheme_SunsetCinema
         STEEL_BLUE -> R.style.AppTheme_SteelBlue
@@ -58,6 +61,7 @@ object ThemeManager {
 
     @StringRes
     fun titleRes(theme: String): Int = when (theme) {
+        NETFLIX_NOIR -> R.string.theme_netflix_noir
         NERO_AMOLED_OLED -> R.string.theme_nero_amoled_oled
         SUNSET_CINEMA -> R.string.theme_sunset_cinema
         STEEL_BLUE -> R.string.theme_steel_blue
@@ -71,6 +75,15 @@ object ThemeManager {
     }
 
     fun palette(theme: String): Palette = when (theme) {
+        NETFLIX_NOIR -> Palette(
+            mobileNavBackground = color("#141414"),
+            mobileNavActive = color("#E50914"),
+            mobileNavInactive = color("#808080"),
+            systemBar = color("#141414"),
+            tvNavBackground = color("#141414"),
+            tvHeaderPrimary = color("#FFFFFF"),
+            tvHeaderSecondary = color("#B3B3B3"),
+        )
         NERO_AMOLED_OLED -> Palette(
             mobileNavBackground = color("#000000"),
             mobileNavActive = color("#FFFFFF"),
@@ -153,13 +166,13 @@ object ThemeManager {
             tvHeaderSecondary = color("#CFB7DA"),
         )
         else -> Palette(
-            mobileNavBackground = color("#1E2129"),
-            mobileNavActive = color("#C6C6C6"),
+            mobileNavBackground = color("#141414"),
+            mobileNavActive = color("#E50914"),
             mobileNavInactive = color("#808080"),
-            systemBar = color("#1E2129"),
-            tvNavBackground = color("#181818"),
+            systemBar = color("#141414"),
+            tvNavBackground = color("#141414"),
             tvHeaderPrimary = color("#FFFFFF"),
-            tvHeaderSecondary = color("#B3FFFFFF"),
+            tvHeaderSecondary = color("#B3B3B3"),
         )
     }
 

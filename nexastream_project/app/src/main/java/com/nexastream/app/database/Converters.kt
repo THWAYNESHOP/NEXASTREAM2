@@ -1,6 +1,8 @@
 package com.nexastream.app.database
 
 import androidx.room.TypeConverter
+import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
 import com.nexastream.app.models.Season
 import com.nexastream.app.models.TvShow
 import com.nexastream.app.utils.format
@@ -39,5 +41,18 @@ class Converters {
     @TypeConverter
     fun toSeason(value: String?): Season? {
         return value?.let { Season(it, 0) }
+    }
+
+    @TypeConverter
+    fun fromStringMap(value: Map<String, String>?): String? {
+        return value?.let { Gson().toJson(it) }
+    }
+
+    @TypeConverter
+    fun toStringMap(value: String?): Map<String, String>? {
+        return value?.let {
+            val type = object : TypeToken<Map<String, String>>() {}.type
+            Gson().fromJson(it, type)
+        }
     }
 }

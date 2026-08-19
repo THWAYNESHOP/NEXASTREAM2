@@ -32,7 +32,7 @@ interface TvShowDao {
     fun getFavorites(): Flow<List<TvShow>>
 
     @Query("SELECT * FROM tv_shows WHERE isFavorite = 1 OR poster IS NULL OR poster = '' OR banner IS NULL OR banner = ''")
-    suspend fun getArtworkRepairCandidates(): List<TvShow>
+    fun getArtworkRepairCandidates(): List<TvShow>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     fun insert(tvShow: TvShow)
@@ -50,13 +50,13 @@ interface TvShowDao {
     fun getAll(): Flow<List<TvShow>>
 
     @Query("SELECT * FROM tv_shows WHERE poster IS NULL or poster = ''")
-    suspend fun getAllWithNullPoster(): List<TvShow>
+    fun getAllWithNullPoster(): List<TvShow>
 
     @Query("SELECT id FROM tv_shows")
-    suspend fun getAllIds(): List<String>
+    fun getAllIds(): List<String>
 
     @Query("SELECT * FROM tv_shows WHERE LOWER(title) LIKE '%' || :query || '%' LIMIT :limit OFFSET :offset")
-    suspend fun searchTvShows(query: String, limit: Int, offset: Int): List<TvShow>
+    fun searchTvShows(query: String, limit: Int, offset: Int): List<TvShow>
 
     @Query("DELETE FROM tv_shows")
     fun deleteAll()

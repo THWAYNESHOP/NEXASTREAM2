@@ -5,25 +5,32 @@ import android.app.Application
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Bundle
+import android.util.Log
+import androidx.media3.common.util.UnstableApi
 import java.security.Security
 import org.conscrypt.Conscrypt
 import dagger.hilt.android.HiltAndroidApp
 import com.nexastream.app.database.AppDatabase
-// 
-// 
 import com.nexastream.app.utils.AppLanguageManager
 import com.nexastream.app.utils.ArtworkRepairScheduler
 import com.nexastream.app.utils.CacheUtils
 import com.nexastream.app.utils.DnsResolver
 import com.nexastream.app.utils.IsrgRootTrustProvider
 import com.nexastream.app.utils.UserPreferences
+import com.nexastream.app.utils.DownloadManager as AppDownloadManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import javax.inject.Inject
 
 @HiltAndroidApp
 class NexastreamApp : Application() {
+
+    @OptIn(UnstableApi::class)
+    @Inject
+    lateinit var appDownloadManager: AppDownloadManager
+
     companion object {
         lateinit var instance: NexastreamApp
             private set
@@ -36,10 +43,12 @@ class NexastreamApp : Application() {
     private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     override fun attachBaseContext(base: Context) {
+        UserPreferences.setup(base)
         super.attachBaseContext(AppLanguageManager.wrap(base))
     }
 
     override fun onCreate() {
+        UserPreferences.setup(this)
         super.onCreate()
         instance = this
         registerActivityLifecycleCallbacks(object : ActivityLifecycleCallbacks {
@@ -75,9 +84,10 @@ class NexastreamApp : Application() {
         // network_security_config.xml is not supported so the certificate must be injected manually.
         IsrgRootTrustProvider.install()
 
-        // 2. Inizializzazione preferenze (con applicationContext)
-        UserPreferences.setup(this)
         DnsResolver.setDnsUrl(UserPreferences.dohProviderUrl)
+
+        @OptIn(UnstableApi::class)
+        Log.d("NexastreamApp", "DownloadManager initialized: ${appDownloadManager.hashCode()}")
 
         val appContext = applicationContext
         val isTv = packageManager.hasSystemFeature(PackageManager.FEATURE_LEANBACK)
@@ -85,6 +95,7 @@ class NexastreamApp : Application() {
 
         applicationScope.launch(Dispatchers.IO) {
             AppDatabase.setup(appContext)
+            appDownloadManager.recoverDownloads()
             // SerienStreamProvider.init(appContext)
             // AniWorldProvider.initialize(appContext)
             ArtworkRepairScheduler.schedule(appContext, UserPreferences.currentProvider)

@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.nexastream.app.models.Provider as ModelProvider
 import com.nexastream.app.providers.Provider
 import com.nexastream.app.providers.TmdbProvider
+import com.nexastream.app.providers.NexaHomeProvider
 import com.nexastream.app.utils.UserPreferences
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
@@ -40,6 +41,7 @@ class ProvidersViewModel @Inject constructor() : ViewModel() {
 
             val providers = Provider.providers.keys
                 .filter { 
+                    if (it is NexaHomeProvider) return@filter true
                     if (isFavoritesFilter) {
                         favorites.contains(it.name)
                     } else {
@@ -79,7 +81,8 @@ class ProvidersViewModel @Inject constructor() : ViewModel() {
                     isFavorite = favorites.contains(name)
                 )
             }.sortedWith(
-                compareBy<ModelProvider> { it.provider is TmdbProvider }
+                compareBy<ModelProvider> { it.provider !is NexaHomeProvider }
+                    .thenBy { it.provider is TmdbProvider }
                     .thenBy { it.name.lowercase(Locale.ROOT) }
             )
 

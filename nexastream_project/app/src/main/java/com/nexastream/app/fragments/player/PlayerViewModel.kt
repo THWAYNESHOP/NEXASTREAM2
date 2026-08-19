@@ -6,6 +6,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.nexastream.app.debrid.RealDebridManager
 import com.nexastream.app.models.Video
+import com.nexastream.app.providers.IptvProvider
 import com.nexastream.app.utils.EpisodeManager
 import com.nexastream.app.utils.OpenSubtitles
 import com.nexastream.app.utils.SubDL
@@ -20,6 +21,7 @@ import kotlinx.coroutines.launch
 class PlayerViewModel(
     videoType: Video.Type,
     id: String,
+    startImmediately: Boolean = true,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow<State>(State.LoadingServers)
@@ -31,9 +33,19 @@ class PlayerViewModel(
     private val _playPreviousOrNextEpisode = MutableSharedFlow<Video.Type.Episode>()
     val playPreviousOrNextEpisode: SharedFlow<Video.Type.Episode> = _playPreviousOrNextEpisode
 
+    private val initialVideoType = videoType
+    private val initialId = id
+    private var hasStarted = false
+
     init {
-        getServers(videoType, id)
-        getSubtitles(videoType)
+        if (startImmediately) start()
+    }
+
+    fun start() {
+        if (hasStarted) return
+        hasStarted = true
+        getServers(initialVideoType, initialId)
+        getSubtitles(initialVideoType)
     }
 
     fun playEpisode(direction: Direction) {
@@ -107,7 +119,11 @@ class PlayerViewModel(
             // 2. VixSrc (as default requested by user)
             // 3. Others (Provider default order)
             val preferredName = UserPreferences.preferredServerName
-            val finalServers = servers.distinctBy { it.id }.sortedWith { s1, s2 ->
+            val distinctServers = servers.distinctBy { it.id }
+            val finalServers = if (UserPreferences.currentProvider is IptvProvider) {
+                // IPTV providers already order mirrors using persisted health and latency.
+                distinctServers
+            } else distinctServers.sortedWith { s1, s2 ->
                 val n1 = s1.name.uppercase()
                 val n2 = s2.name.uppercase()
                 

@@ -22,6 +22,7 @@ import com.nexastream.app.databinding.FragmentHomeTvBinding
 import com.nexastream.app.models.Category
 import com.nexastream.app.models.Episode
 import com.nexastream.app.models.Movie
+import com.nexastream.app.models.SportMatch
 import com.nexastream.app.models.TvShow
 import com.nexastream.app.repositories.HomeRepository
 import com.nexastream.app.utils.CacheUtils
@@ -237,6 +238,7 @@ class HomeTvFragment : Fragment() {
                                 is Episode -> show.itemType = AppAdapter.Type.EPISODE_TV_ITEM
                                 is Movie -> show.itemType = AppAdapter.Type.MOVIE_TV_ITEM
                                 is TvShow -> show.itemType = AppAdapter.Type.TV_SHOW_TV_ITEM
+                                is SportMatch -> show.itemType = AppAdapter.Type.SPORT_MATCH_ITEM
                             }
                         }
                     }

@@ -4,24 +4,24 @@
     tools:showIn="@layout/activity_main_mobile">
 
     <item
-        android:id="@id/search"
-        android:icon="@drawable/ic_menu_search"
-        android:title="@string/main_menu_search" />
-
-    <item
         android:id="@id/home"
         android:icon="@drawable/ic_menu_home"
         android:title="@string/main_menu_home" />
 
     <item
-        android:id="@id/movies"
-        android:icon="@drawable/ic_menu_movie"
-        android:title="@string/main_menu_movies" />
-
-    <item
         android:id="@id/tv_shows"
         android:icon="@drawable/ic_menu_tv"
         android:title="@string/main_menu_tv_shows" />
+
+    <item
+        android:id="@id/live_guide"
+        android:icon="@drawable/ic_menu_guide"
+        android:title="@string/main_menu_live_guide" />
+
+    <item
+        android:id="@id/downloads"
+        android:icon="@drawable/ic_download"
+        android:title="@string/main_menu_downloads" />
 
     <item
         android:id="@id/settings"

@@ -60,6 +60,7 @@ interface Provider {
         )
 
         val providers: Map<Provider, ProviderSupport> = mapOf(
+            NexaHomeProvider to ProviderSupport(movies = true, tvShows = true),
             SflixProvider to ProviderSupport(movies = true, tvShows = true),
             StreamingCommunityProvider("it") to ProviderSupport(movies = true, tvShows = true),
             StreamingCommunityProvider("en") to ProviderSupport(movies = true, tvShows = true),
@@ -92,6 +93,7 @@ interface Provider {
             FrenchMangaProvider to ProviderSupport(movies = false, tvShows = true),
             IptvOrgProvider to ProviderSupport(movies = false, tvShows = true),
             IptvSpainProvider to ProviderSupport(movies = false, tvShows = true),
+            CdnLiveTvProvider to ProviderSupport(movies = false, tvShows = true),
             TvLibrefutbolProvider to ProviderSupport(movies = false, tvShows = true),
             PelotaLibreTvHdProvider to ProviderSupport(movies = false, tvShows = true),
             PlutoTvMxProvider to ProviderSupport(movies = false, tvShows = true),
@@ -135,6 +137,13 @@ interface Provider {
 
         fun supportsTvShows(provider: Provider): Boolean {
             return providers[provider]?.tvShows ?: false
+        }
+
+        fun supportsDownloads(provider: Provider?): Boolean {
+            if (provider == null || provider is IptvProvider) return false
+            if (provider is TmdbProvider) return true
+            val support = providers[provider] ?: return false
+            return support.movies || support.tvShows
         }
     }
 }

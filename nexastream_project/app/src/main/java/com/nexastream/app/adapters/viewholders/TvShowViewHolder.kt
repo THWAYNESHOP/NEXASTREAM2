@@ -8,12 +8,16 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.animation.AnimationUtils
 import android.widget.ImageView
+import android.widget.ProgressBar
+import android.widget.TextView
 import android.widget.Toast
 import android.util.Log
 import androidx.core.net.toUri
 import androidx.core.view.isVisible
 import androidx.lifecycle.findViewTreeLifecycleOwner
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.flowWithLifecycle
 import androidx.navigation.NavController
 import androidx.navigation.findNavController
 import androidx.recyclerview.widget.RecyclerView
@@ -50,6 +54,10 @@ import com.nexastream.app.models.Movie
 import com.nexastream.app.models.Season
 import com.nexastream.app.models.TvShow
 import com.nexastream.app.models.Video
+import com.nexastream.app.models.LiveChannelMetadata
+import com.nexastream.app.models.LiveHealthState
+import com.nexastream.app.live.LiveTvRepository
+import com.nexastream.app.live.LiveChannelOptionsDialog
 import com.nexastream.app.ui.SpacingItemDecoration
 import com.nexastream.app.ui.ShowOptionsMobileDialog
 import com.nexastream.app.ui.ShowOptionsTvDialog
@@ -63,6 +71,7 @@ import com.nexastream.app.utils.loadTvShowPoster
 import com.nexastream.app.utils.ArtworkRepair
 import com.nexastream.app.providers.Provider
 import java.util.Locale
+import kotlinx.coroutines.Job
 
 class TvShowViewHolder(
     private val _binding: ViewBinding
@@ -74,6 +83,7 @@ class TvShowViewHolder(
     private val database: AppDatabase
         get() = AppDatabase.getInstance(context)
     private lateinit var tvShow: TvShow
+    private var liveMetadataJob: Job? = null
 
     val childRecyclerView: RecyclerView?
         get() = when (_binding) {
@@ -107,9 +117,12 @@ class TvShowViewHolder(
             is ContentTvShowRecommendationsMobileBinding -> displayRecommendationsMobile(_binding)
             is ContentTvShowRecommendationsTvBinding -> displayRecommendationsTv(_binding)
         }
+
+        bindLiveMetadata()
     }
 
     private fun isIptvProvider(): Boolean {
+        if (tvShow.quality == "LIVE") return true
         val name = tvShow.providerName ?: UserPreferences.currentProvider?.name ?: ""
         val provider = Provider.providers.keys.find { it.name == name }
         return provider is IptvProvider
@@ -125,6 +138,9 @@ class TvShowViewHolder(
     }
 
     private fun handleDirectPlay(navController: NavController) {
+        tvShow.liveMetadata?.channelId?.let { channelId ->
+            LiveTvRepository.markChannelWatched(channelId, tvShow.id, tvShow.title)
+        }
         val videoType = Video.Type.Episode(
             id = tvShow.id,
             number = 1,
@@ -148,10 +164,89 @@ class TvShowViewHolder(
         val args = Bundle().apply {
             putString("id", tvShow.id)
             putString("title", tvShow.title)
-            putString("subtitle", tvShow.title)
+            putString("subtitle", tvShow.liveMetadata?.nowNext?.now?.title ?: tvShow.title)
             putSerializable("videoType", videoType)
         }
         navController.navigate(R.id.player, args)
+    }
+
+    private fun bindLiveMetadata() {
+        liveMetadataJob?.cancel()
+        if (!isIptvProvider()) return
+        applyLiveMetadata(tvShow.liveMetadata)
+        val channelId = tvShow.liveMetadata?.channelId ?: return
+        val owner = itemView.findViewTreeLifecycleOwner() ?: return
+        liveMetadataJob = owner.lifecycleScope.launch {
+            LiveTvRepository.observeNowNext(channelId)
+                .flowWithLifecycle(owner.lifecycle, Lifecycle.State.STARTED)
+                .collect { nowNext ->
+                    val updated = (tvShow.liveMetadata ?: LiveChannelMetadata(channelId)).copy(nowNext = nowNext)
+                    tvShow.liveMetadata = updated
+                    applyLiveMetadata(updated)
+                }
+        }
+    }
+
+    private fun applyLiveMetadata(metadata: LiveChannelMetadata?) {
+        val quality: TextView
+        val programme: TextView
+        val progress: ProgressBar
+        when (val binding = _binding) {
+            is ItemTvShowMobileBinding -> {
+                quality = binding.tvTvShowQuality
+                programme = binding.tvTvShowLastEpisode
+                progress = binding.pbTvShowProgress
+            }
+            is ItemTvShowTvBinding -> {
+                quality = binding.tvTvShowQuality
+                programme = binding.tvTvShowLastEpisode
+                progress = binding.pbTvShowProgress
+            }
+            is ItemTvShowGridMobileBinding -> {
+                quality = binding.tvTvShowQuality
+                programme = binding.tvTvShowLastEpisode
+                progress = binding.pbTvShowProgress
+            }
+            is ItemTvShowGridBinding -> {
+                quality = binding.tvTvShowQuality
+                programme = binding.tvTvShowLastEpisode
+                progress = binding.pbTvShowProgress
+            }
+            else -> return
+        }
+
+        val health = metadata?.health ?: LiveHealthState.UNKNOWN
+        val sourceText = metadata?.alternativeCount
+            ?.takeIf { it > 1 }
+            ?.let { " · $it sources" }
+            .orEmpty()
+        quality.text = "● ${metadata?.quality ?: "LIVE"}$sourceText"
+        quality.setTextColor(
+            when (health) {
+                LiveHealthState.HEALTHY -> android.graphics.Color.rgb(76, 217, 100)
+                LiveHealthState.DEGRADED -> android.graphics.Color.rgb(255, 193, 7)
+                LiveHealthState.OFFLINE -> android.graphics.Color.rgb(255, 82, 82)
+                LiveHealthState.UNKNOWN -> android.graphics.Color.LTGRAY
+            },
+        )
+        quality.isVisible = true
+
+        val nowNext = metadata?.nowNext
+        programme.text = when {
+            nowNext?.now != null && nowNext.next != null ->
+                "Now: ${nowNext.now.title}  ·  Next: ${nowNext.next.title}"
+            nowNext?.now != null -> "Now: ${nowNext.now.title}"
+            nowNext?.next != null -> "Next: ${nowNext.next.title}"
+            else -> "Schedule updating…"
+        }
+        val current = nowNext?.now
+        progress.progress = if (current != null) {
+            val length = (current.endMillis - current.startMillis).coerceAtLeast(1L)
+            (((System.currentTimeMillis() - current.startMillis) * 100L) / length).toInt().coerceIn(0, 100)
+        } else {
+            0
+        }
+        progress.isVisible = current != null
     }
 
     private fun tvShowArgs(): Bundle {
@@ -199,7 +294,8 @@ class TvShowViewHolder(
             }
         }
         binding.root.setOnLongClickListener {
-            ShowOptionsMobileDialog(context, tvShow).show()
+            if (isIptvProvider() && tvShow.liveMetadata != null) LiveChannelOptionsDialog.show(context, tvShow)
+            else ShowOptionsMobileDialog(context, tvShow).show()
             true
         }
         setPoster(binding.ivTvShowPoster)
@@ -216,7 +312,7 @@ class TvShowViewHolder(
             }
             isVisible = watchHistory != null
         }
-        binding.tvTvShowLastEpisode.text = if (isIptvProvider()) "" else tvShow.seasons.lastOrNull()?.episodes?.lastOrNull()?.let { "E${it.number}" } ?: tvShow.released?.format("yyyy") ?: context.getString(R.string.tv_show_item_type)
+        binding.tvTvShowLastEpisode.text = if (isIptvProvider()) "LIVE" else tvShow.seasons.lastOrNull()?.episodes?.lastOrNull()?.let { "E${it.number}" } ?: tvShow.released?.format("yyyy") ?: context.getString(R.string.tv_show_item_type)
         binding.tvTvShowTitle.text = tvShow.title
     }
 
@@ -232,7 +328,8 @@ class TvShowViewHolder(
                 }
             }
             setOnLongClickListener {
-                ShowOptionsTvDialog(context, tvShow).show()
+                if (isIptvProvider() && tvShow.liveMetadata != null) LiveChannelOptionsDialog.show(context, tvShow)
+                else ShowOptionsTvDialog(context, tvShow).show()
                 true
             }
             setOnFocusChangeListener { _, hasFocus ->
@@ -262,7 +359,7 @@ class TvShowViewHolder(
             }
             isVisible = watchHistory != null
         }
-        binding.tvTvShowLastEpisode.text = if (isIptvProvider()) "" else tvShow.seasons.lastOrNull()?.episodes?.lastOrNull()?.let { "E${it.number}" } ?: tvShow.released?.format("yyyy") ?: context.getString(R.string.tv_show_item_type)
+        binding.tvTvShowLastEpisode.text = if (isIptvProvider()) "LIVE" else tvShow.seasons.lastOrNull()?.episodes?.lastOrNull()?.let { "E${it.number}" } ?: tvShow.released?.format("yyyy") ?: context.getString(R.string.tv_show_item_type)
         binding.tvTvShowTitle.text = tvShow.title
     }
 
@@ -277,7 +374,8 @@ class TvShowViewHolder(
             }
         }
         binding.root.setOnLongClickListener {
-            ShowOptionsMobileDialog(context, tvShow).show()
+            if (isIptvProvider() && tvShow.liveMetadata != null) LiveChannelOptionsDialog.show(context, tvShow)
+            else ShowOptionsMobileDialog(context, tvShow).show()
             true
         }
         setPoster(binding.ivTvShowPoster)
@@ -294,7 +392,7 @@ class TvShowViewHolder(
             }
             isVisible = watchHistory != null
         }
-        binding.tvTvShowLastEpisode.text = if (isIptvProvider()) "" else tvShow.seasons.lastOrNull()?.episodes?.lastOrNull()?.let { "E${it.number}" } ?: tvShow.released?.format("yyyy") ?: context.getString(R.string.tv_show_item_type)
+        binding.tvTvShowLastEpisode.text = if (isIptvProvider()) "LIVE" else tvShow.seasons.lastOrNull()?.episodes?.lastOrNull()?.let { "E${it.number}" } ?: tvShow.released?.format("yyyy") ?: context.getString(R.string.tv_show_item_type)
         binding.tvTvShowTitle.text = tvShow.title
     }
 
@@ -310,7 +408,8 @@ class TvShowViewHolder(
                 }
             }
             setOnLongClickListener {
-                ShowOptionsTvDialog(context, tvShow).show()
+                if (isIptvProvider() && tvShow.liveMetadata != null) LiveChannelOptionsDialog.show(context, tvShow)
+                else ShowOptionsTvDialog(context, tvShow).show()
                 true
             }
             setOnFocusChangeListener { _, hasFocus ->
@@ -333,7 +432,7 @@ class TvShowViewHolder(
             }
             isVisible = watchHistory != null
         }
-        binding.tvTvShowLastEpisode.text = if (isIptvProvider()) "" else tvShow.seasons.lastOrNull()?.episodes?.lastOrNull()?.let { "E${it.number}" } ?: tvShow.released?.format("yyyy") ?: context.getString(R.string.tv_show_item_type)
+        binding.tvTvShowLastEpisode.text = if (isIptvProvider()) "LIVE" else tvShow.seasons.lastOrNull()?.episodes?.lastOrNull()?.let { "E${it.number}" } ?: tvShow.released?.format("yyyy") ?: context.getString(R.string.tv_show_item_type)
         binding.tvTvShowTitle.text = tvShow.title
     }
 

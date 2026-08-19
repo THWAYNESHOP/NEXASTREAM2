@@ -32,7 +32,7 @@ interface MovieDao {
     fun getFavorites(): Flow<List<Movie>>
 
     @Query("SELECT * FROM movies WHERE isFavorite = 1 OR poster IS NULL OR poster = '' OR banner IS NULL OR banner = ''")
-    suspend fun getArtworkRepairCandidates(): List<Movie>
+    fun getArtworkRepairCandidates(): List<Movie>
 
     @Query("SELECT * FROM movies WHERE lastEngagementTimeUtcMillis IS NOT NULL ORDER BY lastEngagementTimeUtcMillis DESC")
     fun getWatchingMovies(): Flow<List<Movie>>

@@ -21,6 +21,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.mediarouter.app.MediaRouteButton
+import com.google.android.gms.cast.framework.CastButtonFactory
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.PlaybackParameters
@@ -33,35 +35,21 @@ import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.ui.PlayerView
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.nexastream.app.models.Video
 import com.nexastream.app.utils.NetworkClient
+import com.nexastream.app.utils.UserPreferences
 import kotlinx.coroutines.delay
+import kotlin.time.Duration.Companion.seconds
 
 @OptIn(UnstableApi::class)
 @Composable
 fun PlayerScreen(
     onBack: () -> Unit = {},
-    viewModel: PlayerViewModel = viewModel()
+    viewModel: PlayerViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
-    
-    val okHttpClient = remember {
-        NetworkClient.default.newBuilder()
-            .addInterceptor { chain ->
-                val original = chain.request()
-                // Inject referer if needed for certain mirrors
-                val requestBuilder = original.newBuilder()
-                if (original.header("Referer") == null) {
-                    requestBuilder.header("Referer", original.url.toString())
-                }
-                chain.proceed(requestBuilder.build())
-            }
-            .build()
-    }
-
-    val httpDataSourceFactory = remember { OkHttpDataSource.Factory(okHttpClient) }
     
     val exoPlayer = remember {
         val renderersFactory = DefaultRenderersFactory(context).apply {
@@ -75,9 +63,8 @@ fun PlayerScreen(
                 2000 // Buffer for playback after rebuffer
             ).build()
 
-        val dataSourceFactory = DefaultDataSource.Factory(context, httpDataSourceFactory)
         ExoPlayer.Builder(context, renderersFactory)
-            .setMediaSourceFactory(DefaultMediaSourceFactory(context).setDataSourceFactory(dataSourceFactory))
+            .setMediaSourceFactory(DefaultMediaSourceFactory(context).setDataSourceFactory(viewModel.dataSourceFactory))
             .setLoadControl(loadControl)
             .build().apply {
                 playWhenReady = true
@@ -95,6 +82,15 @@ fun PlayerScreen(
         val listener = object : Player.Listener {
             override fun onIsPlayingChanged(playing: Boolean) {
                 isPlaying = playing
+                if (!playing) {
+                    viewModel.saveProgress(
+                        position = exoPlayer.currentPosition,
+                        duration = exoPlayer.duration,
+                        hasStarted = exoPlayer.hasStarted(),
+                        hasFinished = exoPlayer.hasFinished(),
+                        hasReallyFinished = exoPlayer.hasReallyFinished()
+                    )
+                }
             }
             override fun onPlayerError(error: PlaybackException) {
                 Log.e("PlayerScreen", "ExoPlayer Error: ${error.message}")
@@ -113,6 +109,13 @@ fun PlayerScreen(
         }
         exoPlayer.addListener(listener)
         onDispose {
+            viewModel.saveProgress(
+                position = exoPlayer.currentPosition,
+                duration = exoPlayer.duration,
+                hasStarted = exoPlayer.hasStarted(),
+                hasFinished = exoPlayer.hasFinished(),
+                hasReallyFinished = exoPlayer.hasReallyFinished()
+            )
             exoPlayer.removeListener(listener)
             exoPlayer.release()
         }
@@ -128,12 +131,13 @@ fun PlayerScreen(
 
     LaunchedEffect(uiState.video) {
         uiState.video?.let { video ->
-            httpDataSourceFactory.setDefaultRequestProperties(video.headers ?: emptyMap())
             val mediaItem = MediaItem.Builder()
                 .setUri(video.source)
                 .setMimeType(video.type)
                 .build()
             exoPlayer.setMediaItem(mediaItem)
+            val resumePosition = viewModel.resolveResumePosition()
+            exoPlayer.seekTo(resumePosition)
             exoPlayer.prepare()
         }
     }
@@ -211,8 +215,19 @@ fun PlayerScreen(
                     )
                     
                     if (!isLocked) {
-                        IconButton(onClick = onBack) {
-                            Icon(Icons.Default.Close, contentDescription = "Close", tint = Color.White)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            AndroidView(
+                                factory = { context ->
+                                    MediaRouteButton(context).apply {
+                                        CastButtonFactory.setUpMediaRouteButton(context, this)
+                                    }
+                                },
+                                modifier = Modifier.size(32.dp)
+                            )
+                            Spacer(modifier = Modifier.width(16.dp))
+                            IconButton(onClick = onBack) {
+                                Icon(Icons.Default.Close, contentDescription = "Close", tint = Color.White)
+                            }
                         }
                     }
                 }
@@ -408,4 +423,17 @@ private fun formatTime(ms: Long): String {
     val minutes = totalSeconds / 60
     val seconds = totalSeconds % 60
     return "%02d:%02d".format(minutes, seconds)
+}
+
+private fun Player.hasStarted(): Boolean {
+    return (this.currentPosition > (this.duration * 0.005) || this.currentPosition > 20.seconds.inWholeMilliseconds)
+}
+
+private fun Player.hasFinished(): Boolean {
+    return (this.currentPosition > (this.duration * 0.90))
+}
+
+private fun Player.hasReallyFinished(): Boolean {
+    return this.duration > 0 &&
+            this.currentPosition >= (this.duration - UserPreferences.autoplayBuffer * 1000)
 }

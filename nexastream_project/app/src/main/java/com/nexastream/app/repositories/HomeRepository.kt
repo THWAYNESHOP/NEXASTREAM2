@@ -25,6 +25,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.withContext
 import java.util.concurrent.ConcurrentHashMap
 
 class HomeRepository(
@@ -123,7 +124,7 @@ class HomeRepository(
         return UserDataCache.userDataFlow(context, provider)
     }
 
-    suspend fun updateUserDataCache(provider: Provider, currentCache: UserDataCache.UserData?) {
+    suspend fun updateUserDataCache(provider: Provider, currentCache: UserDataCache.UserData?) = withContext(Dispatchers.IO) {
         val movies = database.movieDao().getFavorites().first()
         val tvShows = database.tvShowDao().getFavorites().first()
         val watchingMovies = database.movieDao().getWatchingMovies().first()

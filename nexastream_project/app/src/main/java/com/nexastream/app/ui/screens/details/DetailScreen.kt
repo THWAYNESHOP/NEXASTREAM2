@@ -14,6 +14,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -21,23 +22,73 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
+import com.nexastream.app.R
 import com.nexastream.app.models.*
+import com.nexastream.app.utils.UserPreferences
+import com.nexastream.app.providers.Provider
 import com.nexastream.app.ui.components.MoviePoster
+import com.nexastream.app.utils.DownloadQualityFormatter
 import com.nexastream.app.utils.format
 
 @Composable
 fun DetailScreen(
     onPlayClick: (String) -> Unit,
     onShowClick: (String) -> Unit,
-    viewModel: DetailViewModel = viewModel()
+    viewModel: DetailViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    var showDownloadDialog by remember { mutableStateOf(false) }
+    var selectedVideoType by remember { mutableStateOf<Video.Type?>(null) }
+
+    if (showDownloadDialog) {
+        AlertDialog(
+            onDismissRequest = { showDownloadDialog = false },
+            title = { Text(stringResource(id = R.string.detail_download_quality_title)) },
+            text = {
+                Column {
+                    LaunchedEffect(selectedVideoType) {
+                        selectedVideoType?.let { type ->
+                            val downloadId = when (type) {
+                                is Video.Type.Movie -> type.id
+                                is Video.Type.Episode -> type.id
+                            }
+                            viewModel.loadServers(downloadId, type)
+                        }
+                    }
+
+                    if (uiState.servers.isEmpty()) {
+                        CircularProgressIndicator(color = Color.Red)
+                    } else {
+                        uiState.servers.forEach { server ->
+                            val details = DownloadQualityFormatter.details(server)
+                            ListItem(
+                                headlineContent = { Text(DownloadQualityFormatter.title(server)) },
+                                supportingContent = {
+                                    if (details.isNotBlank()) {
+                                        Text(details)
+                                    }
+                                },
+                                modifier = Modifier.clickable {
+                                    selectedVideoType?.let { viewModel.startDownload(server, it) }
+                                    showDownloadDialog = false
+                                }
+                            )
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showDownloadDialog = false }) { Text(stringResource(id = R.string.option_cancel)) }
+            }
+        )
+    }
 
     Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
         if (uiState.isLoading) {
@@ -47,7 +98,7 @@ fun DetailScreen(
                 modifier = Modifier.align(Alignment.Center).padding(32.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Text(text = "Oops!", color = Color.Red, style = MaterialTheme.typography.headlineSmall)
+                Text(text = stringResource(id = R.string.detail_error_title), color = Color.Red, style = MaterialTheme.typography.headlineSmall)
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(text = uiState.error!!, color = Color.White, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
                 Spacer(modifier = Modifier.height(24.dp))
@@ -55,7 +106,7 @@ fun DetailScreen(
                     onClick = { viewModel.retry() },
                     colors = ButtonDefaults.buttonColors(containerColor = Color.Red)
                 ) {
-                    Text("Retry")
+                    Text(stringResource(id = R.string.loading_error_retry))
                 }
             }
         } else if (uiState.show != null) {
@@ -127,6 +178,8 @@ fun DetailScreen(
                         Spacer(modifier = Modifier.height(16.dp))
 
                         Row(modifier = Modifier.fillMaxWidth()) {
+                            val downloadsSupported = Provider.supportsDownloads(UserPreferences.currentProvider)
+
                             Button(
                                 onClick = { onPlayClick(show.id) },
                                 modifier = Modifier.weight(1f),
@@ -135,7 +188,24 @@ fun DetailScreen(
                             ) {
                                 Icon(Icons.Default.PlayArrow, contentDescription = null, tint = Color.Black)
                                 Spacer(modifier = Modifier.width(8.dp))
-                                Text("Play", color = Color.Black, fontWeight = FontWeight.Bold)
+                                Text(stringResource(id = R.string.detail_play), color = Color.Black, fontWeight = FontWeight.Bold)
+                            }
+
+                            if (show is Movie && downloadsSupported) {
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Button(
+                                    onClick = {
+                                        selectedVideoType = Video.Type.Movie(show.id, show.title, show.released?.format("yyyy-MM-dd") ?: "", show.poster ?: "", show.imdbId)
+                                        showDownloadDialog = true
+                                    },
+                                    modifier = Modifier.weight(1f),
+                                    colors = ButtonDefaults.buttonColors(containerColor = Color.DarkGray),
+                                    shape = RoundedCornerShape(4.dp)
+                                ) {
+                                    Icon(Icons.Default.Download, contentDescription = null, tint = Color.White)
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(stringResource(id = R.string.movie_download), color = Color.White, fontWeight = FontWeight.Bold)
+                                }
                             }
                             
                             Spacer(modifier = Modifier.width(8.dp))
@@ -193,7 +263,32 @@ fun DetailScreen(
                     
                     selectedSeason?.episodes?.let { episodes ->
                         items(episodes) { episode ->
-                            EpisodeItem(episode = episode, onClick = { onPlayClick(episode.id) })
+                            EpisodeItem(
+                                episode = episode,
+                                onClick = { onPlayClick(episode.id) },
+                                onDownloadClick = {
+                                    selectedVideoType = Video.Type.Episode(
+                                        id = episode.id,
+                                        number = episode.number,
+                                        title = episode.title,
+                                        poster = episode.poster,
+                                        overview = episode.overview,
+                                        tvShow = Video.Type.Episode.TvShow(
+                                            id = show.id,
+                                            title = show.title,
+                                            poster = show.poster,
+                                            banner = show.banner,
+                                            releaseDate = show.released?.format("yyyy-MM-dd"),
+                                            imdbId = show.imdbId,
+                                        ),
+                                        season = Video.Type.Episode.Season(
+                                            number = selectedSeason!!.number,
+                                            title = selectedSeason!!.title,
+                                        ),
+                                    )
+                                    showDownloadDialog = true
+                                }
+                            )
                         }
                     }
                 }
@@ -221,7 +316,7 @@ fun DetailScreen(
 fun CastRow(cast: List<People>) {
     Column(modifier = Modifier.padding(vertical = 16.dp)) {
         Text(
-            text = "Cast",
+            text = stringResource(id = R.string.tv_show_cast),
             color = Color.White,
             fontSize = 18.sp,
             fontWeight = FontWeight.Bold,
@@ -275,7 +370,7 @@ fun SeasonSelector(
             colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
             border = BorderStroke(1.dp, Color.Gray)
         ) {
-            Text(text = selectedSeason?.title ?: "Select Season")
+            Text(text = selectedSeason?.title ?: stringResource(id = R.string.detail_select_season))
         }
         
         DropdownMenu(
@@ -297,7 +392,13 @@ fun SeasonSelector(
 }
 
 @Composable
-fun EpisodeItem(episode: Episode, onClick: () -> Unit) {
+fun EpisodeItem(
+    episode: Episode,
+    onClick: () -> Unit,
+    onDownloadClick: () -> Unit
+) {
+    val downloadsSupported = Provider.supportsDownloads(UserPreferences.currentProvider)
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -305,16 +406,26 @@ fun EpisodeItem(episode: Episode, onClick: () -> Unit) {
             .padding(16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        AsyncImage(
-            model = episode.poster,
-            contentDescription = null,
-            contentScale = ContentScale.Crop,
-            modifier = Modifier
-                .width(120.dp)
-                .height(70.dp)
-                .clip(RoundedCornerShape(4.dp))
-                .background(Color.DarkGray)
-        )
+        Box(modifier = Modifier.width(120.dp).height(70.dp)) {
+            AsyncImage(
+                model = episode.poster,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(Color.DarkGray)
+            )
+            Box(
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .size(32.dp)
+                    .clip(CircleShape)
+                    .background(Color.Black.copy(alpha = 0.5f))
+            ) {
+                Icon(Icons.Default.PlayArrow, contentDescription = null, tint = Color.White, modifier = Modifier.align(Alignment.Center))
+            }
+        }
         
         Spacer(modifier = Modifier.width(12.dp))
         
@@ -333,6 +444,12 @@ fun EpisodeItem(episode: Episode, onClick: () -> Unit) {
                 overflow = TextOverflow.Ellipsis
             )
         }
+
+        if (downloadsSupported) {
+            IconButton(onClick = onDownloadClick) {
+                Icon(Icons.Default.Download, contentDescription = "Download", tint = Color.Gray)
+            }
+        }
     }
 }
 
@@ -343,7 +460,7 @@ fun RecommendationsRow(
 ) {
     Column(modifier = Modifier.padding(vertical = 16.dp)) {
         Text(
-            text = "More Like This",
+            text = stringResource(id = R.string.detail_more_like_this),
             color = Color.White,
             fontSize = 18.sp,
             fontWeight = FontWeight.Bold,

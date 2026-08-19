@@ -20,6 +20,7 @@ abstract class Extractor {
 
     companion object {
         private val extractors = listOf(
+            EmbedStExtractor(),
             RabbitstreamExtractor(),
             RabbitstreamExtractor.MegacloudExtractor(),
             RabbitstreamExtractor.DokicloudExtractor(),
@@ -41,6 +42,7 @@ abstract class Extractor {
             MoflixExtractor(),
             MStreamDayExtractor(),
             VidsrcNetExtractor(),
+            CrichdExtractor(),
             StreamWishExtractor(),
             StreamWishExtractor.UqloadsXyz(),
             StreamWishExtractor.SwishExtractor(),
@@ -117,7 +119,8 @@ abstract class Extractor {
             ZillaExtractor(),
             PDrainExtractor(),
             MaxstreamExtractor(),
-            VidxGoExtractor()
+            VidxGoExtractor(),
+            EmbedStExtractor()
         )
 
         suspend fun extract(link: String, server: Video.Server? = null): Video {

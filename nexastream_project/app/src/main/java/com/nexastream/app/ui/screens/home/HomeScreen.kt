@@ -10,8 +10,10 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.nexastream.app.R
 import com.nexastream.app.models.Show
 import com.nexastream.app.ui.components.HeroComponent
 import com.nexastream.app.ui.components.NexastreamTopBar
@@ -66,7 +68,7 @@ fun HomeScreen(
                     item { Spacer(modifier = Modifier.height(24.dp)) }
                     item {
                         PosterRow(
-                            title = "Continue Watching",
+                            title = stringResource(id = R.string.home_continue_watching),
                             shows = uiState.continueWatching,
                             onShowClick = onMovieClick
                         )

@@ -1,5 +1,6 @@
 package com.nexastream.app.trakt
 
+import com.nexastream.app.BuildConfig
 import com.nexastream.app.utils.UserPreferences
 import okhttp3.OkHttpClient
 import retrofit2.Retrofit
@@ -7,8 +8,8 @@ import retrofit2.converter.gson.GsonConverterFactory
 
 object TraktManager {
     private const val BASE_URL = "https://api.trakt.tv/"
-    private const val CLIENT_ID = "YOUR_TRAKT_CLIENT_ID" // Placeholder
-    private const val CLIENT_SECRET = "YOUR_TRAKT_CLIENT_SECRET" // Placeholder
+    private val CLIENT_ID = BuildConfig.TRAKT_CLIENT_ID
+    private val CLIENT_SECRET = BuildConfig.TRAKT_CLIENT_SECRET
 
     private val service: TraktService by lazy {
         val client = OkHttpClient.Builder().build()

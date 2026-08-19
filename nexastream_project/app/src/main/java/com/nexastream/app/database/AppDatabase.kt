@@ -11,10 +11,21 @@ import com.nexastream.app.database.dao.EpisodeDao
 import com.nexastream.app.database.dao.MovieDao
 import com.nexastream.app.database.dao.SeasonDao
 import com.nexastream.app.database.dao.TvShowDao
+import com.nexastream.app.database.dao.DownloadDao
+import com.nexastream.app.database.dao.LiveTvDao
 import com.nexastream.app.models.Episode
 import com.nexastream.app.models.Movie
 import com.nexastream.app.models.Season
 import com.nexastream.app.models.TvShow
+import com.nexastream.app.models.Download
+import com.nexastream.app.models.EpgProgram
+import com.nexastream.app.models.EpgChannelMapping
+import com.nexastream.app.models.LiveChannelPreference
+import com.nexastream.app.models.LivePlaybackDiagnostic
+import com.nexastream.app.models.LiveRecording
+import com.nexastream.app.models.LiveStreamHealth
+import com.nexastream.app.models.ProgramReminder
+import com.nexastream.app.models.XmlTvChannel
 import com.nexastream.app.utils.UserPreferences
 
 @Database(
@@ -23,8 +34,17 @@ import com.nexastream.app.utils.UserPreferences
         Movie::class,
         Season::class,
         TvShow::class,
+        Download::class,
+        EpgProgram::class,
+        LiveStreamHealth::class,
+        ProgramReminder::class,
+        LiveRecording::class,
+        LiveChannelPreference::class,
+        LivePlaybackDiagnostic::class,
+        XmlTvChannel::class,
+        EpgChannelMapping::class,
     ],
-    version = 8,
+    version = 17,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -37,6 +57,10 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun seasonDao(): SeasonDao
 
     abstract fun episodeDao(): EpisodeDao
+
+    abstract fun downloadDao(): DownloadDao
+
+    abstract fun liveTvDao(): LiveTvDao
 
     companion object {
 
@@ -98,17 +122,151 @@ abstract class AppDatabase : RoomDatabase() {
                 klass = AppDatabase::class.java,
                 name = dbName
             )
-                .allowMainThreadQueries()
-                .addMigrations(MIGRATION_1_2)
-                .addMigrations(MIGRATION_2_3)
-                .addMigrations(MIGRATION_3_4)
-                .addMigrations(MIGRATION_4_5)
-                .addMigrations(MIGRATION_5_6)
-                .addMigrations(MIGRATION_6_7)
-                .addMigrations(MIGRATION_7_8)
+                .fallbackToDestructiveMigration()
+                .addMigrations(*ALL_MIGRATIONS)
                 .build()
         }
 
+        private fun addColumnIfMissing(
+            db: SupportSQLiteDatabase,
+            table: String,
+            column: String,
+            definition: String,
+        ) {
+            val cursor = db.query("PRAGMA table_info(`$table`)")
+            cursor.use {
+                val nameIndex = it.getColumnIndex("name")
+                while (it.moveToNext()) {
+                    if (it.getString(nameIndex) == column) return
+                }
+            }
+            db.execSQL("ALTER TABLE `$table` ADD COLUMN $definition")
+        }
+
+        private val MIGRATION_8_9: Migration = object : Migration(8, 9) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("CREATE TABLE IF NOT EXISTS `downloads` (`id` TEXT NOT NULL, `title` TEXT NOT NULL, `poster` TEXT, `filePath` TEXT NOT NULL, `url` TEXT NOT NULL, `status` TEXT NOT NULL, `progress` INTEGER NOT NULL, `totalSize` INTEGER NOT NULL, `quality` TEXT, `headers` TEXT, `mimeType` TEXT, `errorMessage` TEXT, `createdAt` INTEGER NOT NULL, PRIMARY KEY(`id`))")
+            }
+        }
+
+        private val MIGRATION_9_10: Migration = object : Migration(9, 10) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                addColumnIfMissing(db, "downloads", "url", "`url` TEXT NOT NULL DEFAULT ''")
+            }
+        }
+
+        private val MIGRATION_10_11: Migration = object : Migration(10, 11) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                addColumnIfMissing(db, "downloads", "headers", "`headers` TEXT")
+                addColumnIfMissing(db, "downloads", "errorMessage", "`errorMessage` TEXT")
+            }
+        }
+
+        private val MIGRATION_11_12: Migration = object : Migration(11, 12) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                addColumnIfMissing(db, "downloads", "mimeType", "`mimeType` TEXT")
+            }
+        }
+
+        private val MIGRATION_12_13: Migration = object : Migration(12, 13) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // Version bump to fix integrity hash issues
+            }
+        }
+
+        val MIGRATION_13_14: Migration = object : Migration(13, 14) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                addColumnIfMissing(db, "downloads", "downloadedSize", "`downloadedSize` INTEGER NOT NULL DEFAULT 0")
+                addColumnIfMissing(db, "downloads", "downloadSpeed", "`downloadSpeed` INTEGER NOT NULL DEFAULT 0")
+                addColumnIfMissing(db, "downloads", "etaSeconds", "`etaSeconds` INTEGER")
+            }
+        }
+
+        val MIGRATION_15_16: Migration = object : Migration(15, 16) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `epg_programs` (" +
+                        "`programId` TEXT NOT NULL, `channelId` TEXT NOT NULL, " +
+                        "`title` TEXT NOT NULL, `description` TEXT, `category` TEXT, `icon` TEXT, " +
+                        "`startMillis` INTEGER NOT NULL, `endMillis` INTEGER NOT NULL, " +
+                        "`sourceUrl` TEXT NOT NULL, `updatedAt` INTEGER NOT NULL, " +
+                        "PRIMARY KEY(`programId`))",
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_epg_programs_channelId_startMillis` ON `epg_programs` (`channelId`, `startMillis`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_epg_programs_endMillis` ON `epg_programs` (`endMillis`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_epg_programs_sourceUrl` ON `epg_programs` (`sourceUrl`)")
+
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `live_stream_health` (" +
+                        "`streamKey` TEXT NOT NULL, `channelId` TEXT NOT NULL, `streamUrl` TEXT NOT NULL, " +
+                        "`lastSuccessMillis` INTEGER, `lastFailureMillis` INTEGER, " +
+                        "`consecutiveFailures` INTEGER NOT NULL, `latencyMs` INTEGER, `lastError` TEXT, " +
+                        "PRIMARY KEY(`streamKey`))",
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_live_stream_health_channelId` ON `live_stream_health` (`channelId`)")
+
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `program_reminders` (" +
+                        "`programId` TEXT NOT NULL, `channelId` TEXT NOT NULL, `channelName` TEXT NOT NULL, " +
+                        "`title` TEXT NOT NULL, `startMillis` INTEGER NOT NULL, `endMillis` INTEGER NOT NULL, " +
+                        "`channelPayload` TEXT NOT NULL, `createdAt` INTEGER NOT NULL, `firedAt` INTEGER, " +
+                        "PRIMARY KEY(`programId`))",
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_program_reminders_startMillis` ON `program_reminders` (`startMillis`)")
+
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `live_recordings` (" +
+                        "`recordingId` TEXT NOT NULL, `channelId` TEXT NOT NULL, `title` TEXT NOT NULL, " +
+                        "`filePath` TEXT NOT NULL, `sourceUrl` TEXT NOT NULL, `status` TEXT NOT NULL, " +
+                        "`startedAt` INTEGER NOT NULL, `endedAt` INTEGER, `bytesWritten` INTEGER NOT NULL, " +
+                        "`error` TEXT, `mimeType` TEXT NOT NULL, PRIMARY KEY(`recordingId`))",
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_live_recordings_channelId_status` ON `live_recordings` (`channelId`, `status`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_live_recordings_startedAt` ON `live_recordings` (`startedAt`)")
+            }
+        }
+
+        val MIGRATION_16_17: Migration = object : Migration(16, 17) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `live_channel_preferences` (" +
+                        "`channelId` TEXT NOT NULL, `channelPayload` TEXT NOT NULL, " +
+                        "`channelName` TEXT NOT NULL, `isFavorite` INTEGER NOT NULL, " +
+                        "`customGroup` TEXT, `lastWatchedAt` INTEGER, `updatedAt` INTEGER NOT NULL, " +
+                        "PRIMARY KEY(`channelId`))",
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_live_channel_preferences_isFavorite` ON `live_channel_preferences` (`isFavorite`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_live_channel_preferences_customGroup` ON `live_channel_preferences` (`customGroup`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_live_channel_preferences_lastWatchedAt` ON `live_channel_preferences` (`lastWatchedAt`)")
+
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `live_playback_diagnostics` (" +
+                        "`eventId` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `channelId` TEXT NOT NULL, " +
+                        "`channelName` TEXT NOT NULL, `streamKey` TEXT NOT NULL, `host` TEXT NOT NULL, " +
+                        "`quality` TEXT, `event` TEXT NOT NULL, `message` TEXT, `latencyMs` INTEGER, " +
+                        "`timestamp` INTEGER NOT NULL)",
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_live_playback_diagnostics_channelId_timestamp` ON `live_playback_diagnostics` (`channelId`, `timestamp`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_live_playback_diagnostics_timestamp` ON `live_playback_diagnostics` (`timestamp`)")
+
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `xmltv_channels` (" +
+                        "`sourceUrl` TEXT NOT NULL, `xmlTvChannelId` TEXT NOT NULL, " +
+                        "`displayName` TEXT NOT NULL, `icon` TEXT, `updatedAt` INTEGER NOT NULL, " +
+                        "PRIMARY KEY(`sourceUrl`, `xmlTvChannelId`))",
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_xmltv_channels_displayName` ON `xmltv_channels` (`displayName`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_xmltv_channels_xmlTvChannelId` ON `xmltv_channels` (`xmlTvChannelId`)")
+
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `epg_channel_mappings` (" +
+                        "`channelId` TEXT NOT NULL, `sourceUrl` TEXT NOT NULL, " +
+                        "`xmlTvChannelId` TEXT NOT NULL, `updatedAt` INTEGER NOT NULL, " +
+                        "PRIMARY KEY(`channelId`))",
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_epg_channel_mappings_sourceUrl_xmlTvChannelId` ON `epg_channel_mappings` (`sourceUrl`, `xmlTvChannelId`)")
+            }
+        }
 
         private val MIGRATION_1_2: Migration = object : Migration(1, 2) {
             override fun migrate(db: SupportSQLiteDatabase) {
@@ -184,5 +342,23 @@ abstract class AppDatabase : RoomDatabase() {
                 // but are now formally declared in Entity classes, requiring a version bump.
             }
         }
+
+        val ALL_MIGRATIONS = arrayOf(
+            MIGRATION_1_2,
+            MIGRATION_2_3,
+            MIGRATION_3_4,
+            MIGRATION_4_5,
+            MIGRATION_5_6,
+            MIGRATION_6_7,
+            MIGRATION_7_8,
+            MIGRATION_8_9,
+            MIGRATION_9_10,
+            MIGRATION_10_11,
+            MIGRATION_11_12,
+            MIGRATION_12_13,
+            MIGRATION_13_14,
+            MIGRATION_15_16,
+            MIGRATION_16_17,
+        )
     }
 }

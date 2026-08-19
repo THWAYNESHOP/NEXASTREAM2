@@ -4,6 +4,8 @@ NexaStream is a modern Android application for streaming movies and TV shows, fe
 
 ## 🚀 Recent Improvements
 
+- **Download Quality Picker**: Implemented a comprehensive quality selector for downloads. Users can now see and choose between different resolutions (360p to 4K), formats (MP4, HLS, DASH), and file sizes before starting a download.
+- **Improved Download Identifiers**: Fixed a critical issue where TV show episode downloads shared the same ID as the series. Episodes now have unique identifiers and formatted titles (e.g., "Show Name - S01E01") in the download list and system notifications.
 - **Fixed Video Playback**: Resolved critical issues where missing TV show metadata caused empty IDs to be passed to video servers (e.g., VixSrc), ensuring seamless playback across all providers.
 - **Optimized Server Selection**: Implemented a "Preferred Server" logic. The app now remembers your manually selected server and prioritizes it for future episodes.
 - **Default Priority for VixSrc**: Set VixSrc as the primary default server across all regions for the most reliable streaming experience.

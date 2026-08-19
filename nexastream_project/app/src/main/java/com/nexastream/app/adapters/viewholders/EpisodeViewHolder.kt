@@ -8,6 +8,8 @@ import androidx.recyclerview.widget.RecyclerView
 import androidx.viewbinding.ViewBinding
 import com.bumptech.glide.Glide
 import com.bumptech.glide.load.resource.drawable.DrawableTransitionOptions
+import androidx.core.view.isVisible
+import com.nexastream.app.providers.Provider
 import com.nexastream.app.R
 import com.nexastream.app.databinding.ItemEpisodeContinueWatchingMobileBinding
 import com.nexastream.app.databinding.ItemEpisodeContinueWatchingTvBinding
@@ -28,8 +30,18 @@ import com.nexastream.app.utils.EpisodeManager
 import com.nexastream.app.utils.UserPreferences
 import com.nexastream.app.utils.format
 import com.nexastream.app.utils.getCurrentFragment
+import android.util.Log
+import com.nexastream.app.utils.DownloadManager
 import com.nexastream.app.utils.loadTvShowCardArtwork
 import com.nexastream.app.utils.toActivity
+import android.app.AlertDialog
+import android.widget.Toast
+import androidx.lifecycle.findViewTreeLifecycleOwner
+import androidx.lifecycle.lifecycleScope
+import com.nexastream.app.utils.DownloadQualityFormatter
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class EpisodeViewHolder(
     private val _binding: ViewBinding
@@ -38,6 +50,19 @@ class EpisodeViewHolder(
 ) {
 
     private val context = itemView.context
+    private val downloadManager: DownloadManager by lazy {
+        dagger.hilt.android.EntryPointAccessors.fromApplication(
+            context.applicationContext,
+            DownloadManagerEntryPoint::class.java
+        ).downloadManager()
+    }
+
+    @dagger.hilt.EntryPoint
+    @dagger.hilt.InstallIn(dagger.hilt.components.SingletonComponent::class)
+    interface DownloadManagerEntryPoint {
+        fun downloadManager(): DownloadManager
+    }
+
     private lateinit var episode: Episode
 
     fun bind(episode: Episode) {
@@ -149,6 +174,13 @@ class EpisodeViewHolder(
             }
         }
         binding.tvEpisodeOverview.text = episode.overview ?: ""
+
+        binding.btnEpisodeDownload.apply {
+            isVisible = Provider.supportsDownloads(UserPreferences.currentProvider)
+            setOnClickListener {
+                showDownloadDialog()
+            }
+        }
     }
 
     private fun displayTvItem(binding: ItemEpisodeTvBinding) {
@@ -257,6 +289,13 @@ class EpisodeViewHolder(
             }
         }
         binding.tvEpisodeOverview.text = episode.overview ?: ""
+
+        binding.btnEpisodeDownload.apply {
+            isVisible = Provider.supportsDownloads(UserPreferences.currentProvider)
+            setOnClickListener {
+                showDownloadDialog()
+            }
+        }
     }
 
     private fun displayContinueWatchingMobileItem(binding: ItemEpisodeContinueWatchingMobileBinding) {
@@ -479,6 +518,99 @@ class EpisodeViewHolder(
                 episode.number
             )
         )
+    }
+
+    private fun showDownloadDialog() {
+        Log.d("DownloadDebug", "showDownloadDialog called for episode ${episode.number}")
+        val provider = UserPreferences.currentProvider ?: run {
+            Log.e("DownloadDebug", "Current provider is null")
+            return
+        }
+        if (!Provider.supportsDownloads(provider)) return
+        val activity = context.toActivity()
+        Log.d("DownloadDebug", "Activity found: ${activity != null}")
+
+        val lifecycleScope = itemView.findViewTreeLifecycleOwner()?.lifecycleScope
+            ?: activity?.lifecycleScope
+            ?: run {
+                Log.e("DownloadDebug", "Lifecycle scope not found")
+                return
+            }
+
+        val videoType = Video.Type.Episode(
+            id = episode.id,
+            number = episode.number,
+            title = episode.title,
+            poster = episode.poster,
+            overview = episode.overview,
+            tvShow = Video.Type.Episode.TvShow(
+                id = episode.tvShow?.id ?: "",
+                title = episode.tvShow?.title ?: "",
+                poster = episode.tvShow?.poster,
+                banner = episode.tvShow?.banner,
+                releaseDate = episode.tvShow?.released?.format("yyyy-MM-dd"),
+                imdbId = episode.tvShow?.imdbId,
+            ),
+            season = Video.Type.Episode.Season(
+                number = episode.season?.number ?: 0,
+                title = episode.season?.title,
+            ),
+        )
+
+        Toast.makeText(context, "Loading servers...", Toast.LENGTH_SHORT).show()
+
+        lifecycleScope.launch {
+            try {
+                val servers = withContext(Dispatchers.IO) {
+                    provider.getServers(episode.id, videoType)
+                }
+
+                if (servers.isEmpty()) {
+                    Toast.makeText(context, "No servers found for download", Toast.LENGTH_SHORT).show()
+                    return@launch
+                }
+
+                AlertDialog.Builder(context)
+                    .setTitle("Select Download Quality")
+                    .setItems(servers.map { downloadQualityDialogLabel(it) }.toTypedArray()) { _, which ->
+                        val selectedServer = servers[which]
+                        lifecycleScope.launch {
+                            try {
+                                Toast.makeText(context, "Starting extraction...", Toast.LENGTH_SHORT).show()
+                                val video = withContext(Dispatchers.IO) {
+                                    provider.getVideo(selectedServer)
+                                }
+                                downloadManager.startDownload(
+                                    id = episode.id,
+                                    title = "${episode.tvShow?.title} - S${episode.season?.number}E${episode.number}",
+                                    poster = episode.poster,
+                                    url = video.source,
+                                    quality = DownloadQualityFormatter.qualityLabel(selectedServer, video),
+                                    headers = video.headers,
+                                    mimeType = video.type
+                                )
+                                Toast.makeText(context, "Download started", Toast.LENGTH_SHORT).show()
+                            } catch (e: Exception) {
+                                Toast.makeText(context, "Failed to get video: ${e.message}", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    }
+                    .setNegativeButton(android.R.string.cancel, null)
+                    .show()
+
+            } catch (e: Exception) {
+                Toast.makeText(context, "Failed to load servers: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    private fun downloadQualityDialogLabel(server: Video.Server): String {
+        val details = DownloadQualityFormatter.details(server)
+        return if (details.isBlank()) {
+            DownloadQualityFormatter.title(server)
+        } else {
+            "${DownloadQualityFormatter.title(server)}\n$details"
+        }
     }
 
     private fun ImageView.loadContinueWatchingArtwork(withFallback: Boolean = false) {

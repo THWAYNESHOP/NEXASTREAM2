@@ -21,6 +21,7 @@ import androidx.recyclerview.widget.RecyclerView
 import androidx.viewbinding.ViewBinding
 import com.bumptech.glide.Glide
 import com.bumptech.glide.load.resource.drawable.DrawableTransitionOptions
+import androidx.core.view.isVisible
 import com.nexastream.app.R
 import com.nexastream.app.adapters.AppAdapter
 import com.nexastream.app.database.AppDatabase
@@ -80,11 +81,14 @@ import com.nexastream.app.utils.loadMoviePoster
 import com.nexastream.app.utils.ArtworkRepair
 import com.nexastream.app.utils.toActivity
 import java.util.Locale
+import com.nexastream.app.utils.DownloadManager
 import com.nexastream.app.utils.UserPreferences
 import com.nexastream.app.providers.Provider
 import android.view.KeyEvent
+import android.widget.TextView
 import com.nexastream.app.databinding.ContentMovieDirectorsMobileBinding
 import com.nexastream.app.databinding.ContentMovieDirectorsTvBinding
+import com.nexastream.app.utils.DownloadQualityFormatter
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -98,6 +102,19 @@ class MovieViewHolder(
     private val context = itemView.context
     private val database: AppDatabase
         get() = AppDatabase.getInstance(context)
+    private val downloadManager: DownloadManager by lazy {
+        dagger.hilt.android.EntryPointAccessors.fromApplication(
+            context.applicationContext,
+            DownloadManagerEntryPoint::class.java
+        ).downloadManager()
+    }
+
+    @dagger.hilt.EntryPoint
+    @dagger.hilt.InstallIn(dagger.hilt.components.SingletonComponent::class)
+    interface DownloadManagerEntryPoint {
+        fun downloadManager(): DownloadManager
+    }
+
     private lateinit var movie: Movie
     private val TAG = "TrailerChoiceDebug" // Logging Tag
 
@@ -721,6 +738,13 @@ class MovieViewHolder(
             visibility = if (trailer != null) View.VISIBLE else View.GONE
         }
 
+        binding.btnMovieDownload.apply {
+            isVisible = Provider.supportsDownloads(UserPreferences.currentProvider)
+            setOnClickListener {
+                showDownloadDialog(Video.Type.Movie(movie.id, movie.title, movie.released?.format("yyyy-MM-dd") ?: "", movie.poster ?: "", movie.imdbId))
+            }
+        }
+
         binding.btnMovieFavorite.apply {
 
             fun Boolean.drawable() = when (this) {
@@ -850,6 +874,13 @@ class MovieViewHolder(
             visibility = if (trailer != null) View.VISIBLE else View.GONE
         }
 
+        binding.btnMovieDownload.apply {
+            isVisible = Provider.supportsDownloads(UserPreferences.currentProvider)
+            setOnClickListener {
+                showDownloadDialog(Video.Type.Movie(movie.id, movie.title, movie.released?.format("yyyy-MM-dd") ?: "", movie.poster ?: "", movie.imdbId))
+            }
+        }
+
         binding.btnMovieFavorite.apply {
 
             fun Boolean.drawable() = when (this) {
@@ -882,6 +913,79 @@ class MovieViewHolder(
             setImageDrawable(
                 ContextCompat.getDrawable(context, movie.isFavorite.drawable())
             )
+        }
+    }
+
+    private fun showDownloadDialog(videoType: Video.Type) {
+        Log.d("DownloadDebug", "showDownloadDialog called for ${movie.title}")
+        val provider = UserPreferences.currentProvider ?: run {
+            Log.e("DownloadDebug", "Current provider is null")
+            return
+        }
+        if (!Provider.supportsDownloads(provider)) return
+        val activity = context.toActivity()
+        Log.d("DownloadDebug", "Activity found: ${activity != null}")
+
+        val lifecycleScope = itemView.findViewTreeLifecycleOwner()?.lifecycleScope
+            ?: activity?.lifecycleScope
+            ?: run {
+                Log.e("DownloadDebug", "Lifecycle scope not found")
+                return
+            }
+
+        Toast.makeText(context, "Loading servers...", Toast.LENGTH_SHORT).show()
+
+        lifecycleScope.launch {
+            try {
+                val servers = withContext(Dispatchers.IO) {
+                    provider.getServers(movie.id, videoType)
+                }
+
+                if (servers.isEmpty()) {
+                    Toast.makeText(context, "No servers found for download", Toast.LENGTH_SHORT).show()
+                    return@launch
+                }
+
+                AlertDialog.Builder(context)
+                    .setTitle("Select Download Quality")
+                    .setItems(servers.map { downloadQualityDialogLabel(it) }.toTypedArray()) { _, which ->
+                        val selectedServer = servers[which]
+                        lifecycleScope.launch {
+                            try {
+                                Toast.makeText(context, "Starting extraction...", Toast.LENGTH_SHORT).show()
+                                val video = withContext(Dispatchers.IO) {
+                                    provider.getVideo(selectedServer)
+                                }
+                                downloadManager.startDownload(
+                                    id = movie.id,
+                                    title = movie.title,
+                                    poster = movie.poster,
+                                    url = video.source,
+                                    quality = DownloadQualityFormatter.qualityLabel(selectedServer, video),
+                                    headers = video.headers,
+                                    mimeType = video.type
+                                )
+                                Toast.makeText(context, "Download started", Toast.LENGTH_SHORT).show()
+                            } catch (e: Exception) {
+                                Toast.makeText(context, "Failed to get video: ${e.message}", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    }
+                    .setNegativeButton(android.R.string.cancel, null)
+                    .show()
+
+            } catch (e: Exception) {
+                Toast.makeText(context, "Failed to load servers: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    private fun downloadQualityDialogLabel(server: Video.Server): String {
+        val details = DownloadQualityFormatter.details(server)
+        return if (details.isBlank()) {
+            DownloadQualityFormatter.title(server)
+        } else {
+            "${DownloadQualityFormatter.title(server)}\n$details"
         }
     }
 

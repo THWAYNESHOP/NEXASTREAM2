@@ -14,4 +14,5 @@ sealed class Screen(val route: String) {
     }
     object Search : Screen("search")
     object Providers : Screen("providers")
+    object Downloads : Screen("downloads")
 }

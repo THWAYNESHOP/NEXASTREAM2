@@ -3,10 +3,12 @@ package com.nexastream.app.ui.components
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.outlined.Download
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.List
 import androidx.compose.material.icons.outlined.PlayArrow
@@ -20,7 +22,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.mediarouter.app.MediaRouteButton
+import com.google.android.gms.cast.framework.CastButtonFactory
 import com.nexastream.app.navigation.Screen
+import com.nexastream.app.providers.Provider
+import com.nexastream.app.utils.UserPreferences
 
 @Composable
 fun NexastreamBottomBar(
@@ -33,12 +40,14 @@ fun NexastreamBottomBar(
         tonalElevation = 0.dp,
         modifier = Modifier.height(65.dp)
     ) {
-        val items = listOf(
-            Triple(Screen.Home, Icons.Outlined.Home, Icons.Filled.Home),
-            Triple(Screen.Search, Icons.Outlined.Search, Icons.Filled.Search),
-            Triple(Screen.Movies, Icons.Outlined.PlayArrow, Icons.Filled.PlayArrow),
-            Triple(Screen.Providers, Icons.Outlined.List, Icons.Filled.List),
-        )
+        val items = buildList {
+            add(Triple(Screen.Home, Icons.Outlined.Home, Icons.Filled.Home))
+            add(Triple(Screen.Search, Icons.Outlined.Search, Icons.Filled.Search))
+            if (Provider.supportsDownloads(UserPreferences.currentProvider)) {
+                add(Triple(Screen.Downloads, Icons.Outlined.Download, Icons.Filled.Download))
+            }
+            add(Triple(Screen.Providers, Icons.Outlined.List, Icons.Filled.List))
+        }
 
         items.forEach { (screen, icon, selectedIcon) ->
             val isSelected = currentRoute == screen.route
@@ -112,6 +121,15 @@ fun NexastreamTopBar(
                 TopBarLink("Movies") { onCategoryClick("Movies") }
                 TopBarLink("Categories") { onCategoryClick("Categories") }
             }
+
+            AndroidView(
+                factory = { context ->
+                    MediaRouteButton(context).apply {
+                        CastButtonFactory.setUpMediaRouteButton(context, this)
+                    }
+                },
+                modifier = Modifier.size(32.dp)
+            )
         }
     }
 }

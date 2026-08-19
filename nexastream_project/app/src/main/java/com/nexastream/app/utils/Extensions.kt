@@ -83,7 +83,14 @@ fun Context.hideKeyboard(view: View) {
     inputMethodManager.hideSoftInputFromWindow(view.windowToken, 0)
 }
 
-fun Context.toActivity(): FragmentActivity? = this as? FragmentActivity
+fun Context.toActivity(): FragmentActivity? {
+    var context = this
+    while (context is android.content.ContextWrapper) {
+        if (context is FragmentActivity) return context
+        context = context.baseContext
+    }
+    return context as? FragmentActivity
+}
 
 fun FragmentActivity.getCurrentFragment(): Fragment? = when (this) {
     is MainMobileActivity -> {

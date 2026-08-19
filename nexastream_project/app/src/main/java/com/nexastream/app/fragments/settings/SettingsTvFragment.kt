@@ -528,7 +528,7 @@ class SettingsTvFragment : LeanbackPreferenceFragmentCompat() {
             startActivity(
                 Intent(
                     Intent.ACTION_VIEW,
-                    Uri.parse("https://github.com/THWAYNESHOP/NEXASTREAM2")
+                    Uri.parse("https://github.com/nexastream/nexastream")
                 )
             )
             true
@@ -536,11 +536,11 @@ class SettingsTvFragment : LeanbackPreferenceFragmentCompat() {
 
         findPreference<Preference>("p_settings_telegram")?.setOnPreferenceClickListener {
             try {
-                val tgIntent = Intent(Intent.ACTION_VIEW, Uri.parse("tg://resolve?domain=NEXASTREAM2"))
+                val tgIntent = Intent(Intent.ACTION_VIEW, Uri.parse("tg://resolve?domain=nexastream"))
                 startActivity(tgIntent)
             } catch (e: Exception) {
                 Toast.makeText(requireContext(), "Telegram not found.", Toast.LENGTH_SHORT).show()
-                val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://t.me/NEXASTREAM2"))
+                val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://t.me/nexastream"))
                 startActivity(intent)
             }
             true

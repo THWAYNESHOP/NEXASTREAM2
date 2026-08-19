@@ -224,4 +224,17 @@
         android:id="@+id/settings"
         android:name="com.nexastream.app.fragments.settings.SettingsTvFragment"
         android:label="fragment_settings_tv" />
+
+    <fragment
+        android:id="@id/downloads"
+        android:name="com.nexastream.app.fragments.downloads.DownloadsFragment"
+        android:label="fragment_downloads">
+        <action
+            android:id="@id/action_downloads_to_player"
+            app:destination="@id/player" />
+    </fragment>
+    <fragment
+        android:id="@+id/live_guide"
+        android:name="com.nexastream.app.fragments.live_guide.LiveGuideFragment"
+        android:label="@string/main_menu_live_guide" />
 </navigation>
