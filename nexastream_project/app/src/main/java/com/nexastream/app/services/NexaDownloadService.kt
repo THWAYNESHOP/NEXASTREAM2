@@ -31,6 +31,9 @@ class NexaDownloadService : DownloadService(
     @Inject
     lateinit var notificationHelper: DownloadNotificationHelper
 
+    @Inject
+    lateinit var injectedScheduler: Scheduler
+
     companion object {
         private const val FOREGROUND_NOTIFICATION_ID = 1001
         private const val CHANNEL_ID = "download_channel"
@@ -41,7 +44,7 @@ class NexaDownloadService : DownloadService(
         return injectedDownloadManager
     }
 
-    override fun getScheduler(): Scheduler? = null
+    override fun getScheduler(): Scheduler? = injectedScheduler
 
     override fun getForegroundNotification(
         downloads: MutableList<Download>,

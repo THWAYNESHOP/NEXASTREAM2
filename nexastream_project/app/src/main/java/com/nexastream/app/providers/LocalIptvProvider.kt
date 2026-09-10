@@ -170,11 +170,16 @@ object LocalIptvProvider : IptvProvider {
         meta["referer"]?.let { headers["Referer"] = it }
         
         // Default UA for ronaldo.tvfor.pro if not specified
-        if (url.contains("ronaldo.tvfor.pro") && !headers.containsKey("User-Agent")) {
-            headers["User-Agent"] = "Lavf/56.15.102"
+        if (url.contains("ronaldo.tvfor.pro")) {
+            if (!headers.containsKey("User-Agent")) {
+                headers["User-Agent"] = "Lavf/56.15.102"
+            }
+            if (!headers.containsKey("Referer")) {
+                headers["Referer"] = "http://ronaldo.tvfor.pro/"
+            }
         }
 
-        return Video(source = url, headers = headers)
+        return Video(source = url, headers = headers, maintainToken = true)
     }
 
     private fun parseM3U(m3uRaw: String): List<M3UChannel> {

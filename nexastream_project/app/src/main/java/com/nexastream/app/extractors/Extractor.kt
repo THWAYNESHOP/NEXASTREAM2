@@ -119,8 +119,7 @@ abstract class Extractor {
             ZillaExtractor(),
             PDrainExtractor(),
             MaxstreamExtractor(),
-            VidxGoExtractor(),
-            EmbedStExtractor()
+            VidxGoExtractor()
         )
 
         suspend fun extract(link: String, server: Video.Server? = null): Video {
@@ -168,7 +167,8 @@ abstract class Extractor {
                     break
                 } else {
                     for (aliasUrl in extractor.aliasUrls) {
-                        if (compareUrl.startsWith(aliasUrl.lowercase().replace(urlRegex, ""))) {
+                        val cleanAlias = aliasUrl.lowercase().replace(urlRegex, "")
+                        if (compareUrl.contains(cleanAlias)) {
                             foundExtractor = extractor
                             break
                         }
@@ -226,7 +226,7 @@ abstract class Extractor {
 
             if (foundExtractor != null) {
                 Log.i("NexaStream", "[EXTRACTOR] -> Starting: ${foundExtractor.name} (URL: $finalLink)")
-                val video = foundExtractor.extract(finalLink)
+                val video = foundExtractor.extract(finalLink, server)
                 Log.i("NexaStream", "[VIDEO] -> Extracted: ${video.source}")
                 return video
             }

@@ -93,4 +93,34 @@
         <item>3</item>
         <item>4</item>
     </string-array>
+
+    <string-array name="max_parallel_downloads_entries">
+        <item>1 download</item>
+        <item>2 downloads</item>
+        <item>3 downloads</item>
+        <item>4 downloads</item>
+        <item>5 downloads</item>
+    </string-array>
+    <string-array name="max_parallel_downloads_values">
+        <item>1</item>
+        <item>2</item>
+        <item>3</item>
+        <item>4</item>
+        <item>5</item>
+    </string-array>
+
+    <string-array name="download_quality_entries">
+        <item>Best (4K/1080p)</item>
+        <item>High (1080p)</item>
+        <item>Medium (720p)</item>
+        <item>Low (480p)</item>
+        <item>Very Low (360p)</item>
+    </string-array>
+    <string-array name="download_quality_values">
+        <item>2160p</item>
+        <item>1080p</item>
+        <item>720p</item>
+        <item>480p</item>
+        <item>360p</item>
+    </string-array>
 </resources>

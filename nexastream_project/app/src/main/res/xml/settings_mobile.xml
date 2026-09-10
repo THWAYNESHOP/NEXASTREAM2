@@ -167,6 +167,44 @@
     </PreferenceScreen>
 
     <PreferenceScreen
+        android:key="screen_downloads"
+        android:title="@string/main_menu_downloads"
+        android:summary="Download quality, Wi-Fi only, and parallel downloads"
+        android:widgetLayout="@layout/preference_widget_chevron"
+        app:iconSpaceReserved="false">
+
+        <PreferenceCategory
+            android:title="Download Settings"
+            app:iconSpaceReserved="false">
+
+            <SwitchPreferenceCompat
+                android:key="DOWNLOAD_WIFI_ONLY"
+                android:title="@string/settings_download_wifi_only_title"
+                android:summary="@string/settings_download_wifi_only_summary"
+                android:defaultValue="true"
+                app:iconSpaceReserved="false" />
+
+            <ListPreference
+                android:key="MAX_PARALLEL_DOWNLOADS"
+                android:title="@string/settings_download_max_parallel_title"
+                android:summary="@string/settings_download_max_parallel_summary"
+                android:entries="@array/max_parallel_downloads_entries"
+                android:entryValues="@array/max_parallel_downloads_values"
+                android:defaultValue="3"
+                app:iconSpaceReserved="false" />
+
+            <ListPreference
+                android:key="PREFERRED_DOWNLOAD_QUALITY"
+                android:title="@string/settings_download_quality_title"
+                android:summary="@string/settings_download_quality_summary"
+                android:entries="@array/download_quality_entries"
+                android:entryValues="@array/download_quality_values"
+                android:defaultValue="1080p"
+                app:iconSpaceReserved="false" />
+        </PreferenceCategory>
+    </PreferenceScreen>
+
+    <PreferenceScreen
         android:key="screen_appearance"
         android:title="@string/settings_category_appearance"
         android:summary="@string/settings_screen_appearance_summary"

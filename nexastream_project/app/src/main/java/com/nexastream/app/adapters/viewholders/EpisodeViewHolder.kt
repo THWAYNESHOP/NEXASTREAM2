@@ -30,6 +30,7 @@ import com.nexastream.app.utils.EpisodeManager
 import com.nexastream.app.utils.UserPreferences
 import com.nexastream.app.utils.format
 import com.nexastream.app.utils.getCurrentFragment
+import com.nexastream.app.utils.loadEpisodePoster
 import android.util.Log
 import com.nexastream.app.utils.DownloadManager
 import com.nexastream.app.utils.loadTvShowCardArtwork
@@ -133,12 +134,11 @@ class EpisodeViewHolder(
 
         binding.ivEpisodePoster.apply {
             clipToOutline = true
-            Glide.with(context)
-                .load(episode.poster)
-                .error(R.drawable.glide_fallback_cover)
-                .centerCrop()
-                .transition(DrawableTransitionOptions.withCrossFade())
-                .into(this)
+            loadEpisodePoster(episode) {
+                error(R.drawable.glide_fallback_cover)
+                centerCrop()
+                transition(DrawableTransitionOptions.withCrossFade())
+            }
         }
 
         binding.pbEpisodeProgress.apply {
@@ -247,13 +247,12 @@ class EpisodeViewHolder(
 
         binding.ivEpisodePoster.apply {
             clipToOutline = true
-            Glide.with(context)
-                .load(episode.poster)
-                .error(R.drawable.glide_fallback_cover)
-                .fallback(R.drawable.glide_fallback_cover)
-                .centerCrop()
-                .transition(DrawableTransitionOptions.withCrossFade())
-                .into(this)
+            loadEpisodePoster(episode) {
+                error(R.drawable.glide_fallback_cover)
+                fallback(R.drawable.glide_fallback_cover)
+                centerCrop()
+                transition(DrawableTransitionOptions.withCrossFade())
+            }
         }
 
         binding.pbEpisodeProgress.apply {
@@ -616,15 +615,14 @@ class EpisodeViewHolder(
     private fun ImageView.loadContinueWatchingArtwork(withFallback: Boolean = false) {
         val tvShow = episode.tvShow
         if (tvShow == null) {
-            Glide.with(context)
-                .load(episode.poster)
-                .error(R.drawable.glide_fallback_cover)
-                .apply {
+            loadEpisodePoster(episode) {
+                error(R.drawable.glide_fallback_cover)
+                apply {
                     if (withFallback) fallback(R.drawable.glide_fallback_cover)
                 }
-                .centerCrop()
-                .transition(DrawableTransitionOptions.withCrossFade())
-                .into(this)
+                centerCrop()
+                transition(DrawableTransitionOptions.withCrossFade())
+            }
             return
         }
 

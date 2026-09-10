@@ -232,13 +232,15 @@ class TvShowViewHolder(
         quality.isVisible = true
 
         val nowNext = metadata?.nowNext
-        programme.text = when {
+        val scheduleText = when {
             nowNext?.now != null && nowNext.next != null ->
                 "Now: ${nowNext.now.title}  ·  Next: ${nowNext.next.title}"
             nowNext?.now != null -> "Now: ${nowNext.now.title}"
             nowNext?.next != null -> "Next: ${nowNext.next.title}"
-            else -> "Schedule updating…"
+            else -> ""
         }
+        programme.text = scheduleText
+        programme.isVisible = scheduleText.isNotEmpty()
         val current = nowNext?.now
         progress.progress = if (current != null) {
             val length = (current.endMillis - current.startMillis).coerceAtLeast(1L)
@@ -369,7 +371,12 @@ class TvShowViewHolder(
                 if (isIptvProvider()) {
                     handleDirectPlay(binding.root.findNavController())
                 } else {
-                    binding.root.findNavController().navigate(R.id.tv_show, tvShowArgs())
+                    val current = context.toActivity()?.getCurrentFragment()
+                    if (current is com.nexastream.app.fragments.genre.GenreMobileFragment) {
+                        binding.root.findNavController().navigate(com.nexastream.app.fragments.genre.GenreMobileFragmentDirections.actionGenreToTvShow(id = tvShow.id, poster = tvShow.poster, banner = tvShow.banner))
+                    } else {
+                        binding.root.findNavController().navigate(R.id.tv_show, tvShowArgs())
+                    }
                 }
             }
         }
@@ -403,7 +410,12 @@ class TvShowViewHolder(
                     if (isIptvProvider()) {
                         handleDirectPlay(findNavController())
                     } else {
-                        findNavController().navigate(R.id.tv_show, tvShowArgs())
+                        val current = context.toActivity()?.getCurrentFragment()
+                        if (current is com.nexastream.app.fragments.genre.GenreTvFragment) {
+                            findNavController().navigate(com.nexastream.app.fragments.genre.GenreTvFragmentDirections.actionGenreToTvShow(id = tvShow.id, poster = tvShow.poster, banner = tvShow.banner))
+                        } else {
+                            findNavController().navigate(R.id.tv_show, tvShowArgs())
+                        }
                     }
                 }
             }

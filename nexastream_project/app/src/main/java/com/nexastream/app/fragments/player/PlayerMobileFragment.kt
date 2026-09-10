@@ -1110,6 +1110,27 @@ class PlayerMobileFragment : Fragment() {
         currentServer = server
         playbackAttemptStartedAt = SystemClock.elapsedRealtime()
         reportedReadyServerId = null
+
+        // Capture token if needed
+        if (video.maintainToken) {
+            val uri = Uri.parse(video.source)
+            val query = uri.encodedQuery
+            if (!query.isNullOrBlank()) {
+                com.nexastream.app.extractors.TokenManager.latestQuery = query
+                Log.e("TokenManager", "[PLAYER] Captured token from query: $query")
+            } else {
+                // Try to extract token from last path segment (common for IPTV links)
+                val lastSegment = uri.pathSegments.lastOrNull()
+                if (lastSegment != null && lastSegment.length > 10 && !lastSegment.contains(".")) {
+                    val inferredQuery = "token=$lastSegment"
+                    com.nexastream.app.extractors.TokenManager.latestQuery = inferredQuery
+                    Log.e("TokenManager", "[PLAYER] Captured token from path segment: $inferredQuery")
+                } else {
+                    Log.e("TokenManager", "[PLAYER] No token found in URL: ${video.source}")
+                }
+            }
+        }
+
         updatePlayerHeader()
         updateCastAvailability(video)
 
@@ -1135,13 +1156,33 @@ class PlayerMobileFragment : Fragment() {
 
         httpDataSource.setDefaultRequestProperties(
             mapOf(
-                "User-Agent" to userAgent,
+                "User-Agent" to NetworkClient.USER_AGENT,
             ) + (video.headers ?: emptyMap())
         )
 
+        // Handle data: URIs (base64-encoded playlists) by decoding them to temporary files
+        val videoUri = if (video.source.startsWith("data:application/vnd.apple.mpegurl;base64,")) {
+            val playlistContent = decodeBase64Uri(video.source)
+            val extractedUrl = if (playlistContent != null) extractUrlFromPlaylist(playlistContent) else null
+
+            if (extractedUrl != null) {
+                extractedUrl.toUri()
+            } else {
+                try {
+                    val file = File(requireContext().cacheDir, "stream.m3u8")
+                    FileOutputStream(file).use { it.write(playlistContent?.toByteArray() ?: ByteArray(0)) }
+                    FileProvider.getUriForFile(requireContext(), "${requireContext().packageName}.provider", file)
+                } catch (ignored: Exception) {
+                    video.source.toUri()
+                }
+            }
+        } else {
+            video.source.toUri()
+        }
+
         player.setMediaItem(
             MediaItem.Builder()
-                .setUri(video.source.toUri())
+                .setUri(videoUri)
                 .setMimeType(video.type)
                 .setSubtitleConfigurations(video.subtitles.map { subtitle ->
                     MediaItem.SubtitleConfiguration.Builder(subtitle.file.toUri())
@@ -1239,7 +1280,35 @@ class PlayerMobileFragment : Fragment() {
             override fun onPlaybackStateChanged(playbackState: Int) {
                 super.onPlaybackStateChanged(playbackState)
                 updateLiveControls()
-                if (playbackState == Player.STATE_READY) reportCurrentStreamHealthy()
+                if (playbackState == Player.STATE_READY) {
+                    reportCurrentStreamHealthy()
+                    stopBufferingWatchdog()
+                }
+                
+                if (playbackState == Player.STATE_BUFFERING) {
+                    val isLive = currentVideo?.source?.contains("ronaldo.tvfor.pro") == true || 
+                                currentVideo?.source?.contains(".m3u8") == true ||
+                                currentServer?.id?.contains("ronaldo.tvfor.pro") == true
+                    if (isLive) startBufferingWatchdog()
+                }
+
+                // Auto-restart for Live streams that reach EOS unexpectedly
+                if (playbackState == Player.STATE_ENDED) {
+                    stopBufferingWatchdog()
+                    val isLive = currentVideo?.source?.contains("ronaldo.tvfor.pro") == true || 
+                                currentVideo?.source?.contains(".m3u8") == true ||
+                                currentServer?.id?.contains("ronaldo.tvfor.pro") == true
+                    
+                    if (isLive) {
+                        Log.e("PlayerMobileFragment", "Live stream ended unexpectedly, retrying in 2s...")
+                        viewLifecycleOwner.lifecycleScope.launch {
+                            delay(2000)
+                            player.seekToDefaultPosition()
+                            player.prepare()
+                            player.play()
+                        }
+                    }
+                }
             }
 
             override fun onTimelineChanged(timeline: androidx.media3.common.Timeline, reason: Int) {
@@ -1325,7 +1394,9 @@ class PlayerMobileFragment : Fragment() {
             player.play()
         }
 
-        if (currentPosition == 0L) {
+        val isLive = server.id.startsWith("http") && (video.source.contains(".m3u8") || video.source.contains("ronaldo.tvfor.pro"))
+        
+        if (currentPosition == 0L && !isLive) {
             lifecycleScope.launch {
                 val resumePosition = withContext(Dispatchers.IO) {
                     resolveResumePosition(args.videoType, UserPreferences.currentProvider)
@@ -1333,7 +1404,8 @@ class PlayerMobileFragment : Fragment() {
                 startPlayback(resumePosition)
             }
         } else {
-            startPlayback(currentPosition)
+            // For live streams or manual re-init, always start from current position or live edge
+            startPlayback(if (isLive) C.TIME_UNSET else currentPosition)
         }
     }
 
@@ -1642,6 +1714,27 @@ class PlayerMobileFragment : Fragment() {
         episodeDao.save(persistedNextEpisode)
         UserDataCache.syncEpisodeToCache(requireContext(), provider, persistedNextEpisode)
     }
+    private var bufferingWatchdogJob: Job? = null
+    private fun startBufferingWatchdog() {
+        bufferingWatchdogJob?.cancel()
+        bufferingWatchdogJob = viewLifecycleOwner.lifecycleScope.launch {
+            delay(20_000)
+            if (player.playbackState == Player.STATE_BUFFERING) {
+                val nextServer = servers.getOrNull(servers.indexOf(currentServer) + 1)
+                if (nextServer != null) {
+                    Log.i("PlayerMobileFragment", "Stuck in buffering, trying next server: ${nextServer.name}")
+                    Toast.makeText(context, "Connection slow, trying mirror...", Toast.LENGTH_SHORT).show()
+                    viewModel.getVideo(nextServer)
+                }
+            }
+        }
+    }
+
+    private fun stopBufferingWatchdog() {
+        bufferingWatchdogJob?.cancel()
+        bufferingWatchdogJob = null
+    }
+
     private fun startProgressHandler() {
         progressHandler = android.os.Handler(android.os.Looper.getMainLooper())
         progressRunnable = Runnable {
@@ -1780,13 +1873,13 @@ class PlayerMobileFragment : Fragment() {
     private var currentExtraBuffering = false
     private var currentSoftwareDecoder = false
 
-    private fun buildPlayer(extraBuffering: Boolean): ExoPlayer {
+    private fun buildPlayer(extraBuffering: Boolean, isLive: Boolean): ExoPlayer {
         val loadControl = DefaultLoadControl.Builder()
             .setBufferDurationsMs(
-                DefaultLoadControl.DEFAULT_MIN_BUFFER_MS,
+                if (isLive) 30_000 else DefaultLoadControl.DEFAULT_MIN_BUFFER_MS,
                 if (extraBuffering) 300_000 else DefaultLoadControl.DEFAULT_MAX_BUFFER_MS,
-                DefaultLoadControl.DEFAULT_BUFFER_FOR_PLAYBACK_MS,
-                DefaultLoadControl.DEFAULT_BUFFER_FOR_PLAYBACK_AFTER_REBUFFER_MS
+                if (isLive) 10_000 else DefaultLoadControl.DEFAULT_BUFFER_FOR_PLAYBACK_MS,
+                if (isLive) 15_000 else DefaultLoadControl.DEFAULT_BUFFER_FOR_PLAYBACK_AFTER_REBUFFER_MS
             )
             .build()
 
@@ -1816,37 +1909,96 @@ class PlayerMobileFragment : Fragment() {
         currentSoftwareDecoder = softwareDecoder
 
         var tokenLogged = false
-        val okHttpClient = NetworkClient.default.newBuilder()
+        val baseClient = if (currentVideo?.maintainToken == true) NetworkClient.minimal else NetworkClient.default
+        val okHttpClient = baseClient.newBuilder()
             .addInterceptor { chain ->
                 var request = chain.request()
+                val video = currentVideo
+
+                // Inject specific video headers if provided
+                if (video != null && !video.headers.isNullOrEmpty()) {
+                    val rb = request.newBuilder()
+                    video.headers.forEach { (k, v) ->
+                        if (request.header(k) == null) rb.header(k, v)
+                    }
+                    request = rb.build()
+                }
                 
-                if (currentVideo?.maintainToken == true) {
+                if (video?.maintainToken == true) {
                     val latestQuery = TokenManager.latestQuery
                     if (latestQuery != null) {
                         val origHttpUrl = request.url
-                        val updatedHttpUrl = origHttpUrl.newBuilder().query(latestQuery).build()
-                        request = request.newBuilder().url(updatedHttpUrl).build()
+                        
+                        // Extract token key/value
+                        val tokenKey = latestQuery.substringBefore("=")
+                        val tokenValue = latestQuery.substringAfter("=")
+
+                        // Check if the parameter is already present
+                        val updatedHttpUrl = if (origHttpUrl.queryParameter(tokenKey) != null) {
+                            origHttpUrl
+                        } else {
+                            origHttpUrl.newBuilder()
+                                .addQueryParameter(tokenKey, tokenValue)
+                                .build()
+                        }
+                        
+                        val rb = request.newBuilder().url(updatedHttpUrl)
+                        
+                        // Ensure critical headers for IPTV stability
+                        if (request.header("Accept-Encoding") == null) rb.header("Accept-Encoding", "identity")
+                        
+                        request = rb.build()
                         if (!tokenLogged) {
-                            android.util.Log.d("TokenManager", "[MOBILE-INTERCEPTOR] Token successfully injected (applied to all segments)")
+                            android.util.Log.e("TokenManager", "[MOBILE-INTERCEPTOR] Token successfully injected into: ${request.url.host}")
                             tokenLogged = true
                         }
                     } else {
-                        android.util.Log.w("TokenManager", "[MOBILE-INTERCEPTOR] maintainToken=true but latestQuery is null! URL: ${request.url.host}")
+                        android.util.Log.e("TokenManager", "[MOBILE-INTERCEPTOR] maintainToken=true but latestQuery is null for host: ${request.url.host}")
                     }
                 }
                 
                 chain.proceed(request)
             }
             .build()
-        httpDataSource = OkHttpDataSource.Factory(okHttpClient)
-
+        
+        httpDataSource = androidx.media3.datasource.okhttp.OkHttpDataSource.Factory(okHttpClient)
+        
+        val useDefaultDataSource = currentVideo?.source?.contains("ronaldo.tvfor.pro") == true || 
+                                currentServer?.id?.contains("ronaldo.tvfor.pro") == true
+        
         dataSourceFactory = if (isPlayingOfflineDownload) {
             offlineDataSourceFactory
+        } else if (useDefaultDataSource) {
+            val defaultHttpDataSourceFactory = androidx.media3.datasource.DefaultHttpDataSource.Factory()
+                .setUserAgent(NetworkClient.USER_AGENT)
+                .setConnectTimeoutMs(30000)
+                .setReadTimeoutMs(30000)
+                .setAllowCrossProtocolRedirects(true)
+            
+            val headers = mutableMapOf<String, String>()
+            currentVideo?.headers?.forEach { (k, v) -> headers[k] = v }
+            headers["Accept-Encoding"] = "identity"
+            headers["Icy-MetaData"] = "1"
+            headers["Connection"] = "keep-alive"
+            
+            TokenManager.latestQuery?.let { query ->
+                val k = query.substringBefore("=")
+                val v = query.substringAfter("=")
+                // Note: DefaultHttpDataSource handles query params via the URI, 
+                // but we might need to ensure the URI has the token.
+            }
+            
+            defaultHttpDataSourceFactory.setDefaultRequestProperties(headers)
+            DefaultDataSource.Factory(requireContext(), defaultHttpDataSourceFactory)
         } else {
             DefaultDataSource.Factory(requireContext(), httpDataSource)
         }
 
-        localPlayer = buildPlayer(extraBuffering).also { player ->
+        val isLive = currentVideo?.source?.contains("ronaldo.tvfor.pro") == true || 
+                    currentVideo?.source?.contains(".m3u8") == true ||
+                    currentServer?.id?.contains("ronaldo.tvfor.pro") == true
+
+        localPlayer = buildPlayer(extraBuffering, isLive).also { player ->
                 player.setAudioAttributes(
                     AudioAttributes.Builder()
                         .setUsage(C.USAGE_MEDIA)

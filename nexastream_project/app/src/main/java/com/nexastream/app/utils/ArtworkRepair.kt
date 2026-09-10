@@ -13,8 +13,12 @@ import com.bumptech.glide.load.engine.GlideException
 import com.bumptech.glide.load.HttpException
 import com.nexastream.app.database.AppDatabase
 import com.nexastream.app.models.Movie
+import com.nexastream.app.models.People
+import com.nexastream.app.models.SportMatch
 import com.nexastream.app.models.TvShow
+import com.nexastream.app.providers.AkSportsLiveProvider
 import com.nexastream.app.providers.Provider
+import com.nexastream.app.utils.TMDb3.original
 // 
 // 
 import java.io.FileNotFoundException
@@ -27,7 +31,7 @@ object ArtworkRepair {
     fun shouldRepair(url: String?, error: GlideException?): Boolean {
         if (url.isNullOrBlank()) return false
         return !isRemoteArtworkUrl(url) ||
-                containsFileNotFound(error) ||
+                containsNotFound(error) ||
                 isAnimeOnlineNinjaArtwork(url) && containsAuthFailure(error)
     }
 
@@ -89,6 +93,17 @@ object ArtworkRepair {
             }
             database.tvShowDao().getById(tvShow.id)?.let { refreshedTvShow.merge(it) }
             database.tvShowDao().insert(refreshedTvShow)
+
+            // Also refresh seasons and episodes to fix their artwork
+            refreshedTvShow.seasons.forEach { season ->
+                season.tvShow = refreshedTvShow
+                database.seasonDao().insert(season)
+                season.episodes.forEach { episode ->
+                    episode.season = season
+                    episode.tvShow = refreshedTvShow
+                    database.episodeDao().save(episode)
+                }
+            }
             refreshedTvShow
         }.onFailure { error ->
             Log.w(TAG, "Unable to refresh tv show artwork for ${tvShow.id} on ${provider.name}", error)
@@ -135,6 +150,60 @@ object ArtworkRepair {
             .forEach { tvShow ->
                 repairTvShow(context, provider, database, tvShow)
             }
+    }
+
+    suspend fun repairPerson(
+        context: Context,
+        person: People,
+    ): People? {
+        return runCatching {
+            val provider = UserPreferences.currentProvider
+            var refreshedPerson: People? = null
+
+            // Try current provider first if it supports people
+            if (provider != null) {
+                try {
+                    refreshedPerson = provider.getPeople(person.id)
+                } catch (e: Exception) {
+                    Log.d(TAG, "Provider ${provider.name} doesn't support getPeople for ${person.id}")
+                }
+            }
+
+            // Fallback to TMDB if needed
+            if (refreshedPerson?.image.isNullOrBlank()) {
+                val tmdbId = person.id.toIntOrNull()
+                if (tmdbId != null) {
+                    val tmdbPerson = TMDb3.People.details(tmdbId)
+                    refreshedPerson = People(
+                        id = person.id,
+                        name = tmdbPerson.name,
+                        image = tmdbPerson.profilePath?.original
+                    )
+                }
+            }
+
+            refreshedPerson
+        }.onFailure { error ->
+            Log.w(TAG, "Unable to refresh person artwork for ${person.name}", error)
+        }.getOrNull()
+    }
+
+    suspend fun repairSportMatch(
+        context: Context,
+        match: SportMatch,
+    ): SportMatch? {
+        return runCatching {
+            val provider = UserPreferences.currentProvider
+            if (provider is AkSportsLiveProvider) {
+                val live = provider.getLiveMatches()
+                val upcoming = provider.getUpcomingMatches()
+                (live + upcoming).find { it.id == match.id }
+            } else {
+                null
+            }
+        }.onFailure { error ->
+            Log.w(TAG, "Unable to refresh sport match for ${match.title}", error)
+        }.getOrNull()
     }
 
     private suspend fun prepareProvider(context: Context, provider: Provider) {
@@ -192,12 +261,21 @@ object ArtworkRepair {
         }
     }
 
-    private fun containsFileNotFound(error: GlideException?): Boolean {
+    private fun containsNotFound(error: GlideException?): Boolean {
         if (error == null) return false
-        if (generateSequence(error.cause) { it.cause }.any { it is FileNotFoundException }) return true
-        return error.rootCauses.any { root -> 
-            root is FileNotFoundException || generateSequence(root.cause) { it.cause }.any { it is FileNotFoundException }
+        val sequence = generateSequence(error.cause) { it.cause }
+        if (sequence.any { it is FileNotFoundException || it.isHttp404() }) return true
+        
+        return error.rootCauses.any { root ->
+            root is FileNotFoundException || 
+            root.isHttp404() || 
+            generateSequence(root.cause) { it.cause }.any { it is FileNotFoundException || it.isHttp404() }
         }
+    }
+
+    private fun Throwable.isHttp404(): Boolean {
+        val httpException = this as? HttpException ?: return false
+        return httpException.statusCode == 404
     }
 
     private fun containsAuthFailure(error: GlideException?): Boolean {

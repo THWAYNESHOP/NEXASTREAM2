@@ -5,7 +5,10 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.nexastream.app.adapters.AppAdapter
 import com.nexastream.app.database.AppDatabase
+import com.nexastream.app.models.Category
 import com.nexastream.app.models.Movie
+import com.nexastream.app.models.People
+import com.nexastream.app.models.SearchHistory
 import com.nexastream.app.models.TvShow
 import com.nexastream.app.providers.IptvProvider
 import com.nexastream.app.providers.Provider
@@ -45,6 +48,9 @@ class SearchViewModel @Inject constructor(
 
     private val _state = MutableStateFlow<SearchState>(SearchState.Searching)
 
+    val searchHistory: Flow<List<SearchHistory>> = database.searchHistoryDao().getRecent()
+        .flowOn(Dispatchers.IO)
+
     @OptIn(ExperimentalCoroutinesApi::class)
     val state: Flow<SearchState> = combine(
         _state,
@@ -74,16 +80,41 @@ class SearchViewModel @Inject constructor(
                 val moviesById = moviesDb.associateBy { it.id }
                 val tvShowsById = tvShowsDb.associateBy { it.id }
 
-                SearchState.SuccessSearching(
-                    results = state.results.map { item ->
-                        when (item) {
-                            is Movie -> moviesById[item.id]?.takeIf { !item.isSame(it) }?.let { item.copy().merge(it) } ?: item
-                            is TvShow -> tvShowsById[item.id]?.takeIf { !item.isSame(it) }?.let { item.copy().merge(it) } ?: item
-                            else -> item
-                        }
-                    },
-                    hasMore = state.hasMore
-                )
+                val enrichedResults = state.results.map { item ->
+                    when (item) {
+                        is Movie -> moviesById[item.id]?.takeIf { !item.isSame(it) }?.let { item.copy().merge(it) } ?: item
+                        is TvShow -> tvShowsById[item.id]?.takeIf { !item.isSame(it) }?.let { item.copy().merge(it) } ?: item
+                        else -> item
+                    }
+                }
+
+                if (query.isNotEmpty() && enrichedResults.any { it is Movie || it is TvShow || it is People }) {
+                    val categorized = mutableListOf<AppAdapter.Item>()
+                    
+                    val movies = enrichedResults.filterIsInstance<Movie>()
+                    if (movies.isNotEmpty()) {
+                        categorized.add(Category(name = "Movies", list = movies).apply { itemType = AppAdapter.Type.CATEGORY_TV_ITEM })
+                    }
+                    
+                    val series = enrichedResults.filterIsInstance<TvShow>()
+                    if (series.isNotEmpty()) {
+                        categorized.add(Category(name = "TV Shows", list = series).apply { itemType = AppAdapter.Type.CATEGORY_TV_ITEM })
+                    }
+                    
+                    val people = enrichedResults.filterIsInstance<People>()
+                    if (people.isNotEmpty()) {
+                        categorized.add(Category(name = "People", list = people).apply { itemType = AppAdapter.Type.CATEGORY_TV_ITEM })
+                    }
+
+                    val others = enrichedResults.filter { it !is Movie && it !is TvShow && it !is People }
+                    if (others.isNotEmpty()) {
+                         categorized.add(Category(name = "Other", list = others).apply { itemType = AppAdapter.Type.CATEGORY_TV_ITEM })
+                    }
+
+                    SearchState.SuccessSearching(results = categorized, hasMore = state.hasMore)
+                } else {
+                    SearchState.SuccessSearching(results = enrichedResults, hasMore = state.hasMore)
+                }
             }
             else -> state
         }
@@ -99,6 +130,9 @@ class SearchViewModel @Inject constructor(
     fun search(query: String) = viewModelScope.launch(Dispatchers.IO) {
         _state.emit(SearchState.Searching)
         try {
+            if (query.isNotEmpty()) {
+                database.searchHistoryDao().insert(SearchHistory(query))
+            }
             val results = ParentalControlUtils.filterItems(UserPreferences.currentProvider!!.search(query))
             this@SearchViewModel.query = query
             page = 1
@@ -107,6 +141,10 @@ class SearchViewModel @Inject constructor(
             Log.e("SearchViewModel", "search: ", e)
             _state.emit(SearchState.FailedSearching(e))
         }
+    }
+
+    fun deleteSearchHistory(query: String) = viewModelScope.launch(Dispatchers.IO) {
+        database.searchHistoryDao().delete(query)
     }
 
     fun loadMore() = viewModelScope.launch(Dispatchers.IO) {

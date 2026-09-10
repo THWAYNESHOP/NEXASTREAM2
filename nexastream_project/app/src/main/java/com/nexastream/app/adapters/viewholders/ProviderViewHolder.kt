@@ -35,7 +35,9 @@ class ProviderViewHolder(
     private fun displayMobileItem(binding: ItemProviderMobileBinding) {
         binding.root.apply {
             setOnClickListener {
-                UserPreferences.currentProvider = provider.provider
+                if (UserPreferences.currentProvider?.name == provider.name) return@setOnClickListener
+
+                UserPreferences.setCurrentProvider(provider.provider, notify = false)
                 context.toActivity()?.apply {
                     startActivity(
                         Intent(this, this::class.java).apply {
@@ -71,8 +73,11 @@ class ProviderViewHolder(
 
     private fun displayTvItem(binding: ItemProviderTvBinding) {
         binding.root.apply {
+            isFocusable = true
             setOnClickListener {
-                UserPreferences.currentProvider = provider.provider
+                if (UserPreferences.currentProvider?.name == provider.name) return@setOnClickListener
+
+                UserPreferences.setCurrentProvider(provider.provider, notify = false)
                 context.toActivity()?.apply {
                     startActivity(
                         Intent(this, this::class.java).apply {
@@ -86,6 +91,15 @@ class ProviderViewHolder(
                 toggleFavorite(provider)
                 binding.ivProviderFavorite.visibility = if (provider.isFavorite) android.view.View.VISIBLE else android.view.View.GONE
                 true
+            }
+            setOnFocusChangeListener { _, hasFocus ->
+                val animation = if (hasFocus) {
+                    android.view.animation.AnimationUtils.loadAnimation(context, R.anim.zoom_in)
+                } else {
+                    android.view.animation.AnimationUtils.loadAnimation(context, R.anim.zoom_out)
+                }
+                startAnimation(animation)
+                animation.fillAfter = true
             }
         }
         

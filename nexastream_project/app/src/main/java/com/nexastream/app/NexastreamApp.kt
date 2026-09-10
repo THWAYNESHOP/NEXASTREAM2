@@ -7,15 +7,12 @@ import android.content.pm.PackageManager
 import android.os.Bundle
 import android.util.Log
 import androidx.media3.common.util.UnstableApi
-import java.security.Security
-import org.conscrypt.Conscrypt
 import dagger.hilt.android.HiltAndroidApp
 import com.nexastream.app.database.AppDatabase
 import com.nexastream.app.utils.AppLanguageManager
 import com.nexastream.app.utils.ArtworkRepairScheduler
 import com.nexastream.app.utils.CacheUtils
 import com.nexastream.app.utils.DnsResolver
-import com.nexastream.app.utils.IsrgRootTrustProvider
 import com.nexastream.app.utils.UserPreferences
 import com.nexastream.app.utils.DownloadManager as AppDownloadManager
 import kotlinx.coroutines.CoroutineScope
@@ -77,13 +74,6 @@ class NexastreamApp : Application() {
             }
         })
 
-        // 0. Initialize Conscrypt for modern SSL on old Android
-        Security.insertProviderAt(Conscrypt.newProvider(), 1)
-
-        // 1. Install ISRG Root X1 globally for Let's Encrypt. On Android < 7 (API 24)
-        // network_security_config.xml is not supported so the certificate must be injected manually.
-        IsrgRootTrustProvider.install()
-
         DnsResolver.setDnsUrl(UserPreferences.dohProviderUrl)
 
         @OptIn(UnstableApi::class)
@@ -96,10 +86,11 @@ class NexastreamApp : Application() {
         applicationScope.launch(Dispatchers.IO) {
             AppDatabase.setup(appContext)
             appDownloadManager.recoverDownloads()
-            // SerienStreamProvider.init(appContext)
-            // AniWorldProvider.initialize(appContext)
             ArtworkRepairScheduler.schedule(appContext, UserPreferences.currentProvider)
             CacheUtils.autoClearIfNeeded(appContext, thresholdMb = threshold)
+            if (isTv) {
+                com.nexastream.app.utils.TvChannelManager.updateDefaultChannel(appContext)
+            }
         }
     }
 

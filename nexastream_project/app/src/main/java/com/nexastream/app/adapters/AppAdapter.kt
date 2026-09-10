@@ -90,6 +90,7 @@ class AppAdapter(
     var onEpisodeClickListener: ((Episode) -> Unit)? = null
     var onSeasonClickListener: ((Season) -> Unit)? = null
     var onProviderClickListener: ((Provider) -> Unit)? = null
+    var onViewAllClickListener: ((Category) -> Unit)? = null
     // ---------------------------------
     interface Item {
         var itemType: Type
@@ -557,6 +558,7 @@ class AppAdapter(
                 items[adjustedPosition] as Category,
                 onMovieClickListener,
                 onTvShowClickListener,
+                onViewAllClickListener,
             )
             is EpisodeViewHolder -> holder.bind(
                 items[adjustedPosition] as Episode

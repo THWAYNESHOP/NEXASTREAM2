@@ -129,6 +129,16 @@ class HomeMobileFragment : Fragment() {
         binding.rvHome.apply {
             adapter = appAdapter.apply {
                 stateRestorationPolicy = RecyclerView.Adapter.StateRestorationPolicy.PREVENT_WHEN_EMPTY
+                onViewAllClickListener = { category ->
+                    if (category.name == "CDN Live Channels") {
+                        findNavController().navigate(
+                            HomeMobileFragmentDirections.actionHomeToGenre(
+                                id = "cdn_all_channels",
+                                name = "CDN Live TV"
+                            )
+                        )
+                    }
+                }
             }
             addItemDecoration(
                 SpacingItemDecoration(20.dp(requireContext()))

@@ -75,6 +75,12 @@ class TmdbProvider(override val language: String) : Provider {
                     banner = multi.backdropPath?.original,
                 )
 
+                is TMDb3.Person -> People(
+                    id = multi.id.toString(),
+                    name = multi.name,
+                    image = multi.profilePath?.w500,
+                )
+
                 else -> null
             }
         }
@@ -398,6 +404,12 @@ class TmdbProvider(override val language: String) : Provider {
                     rating = multi.voteAverage.toDouble(),
                     poster = multi.posterPath?.w500,
                     banner = multi.backdropPath?.original,
+                )
+
+                is TMDb3.Person -> People(
+                    id = multi.id.toString(),
+                    name = multi.name,
+                    image = multi.profilePath?.w500,
                 )
 
                 else -> null

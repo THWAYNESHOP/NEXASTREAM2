@@ -32,6 +32,19 @@ object ArtworkRequestHeaders {
         return "$imageUrl$separator$FRAGMENT_KEY=$encoded"
     }
 
+    /**
+     * Appends query parameters to a URL string correctly, even if it has a fragment.
+     */
+    fun appendQueryParams(url: String, params: Map<String, String>): String {
+        if (params.isEmpty()) return url
+        val query = params.entries.joinToString("&") { "${it.key}=${it.value}" }
+        val fragment = url.substringAfter("#", "")
+        val baseUrl = url.substringBefore("#")
+        val separator = if (baseUrl.contains("?")) "&" else "?"
+        val newBase = "$baseUrl$separator$query"
+        return if (fragment.isNotEmpty()) "$newBase#$fragment" else newBase
+    }
+
     fun headersFor(url: HttpUrl): Map<String, String> {
         val encoded = headerPayload(url) ?: return emptyMap()
         val decoded = runCatching {

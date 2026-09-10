@@ -1,26 +1,8 @@
 #EXTM3U
 #EXTINF:-1 group-title="Test Streams",Mux HLS Test Stream HD
 https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8
-#EXTINF:-1 group-title="Спортивные",Setanta Sports UA
-http://ronaldo.tvfor.pro/XazEkCLbtM/tht6v98456np1k198n81n2t8?|User-Agent=http-user-agent=Lavf/56.15.102
-#EXTINF:-1 group-title="Спортивные",Setanta Sports + UA
-http://ronaldo.tvfor.pro/ANchoNjESC/tht6v98456np1k198n81n2t8?|User-Agent=http-user-agent=Lavf/56.15.102
 #EXTINF:-1 group-title="Спортивные",UPL.TV
 http://ronaldo.tvfor.pro/hfesfdhfjk/tht6v98456np1k198n81n2t8?|User-Agent=http-user-agent=Lavf/56.15.102
-#EXTINF:-1 group-title="Спортивные",Setanta Sports 1 EU
-http://ronaldo.tvfor.pro/SetantaSportHD/tht6v98456np1k198n81n2t8?|User-Agent=http-user-agent=Lavf/56.15.102
-#EXTINF:-1 group-title="Спортивные",Setanta Sports 2 EU
-http://ronaldo.tvfor.pro/SetantaEurasiaplus/tht6v98456np1k198n81n2t8?|User-Agent=http-user-agent=Lavf/56.15.102
-#EXTINF:-1 group-title="Спортивные",Setanta Sports 1 GE
-http://ronaldo.tvfor.pro/REDICiFOuS/tht6v98456np1k198n81n2t8?|User-Agent=http-user-agent=Lavf/56.15.102
-#EXTINF:-1 group-title="Спортивные",Setanta Sports 3 GE
-http://ronaldo.tvfor.pro/cx8xOr4dgSMV/tht6v98456np1k198n81n2t8?|User-Agent=http-user-agent=Lavf/56.15.102
-#EXTINF:-1 group-title="Спортивные",Setanta Sports 1 LV
-http://ronaldo.tvfor.pro/Nfw7iAOPbA0u/tht6v98456np1k198n81n2t8?|User-Agent=http-user-agent=Lavf/56.15.102
-#EXTINF:-1 group-title="Спортивные",Setanta Sports MD
-http://ronaldo.tvfor.pro/vkgQ1Zw3ZF3W/tht6v98456np1k198n81n2t8?|User-Agent=http-user-agent=Lavf/56.15.102
-#EXTINF:-1 group-title="Спортивные",Setanta Qazaqstan
-http://ronaldo.tvfor.pro/icHYPTiCAG/tht6v98456np1k198n81n2t8?|User-Agent=http-user-agent=Lavf/56.15.102
 #EXTINF:-1 group-title="Спортивные",Матч! HD
 http://ronaldo.tvfor.pro/6kzDOOrtd1/tht6v98456np1k198n81n2t8?|User-Agent=http-user-agent=Lavf/56.15.102
 #EXTINF:-1 group-title="Спортивные",Матч! Футбол 1

@@ -13,6 +13,7 @@ import com.nexastream.app.fragments.home.HomeMobileFragmentDirections
 import com.nexastream.app.fragments.home.HomeTvFragmentDirections
 import com.nexastream.app.models.SportMatch
 import com.nexastream.app.models.Video
+import com.nexastream.app.utils.loadSportMatchPoster
 
 class SportMatchViewHolder(
     private val _binding: ViewBinding
@@ -54,11 +55,10 @@ class SportMatchViewHolder(
             tvMatchTime.text = match.time
             tvMatchStatus.isVisible = match.status == "LIVE"
 
-            Glide.with(context)
-                .load(match.poster)
-                .placeholder(R.drawable.glide_fallback_cover)
-                .error(R.drawable.glide_fallback_cover)
-                .into(ivMatchPoster)
+            ivMatchPoster.loadSportMatchPoster(match) {
+                placeholder(R.drawable.glide_fallback_cover)
+                error(R.drawable.glide_fallback_cover)
+            }
         }
     }
 

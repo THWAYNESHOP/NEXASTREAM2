@@ -19,6 +19,7 @@ import com.nexastream.app.fragments.tv_show.TvShowTvFragment
 import com.nexastream.app.fragments.tv_show.TvShowTvFragmentDirections
 import com.nexastream.app.models.People
 import com.nexastream.app.utils.getCurrentFragment
+import com.nexastream.app.utils.loadPersonProfile
 import com.nexastream.app.utils.toActivity
 
 class PeopleViewHolder(
@@ -64,12 +65,11 @@ class PeopleViewHolder(
 
         binding.ivPeopleImage.apply {
             clipToOutline = true
-            Glide.with(context)
-                .load(people.image)
-                .placeholder(R.drawable.ic_person_placeholder)
-                .centerCrop()
-                .transition(DrawableTransitionOptions.withCrossFade())
-                .into(this)
+            loadPersonProfile(people) {
+                placeholder(R.drawable.ic_person_placeholder)
+                centerCrop()
+                transition(DrawableTransitionOptions.withCrossFade())
+            }
         }
 
         binding.tvPeopleName.text = people.name

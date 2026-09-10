@@ -30,11 +30,11 @@ class GenreViewModel @Inject constructor(
     @OptIn(ExperimentalCoroutinesApi::class)
     val state: Flow<State> = combine(
         _state,
-        _state.transformLatest { state ->
+        _state.flatMapLatest { state ->
             if (state is State.SuccessLoading) {
                 val shows = state.genre.shows
                 if (shows.isEmpty()) {
-                    emit(emptyList<Show>())
+                    flowOf(emptyList<Show>())
                 } else {
                     val movies = shows.filterIsInstance<Movie>()
                     val tvShows = shows.filterIsInstance<TvShow>()
@@ -55,7 +55,7 @@ class GenreViewModel @Inject constructor(
                         }
                     }
                 }
-            } else emit(emptyList<Show>())
+            } else flowOf(emptyList<Show>())
         }
     ) { state, showsDb ->
         if (state is State.SuccessLoading) {

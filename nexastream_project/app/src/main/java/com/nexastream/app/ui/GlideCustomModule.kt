@@ -29,7 +29,7 @@ class GlideCustomModule : AppGlideModule() {
     private fun getOkHttpClient(context: Context): OkHttpClient {
         val appCache = Cache(File(context.cacheDir, "glide-okhttp-cache"), 10 * 1024 * 1024)
 
-        val logging = HttpLoggingInterceptor().setLevel(HttpLoggingInterceptor.Level.BASIC)
+        val logging = HttpLoggingInterceptor().setLevel(HttpLoggingInterceptor.Level.HEADERS)
 
         val trustAllCerts = arrayOf<TrustManager>(
             object : X509TrustManager {
@@ -67,6 +67,7 @@ class GlideCustomModule : AppGlideModule() {
                 val request = chain.request()
                 val headers = ArtworkRequestHeaders.headersFor(request.url)
                 val strippedUrl = ArtworkRequestHeaders.stripHeaders(request.url)
+                android.util.Log.e("GlideCustomModule", "Headers for ${request.url}: $headers")
                 val fixedRequest = if (headers.isNotEmpty() || strippedUrl != request.url) {
                     request.newBuilder()
                         .url(strippedUrl)
@@ -82,13 +83,14 @@ class GlideCustomModule : AppGlideModule() {
             .addInterceptor(logging)
             .sslSocketFactory(sslContext.socketFactory, trustManager)
             .hostnameVerifier { _, _ -> true }
-            .dns(DnsResolver.doh)
+            .dns(NetworkClient.systemDns.dns)
             .build()
     }
 
     override fun registerComponents(
         context: Context, glide: Glide, registry: com.bumptech.glide.Registry
     ) {
+        android.util.Log.e("GlideCustomModule", "registerComponents called")
         val okHttpClient = getOkHttpClient(context)
         registry.replace(
             GlideUrl::class.java, InputStream::class.java, OkHttpUrlLoader.Factory(okHttpClient)

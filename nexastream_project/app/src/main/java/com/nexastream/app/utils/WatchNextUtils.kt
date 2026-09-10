@@ -28,6 +28,7 @@ object WatchNextUtils {
         val builder = (existing?.let { WatchNextProgram.Builder(it) } ?: WatchNextProgram.Builder())
             .setInternalProviderId(UserPreferences.currentProvider!!.name)
             .setContentId(contentId)
+            .setWatchNextType(TvContractCompat.WatchNextPrograms.WATCH_NEXT_TYPE_CONTINUE)
             .setLastEngagementTimeUtcMillis(watchItem.watchHistory?.lastEngagementTimeUtcMillis ?: System.currentTimeMillis())
             .setLastPlaybackPositionMillis(watchItem.watchHistory?.lastPlaybackPositionMillis?.toInt() ?: 0)
             .setDurationMillis(watchItem.watchHistory?.durationMillis?.toInt() ?: 0)
@@ -38,6 +39,7 @@ object WatchNextUtils {
                     .setTitle(watchItem.title)
                     .setDescription(watchItem.overview)
                     .setPosterArtUri(watchItem.poster?.let { Uri.parse(it) })
+                    .setIntentUri(Uri.parse("nexastream://resolve?id=${watchItem.id}&type=movie"))
             }
             is Episode -> {
                 builder.setType(TvContractCompat.WatchNextPrograms.TYPE_TV_EPISODE)
@@ -48,6 +50,7 @@ object WatchNextUtils {
                     .setEpisodeTitle(watchItem.title)
                     .setDescription("S${watchItem.season?.number} E${watchItem.number} • ${watchItem.title ?: ""}")
                     .setPosterArtUri((watchItem.poster ?: watchItem.tvShow?.poster)?.let { Uri.parse(it) })
+                    .setIntentUri(Uri.parse("nexastream://resolve?id=${watchItem.id}&type=tv_show"))
             }
         }
 

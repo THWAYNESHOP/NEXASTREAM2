@@ -73,17 +73,22 @@ object UserPreferences {
             return Provider.providers.keys.find { it.name == providerName }
         }
         set(value) {
-            // CRITICO: Resetta l'istanza del database prima di cambiare provider
-            // per forzare la creazione di un nuovo database file corretto.
-            AppDatabase.resetInstance()
+            setCurrentProvider(value, notify = true)
+        }
 
-            Key.CURRENT_PROVIDER.setString(value?.name)
-            runCatching {
-                ArtworkRepairScheduler.schedule(NexastreamApp.instance, value)
-            }
+    fun setCurrentProvider(value: Provider?, notify: Boolean) {
+        if (value?.name == currentProvider?.name) return
+
+        Key.CURRENT_PROVIDER.setString(value?.name)
+        runCatching {
+            ArtworkRepairScheduler.schedule(NexastreamApp.instance, value)
+        }
+
+        if (notify) {
             // Notify all ViewModels that the provider has changed
             ProviderChangeNotifier.notifyProviderChanged()
         }
+    }
 
     fun getProviderCache(provider: Provider, key: String): String {
         return providerCache
@@ -357,6 +362,22 @@ object UserPreferences {
             Key.QUALITY_HEIGHT.setInt(value)
         }
 
+    var downloadWifiOnly: Boolean
+        get() = Key.DOWNLOAD_WIFI_ONLY.getBoolean() ?: true
+        set(value) {
+            Key.DOWNLOAD_WIFI_ONLY.setBoolean(value)
+        }
+
+    var maxParallelDownloads: Int
+        get() = Key.MAX_PARALLEL_DOWNLOADS.getInt() ?: 3
+        set(value) {
+            Key.MAX_PARALLEL_DOWNLOADS.setInt(value)
+        }
+
+    var preferredDownloadQuality: String?
+        get() = Key.PREFERRED_DOWNLOAD_QUALITY.getString()
+        set(value) = Key.PREFERRED_DOWNLOAD_QUALITY.setString(value)
+
     var subtitleName: String?
         get() = Key.SUBTITLE_NAME.getString()
         set(value) = Key.SUBTITLE_NAME.setString(value)
@@ -519,8 +540,29 @@ object UserPreferences {
         get() = Key.LAST_UPDATE_CHECK_MILLIS.getLong() ?: 0L
         set(value) = Key.LAST_UPDATE_CHECK_MILLIS.setLong(value)
 
+    var forceTvUi: Boolean
+        get() = Key.FORCE_TV_UI.getBoolean() ?: false
+        set(value) {
+            Key.FORCE_TV_UI.setBoolean(value)
+        }
+
+    var remoteControlTvIp: String?
+        get() = Key.REMOTE_CONTROL_TV_IP.getString()
+        set(value) {
+            Key.REMOTE_CONTROL_TV_IP.setString(value)
+        }
+
+    var remoteControlTvId: String?
+        get() = Key.REMOTE_CONTROL_TV_ID.getString()
+        set(value) {
+            Key.REMOTE_CONTROL_TV_ID.setString(value)
+        }
+
     private enum class Key {
         APP_LAYOUT,
+        FORCE_TV_UI,
+        REMOTE_CONTROL_TV_IP,
+        REMOTE_CONTROL_TV_ID,
         CURRENT_LANGUAGE,
         CURRENT_PROVIDER,
         PLAYER_RESIZE,
@@ -569,7 +611,10 @@ object UserPreferences {
         PROVIDER_LANGUAGE,
         FAVORITE_PROVIDERS,
         PREFERRED_SERVER_NAME,
-        LAST_UPDATE_CHECK_MILLIS;
+        LAST_UPDATE_CHECK_MILLIS,
+        DOWNLOAD_WIFI_ONLY,
+        MAX_PARALLEL_DOWNLOADS,
+        PREFERRED_DOWNLOAD_QUALITY;
 
         fun getStringSet(): Set<String>? = if (::prefs.isInitialized) {
             when {

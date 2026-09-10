@@ -1,6 +1,7 @@
 package com.nexastream.app.database
 
 import android.content.Context
+import android.util.Log
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
@@ -13,6 +14,7 @@ import com.nexastream.app.database.dao.SeasonDao
 import com.nexastream.app.database.dao.TvShowDao
 import com.nexastream.app.database.dao.DownloadDao
 import com.nexastream.app.database.dao.LiveTvDao
+import com.nexastream.app.database.dao.SearchHistoryDao
 import com.nexastream.app.models.Episode
 import com.nexastream.app.models.Movie
 import com.nexastream.app.models.Season
@@ -25,6 +27,7 @@ import com.nexastream.app.models.LivePlaybackDiagnostic
 import com.nexastream.app.models.LiveRecording
 import com.nexastream.app.models.LiveStreamHealth
 import com.nexastream.app.models.ProgramReminder
+import com.nexastream.app.models.SearchHistory
 import com.nexastream.app.models.XmlTvChannel
 import com.nexastream.app.utils.UserPreferences
 
@@ -43,8 +46,9 @@ import com.nexastream.app.utils.UserPreferences
         LivePlaybackDiagnostic::class,
         XmlTvChannel::class,
         EpgChannelMapping::class,
+        SearchHistory::class,
     ],
-    version = 17,
+    version = 19,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -61,6 +65,8 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun downloadDao(): DownloadDao
 
     abstract fun liveTvDao(): LiveTvDao
+
+    abstract fun searchHistoryDao(): SearchHistoryDao
 
     companion object {
 
@@ -91,7 +97,7 @@ abstract class AppDatabase : RoomDatabase() {
 
             return INSTANCE?.takeIf { currentProviderName == providerName } ?: synchronized(this) {
                 INSTANCE?.takeIf { currentProviderName == providerName } ?: run {
-                    INSTANCE?.close()
+                    Log.d("AppDatabase", "Switching database from '$currentProviderName' to '$providerName'")
                     buildDatabase(providerName, context).also { instance ->
                         INSTANCE = instance
                         currentProviderName = providerName

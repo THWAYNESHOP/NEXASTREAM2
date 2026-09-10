@@ -49,15 +49,17 @@
     <string name="theme_emerald_luxe">Emerald Luxe</string>
     <string name="theme_retro_neon">Retro Neon</string>
 
-    <string name="search_input_hint">Search movies, TV shows</string>
+    <string name="search_input_hint">Search movies, TV shows, people</string>
     <string name="search_input_hint_iptv">Search channels</string>
     <string name="global_search">Global search</string>
+    <string name="search_recent">Recent Searches</string>
     <string name="search_empty_query">Please enter a search query</string>
     <string name="searching">Searching...</string>
     <string name="search_error">Error</string>
     <string name="result">Result</string>
     <string name="results">Results</string>
     <string name="switching_to_provider">Switching to %s</string>
+    <string name="home_view_all">View All</string>
 
     <string name="home_swiper_watch_now">Watch Now</string>
     <string name="home_continue_watching">Continue Watching</string>
@@ -562,6 +564,16 @@
     <string name="download_action_resume">Resume</string>
     <string name="download_action_retry">Retry</string>
     <string name="download_action_cancel">Cancel</string>
+
+    <string name="settings_download_wifi_only_title">Download on Wi-Fi only</string>
+    <string name="settings_download_wifi_only_summary">Save mobile data by only downloading when connected to Wi-Fi</string>
+    <string name="settings_download_max_parallel_title">Max parallel downloads</string>
+    <string name="settings_download_max_parallel_summary">%s downloads at once</string>
+    <string name="settings_download_quality_title">Preferred download quality</string>
+    <string name="settings_download_quality_summary">%s</string>
+    <string name="settings_download_disk_space_error">Not enough disk space to start download</string>
+    <string name="download_waiting_for_wifi">Waiting for Wi-Fi</string>
+    <string name="download_waiting_for_network">Waiting for network</string>
 
     <string name="detail_download_quality_title">Select Download Quality</string>
     <string name="detail_error_title">Oops!</string>

@@ -24,6 +24,7 @@ import com.nexastream.app.databinding.FragmentSearchTvBinding
 import com.nexastream.app.models.Category
 import com.nexastream.app.models.Genre
 import com.nexastream.app.models.Movie
+import com.nexastream.app.models.People
 import com.nexastream.app.models.TvShow
 import com.nexastream.app.utils.CacheUtils
 import com.nexastream.app.utils.LoggingUtils
@@ -62,6 +63,9 @@ class SearchTvFragment : Fragment() {
                 }
                 findNavController().navigate(SearchTvFragmentDirections.actionSearchToTvShow(id = tvShow.id, poster = tvShow.poster, banner = tvShow.banner))
             }
+            onPeopleClickListener = { people ->
+                findNavController().navigate(SearchTvFragmentDirections.actionSearchToPeople(id = people.id, name = people.name, image = people.image))
+            }
         }
     }
 
@@ -99,6 +103,26 @@ class SearchTvFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         initializeSearch()
+
+        viewLifecycleOwner.lifecycleScope.launch {
+            viewModel.searchHistory.flowWithLifecycle(lifecycle, Lifecycle.State.STARTED).collect { history ->
+                if (viewModel.query.isEmpty()) {
+                    val historyItems = history.map { 
+                        Category(name = it.query, list = emptyList()).apply { 
+                            itemType = AppAdapter.Type.CATEGORY_TV_ITEM 
+                        }
+                    }
+                    if (historyItems.isNotEmpty()) {
+                        val historyCategory = Category(name = getString(R.string.search_recent), list = historyItems).apply {
+                            itemType = AppAdapter.Type.CATEGORY_TV_ITEM
+                        }
+                        displayHistory(history)
+                    } else {
+                        appAdapter.submitList(emptyList())
+                    }
+                }
+            }
+        }
 
         viewLifecycleOwner.lifecycleScope.launch {
             viewModel.state.flowWithLifecycle(lifecycle, Lifecycle.State.STARTED).collect { state ->
@@ -236,6 +260,7 @@ class SearchTvFragment : Fragment() {
             binding.etSearch.setText("")
             val isIptv = UserPreferences.currentProvider is IptvProvider
             binding.etSearch.hint = getString(if (isIptv) R.string.search_input_hint_iptv else R.string.search_input_hint)
+            appAdapter.onGenreClickListener = null // Reset genre click listener to default
             viewModel.search("")
         }
 
@@ -251,6 +276,28 @@ class SearchTvFragment : Fragment() {
         binding.root.requestFocus()
     }
 
+    private fun displayHistory(history: List<com.nexastream.app.models.SearchHistory>) {
+        val categories = listOf(
+            Category(
+                name = getString(R.string.search_recent),
+                list = history.map { 
+                    Genre(id = it.query, name = it.query)
+                }
+            ).apply { itemType = AppAdapter.Type.CATEGORY_TV_ITEM }
+        )
+        currentGridColumns = 1
+        binding.vgvSearch.setNumColumns(currentGridColumns)
+        appAdapter.submitList(categories)
+        
+        // Custom click listener for history items if they are Genres in a Category
+        appAdapter.onGenreClickListener = { genre ->
+             if (viewModel.query.isEmpty()) {
+                 binding.etSearch.setText(genre.name)
+                 submitSearch()
+             }
+        }
+    }
+
     private fun focusSearchContent(): Boolean {
         val hasResults = appAdapter.itemCount > 0 && binding.vgvSearch.visibility == View.VISIBLE
         return when {
@@ -261,6 +308,16 @@ class SearchTvFragment : Fragment() {
     }
 
     private fun displaySearch(list: List<AppAdapter.Item>, hasMore: Boolean) {
+        if (viewModel.query.isEmpty()) return
+
+        if (list.any { it is Category }) {
+            currentGridColumns = 1
+            binding.vgvSearch.setNumColumns(currentGridColumns)
+            appAdapter.submitList(list)
+            appAdapter.setOnLoadMoreListener(null)
+            return
+        }
+
         currentGridColumns = if (viewModel.query == "") 5 else 6
         binding.vgvSearch.setNumColumns(currentGridColumns)
         appAdapter.submitList(list.onEach {
@@ -268,6 +325,7 @@ class SearchTvFragment : Fragment() {
                 is Genre -> it.itemType = AppAdapter.Type.GENRE_GRID_TV_ITEM
                 is Movie -> it.itemType = AppAdapter.Type.MOVIE_GRID_TV_ITEM
                 is TvShow -> it.itemType = AppAdapter.Type.TV_SHOW_GRID_TV_ITEM
+                is People -> it.itemType = AppAdapter.Type.PEOPLE_TV_ITEM
             }
         })
         if (hasMore && viewModel.query != "") {

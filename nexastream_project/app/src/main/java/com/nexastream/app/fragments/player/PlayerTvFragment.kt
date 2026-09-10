@@ -1340,7 +1340,20 @@ class PlayerTvFragment : Fragment() {
                         binding.pvPlayer.controller.binding.exoPlayPause.nextFocusDownId = -1
                         updatePlayerScale()
                         reportCurrentStreamHealthy()
+                        stopBufferingWatchdog()
                     }
+                    
+                    if (playbackState == Player.STATE_BUFFERING) {
+                        val isLive = currentVideo?.source?.contains("ronaldo.tvfor.pro") == true || 
+                                    currentVideo?.source?.contains(".m3u8") == true ||
+                                    currentServer?.id?.contains("ronaldo.tvfor.pro") == true
+                        if (isLive) startBufferingWatchdog()
+                    }
+
+                    if (playbackState == Player.STATE_ENDED) {
+                        stopBufferingWatchdog()
+                    }
+                    
                     updateLiveControls()
                 }
 
@@ -1802,7 +1815,28 @@ class PlayerTvFragment : Fragment() {
             UserDataCache.syncEpisodeToCache(requireContext(), provider, persistedNextEpisode)
         }
 
-        private fun startProgressHandler() {
+        private var bufferingWatchdogJob: Job? = null
+    private fun startBufferingWatchdog() {
+        bufferingWatchdogJob?.cancel()
+        bufferingWatchdogJob = viewLifecycleOwner.lifecycleScope.launch {
+            delay(20_000)
+            if (player.playbackState == Player.STATE_BUFFERING) {
+                val nextServer = servers.getOrNull(servers.indexOf(currentServer) + 1)
+                if (nextServer != null) {
+                    Log.i("PlayerTvFragment", "Stuck in buffering, trying next server: ${nextServer.name}")
+                    Toast.makeText(context, "Connection slow, trying mirror...", Toast.LENGTH_SHORT).show()
+                    viewModel.getVideo(nextServer)
+                }
+            }
+        }
+    }
+
+    private fun stopBufferingWatchdog() {
+        bufferingWatchdogJob?.cancel()
+        bufferingWatchdogJob = null
+    }
+
+    private fun startProgressHandler() {
             progressHandler = android.os.Handler(android.os.Looper.getMainLooper())
             progressRunnable = Runnable {
                 if (player.isPlaying) {
@@ -1996,13 +2030,13 @@ class PlayerTvFragment : Fragment() {
         private var currentExtraBuffering = false
         private var currentSoftwareDecoder = false
 
-        private fun buildPlayer(extraBuffering: Boolean): ExoPlayer {
+        private fun buildPlayer(extraBuffering: Boolean, isLive: Boolean): ExoPlayer {
             val loadControl = DefaultLoadControl.Builder()
                 .setBufferDurationsMs(
-                    DefaultLoadControl.DEFAULT_MIN_BUFFER_MS,
+                    if (isLive) 30_000 else DefaultLoadControl.DEFAULT_MIN_BUFFER_MS,
                     if (extraBuffering) 300_000 else DefaultLoadControl.DEFAULT_MAX_BUFFER_MS,
-                    DefaultLoadControl.DEFAULT_BUFFER_FOR_PLAYBACK_MS,
-                    DefaultLoadControl.DEFAULT_BUFFER_FOR_PLAYBACK_AFTER_REBUFFER_MS
+                    if (isLive) 10_000 else DefaultLoadControl.DEFAULT_BUFFER_FOR_PLAYBACK_MS,
+                    if (isLive) 15_000 else DefaultLoadControl.DEFAULT_BUFFER_FOR_PLAYBACK_AFTER_REBUFFER_MS
                 )
                 .build()
 
@@ -2061,7 +2095,11 @@ class PlayerTvFragment : Fragment() {
                 DefaultDataSource.Factory(requireContext(), httpDataSource)
             }
 
-            localPlayer = buildPlayer(extraBuffering).also { p ->
+            val isLive = currentVideo?.source?.contains("ronaldo.tvfor.pro") == true || 
+                        currentVideo?.source?.contains(".m3u8") == true ||
+                        currentServer?.id?.contains("ronaldo.tvfor.pro") == true
+
+            localPlayer = buildPlayer(extraBuffering, isLive).also { p ->
                     p.setAudioAttributes(
                         AudioAttributes.Builder()
                             .setUsage(C.USAGE_MEDIA)
@@ -2266,7 +2304,11 @@ class PlayerTvFragment : Fragment() {
 
         dataSourceFactory = DefaultDataSource.Factory(requireContext(), httpDataSource)
 
-        localPlayer = buildPlayer(extraBuffering).also { p ->
+        val isLive = currentVideo?.source?.contains("ronaldo.tvfor.pro") == true || 
+                    currentVideo?.source?.contains(".m3u8") == true ||
+                    currentServer?.id?.contains("ronaldo.tvfor.pro") == true
+
+        localPlayer = buildPlayer(extraBuffering, isLive).also { p ->
                 p.setAudioAttributes(
                     AudioAttributes.Builder()
                         .setUsage(C.USAGE_MEDIA)

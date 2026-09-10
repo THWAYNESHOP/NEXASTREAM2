@@ -94,6 +94,7 @@ interface Provider {
             IptvOrgProvider to ProviderSupport(movies = false, tvShows = true),
             IptvSpainProvider to ProviderSupport(movies = false, tvShows = true),
             CdnLiveTvProvider to ProviderSupport(movies = false, tvShows = true),
+            AkSportsLiveProvider to ProviderSupport(movies = false, tvShows = true),
             TvLibrefutbolProvider to ProviderSupport(movies = false, tvShows = true),
             PelotaLibreTvHdProvider to ProviderSupport(movies = false, tvShows = true),
             PlutoTvMxProvider to ProviderSupport(movies = false, tvShows = true),

@@ -13,7 +13,7 @@ data class SportMatch(
     val time: String,
     val score: String,
     val sport: String,
-    val poster: String? = null,
+    var poster: String? = null,
     val date: Long? = null,
     val sources: List<MatchSource> = emptyList()
 ) : AppAdapter.Item, Serializable {

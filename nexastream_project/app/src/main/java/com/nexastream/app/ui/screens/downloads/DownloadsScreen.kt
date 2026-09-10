@@ -23,9 +23,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.media3.common.util.UnstableApi
+import androidx.media3.exoplayer.scheduler.Requirements
 import coil.compose.AsyncImage
 import com.nexastream.app.models.Download
 
+@UnstableApi
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DownloadsScreen(
@@ -71,6 +74,7 @@ fun DownloadsScreen(
     }
 }
 
+@UnstableApi
 @Composable
 fun DownloadItem(
     download: Download,
@@ -125,12 +129,18 @@ fun DownloadItem(
                     )
                 }
                 Text(
-                    text = if (hasKnownProgress) {
+                    text = if (download.waitingReason != 0) {
+                        when {
+                            (download.waitingReason and Requirements.NETWORK_UNMETERED) != 0 -> "Waiting for Wi-Fi..."
+                            (download.waitingReason and Requirements.NETWORK) != 0 -> "Waiting for network..."
+                            else -> "Waiting..."
+                        }
+                    } else if (hasKnownProgress) {
                         "Downloading... ${download.progress}%"
                     } else {
                         "Downloading..."
                     },
-                    color = Color.Gray,
+                    color = if (download.waitingReason != 0) Color(0xFFFFC107) else Color.Gray,
                     fontSize = 12.sp
                 )
                 DownloadMetadata(download)

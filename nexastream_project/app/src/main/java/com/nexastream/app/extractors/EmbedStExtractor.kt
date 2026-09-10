@@ -11,15 +11,37 @@ import kotlinx.coroutines.withContext
 class EmbedStExtractor : Extractor() {
     override val name: String = "EmbedSt"
     override val mainUrl: String = "https://embed.st"
-    override val aliasUrls: List<String> = listOf("https://top-embed.com")
+    override val aliasUrls: List<String> = listOf(
+        "top-embed.com",
+        "streamed.st",
+        "streamed.is",
+        "streamed.su",
+        "streamed.pk",
+        "stream.pk"
+    )
 
-    private val client = OkHttpClient()
+    private val client = OkHttpClient.Builder()
+        .connectTimeout(5, java.util.concurrent.TimeUnit.SECONDS)
+        .readTimeout(5, java.util.concurrent.TimeUnit.SECONDS)
+        .build()
 
     override suspend fun extract(link: String): Video = withContext(Dispatchers.IO) {
         android.util.Log.d("EmbedStExtractor", "Extracting from: $link")
+        
+        // Network Master Referer logic: if it's any "streamed" mirror, use the main portal as referer
+        val isStreamedNetwork = aliasUrls.any { it.contains("streamed") || it.contains("stream.pk") } && link.contains("stream")
+        val referer = if (isStreamedNetwork) "https://streamed.st/" else {
+            try {
+                val uri = java.net.URI(link)
+                "${uri.scheme}://${uri.host}/"
+            } catch (_: Exception) {
+                "https://embed.st/"
+            }
+        }
+        
         val request = Request.Builder()
             .url(link)
-            .header("Referer", "https://streamed.pk/")
+            .header("Referer", referer)
             .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
             .build()
         
@@ -39,7 +61,11 @@ class EmbedStExtractor : Extractor() {
                 android.util.Log.d("EmbedStExtractor", "Found m3u8 source: $url")
                 return@withContext Video(
                     source = url,
-                    headers = mapOf("Referer" to "https://streamed.pk/")
+                    headers = mapOf(
+                        "Referer" to referer,
+                        "Origin" to referer.trimEnd('/')
+                    ),
+                    maintainToken = true
                 )
             }
             
@@ -52,7 +78,11 @@ class EmbedStExtractor : Extractor() {
                         android.util.Log.d("EmbedStExtractor", "Found decoded m3u8: $decoded")
                         return@withContext Video(
                             source = decoded,
-                            headers = mapOf("Referer" to "https://streamed.pk/")
+                            headers = mapOf(
+                                "Referer" to referer,
+                            "Origin" to referer.trimEnd('/')
+                            ),
+                            maintainToken = true
                         )
                     }
                 } catch (ignored: Exception) {}
@@ -65,7 +95,11 @@ class EmbedStExtractor : Extractor() {
                 android.util.Log.d("EmbedStExtractor", "Found var source: $url")
                 return@withContext Video(
                     source = url,
-                    headers = mapOf("Referer" to "https://streamed.pk/")
+                    headers = mapOf(
+                        "Referer" to referer,
+                        "Origin" to referer.trimEnd('/')
+                    ),
+                    maintainToken = true
                 )
             }
         }
@@ -75,7 +109,8 @@ class EmbedStExtractor : Extractor() {
         for (iframe in iframes) {
             val iframeSrc = iframe.attr("src")
             if (!iframeSrc.isNullOrBlank() && iframeSrc.startsWith("http")) {
-                 if (!iframeSrc.contains("embed.st") && !iframeSrc.contains("top-embed.com")) {
+                 val isAlias = aliasUrls.any { iframeSrc.contains(it.substringAfter("://")) }
+                 if (!iframeSrc.contains("embed.st") && !isAlias) {
                      android.util.Log.d("EmbedStExtractor", "Found sub-iframe: $iframeSrc")
                      return@withContext Extractor.extract(iframeSrc)
                  }
@@ -97,7 +132,11 @@ class EmbedStExtractor : Extractor() {
                         android.util.Log.d("EmbedStExtractor", "Found m3u8 in unpacked JS: $url")
                         return@withContext Video(
                             source = url,
-                            headers = mapOf("Referer" to "https://streamed.pk/")
+                            headers = mapOf(
+                                "Referer" to referer,
+                                "Origin" to referer.trimEnd('/')
+                            ),
+                            maintainToken = true
                         )
                     }
                 }

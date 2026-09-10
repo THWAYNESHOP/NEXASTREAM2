@@ -14,6 +14,8 @@ import androidx.media3.datasource.cache.SimpleCache
 import androidx.media3.datasource.okhttp.OkHttpDataSource
 import androidx.media3.exoplayer.offline.DownloadManager
 import androidx.media3.exoplayer.offline.DownloadNotificationHelper
+import androidx.media3.exoplayer.scheduler.PlatformScheduler
+import androidx.media3.exoplayer.scheduler.Scheduler
 import com.nexastream.app.database.AppDatabase
 import com.nexastream.app.utils.DnsResolver
 import com.nexastream.app.utils.HeaderInterceptingDataSource
@@ -84,6 +86,13 @@ object Media3Module {
 
     @Provides
     @Singleton
+    fun provideScheduler(@ApplicationContext context: Context): Scheduler {
+        // JobId should be unique for the app
+        return PlatformScheduler(context, 1)
+    }
+
+    @Provides
+    @Singleton
     fun provideDownloadManager(
         @ApplicationContext context: Context,
         databaseProvider: DatabaseProvider,
@@ -92,12 +101,14 @@ object Media3Module {
     ): DownloadManager {
         val interceptingFactory = HeaderInterceptingDataSource.Factory(httpDataSourceFactory, context)
         val upstreamFactory = DefaultDataSource.Factory(context, interceptingFactory)
-        return DownloadManager(
+        val downloadManager = DownloadManager(
             context,
             databaseProvider,
             cache,
             upstreamFactory,
             Executors.newFixedThreadPool(3)
         )
+        downloadManager.maxParallelDownloads = 3
+        return downloadManager
     }
 }

@@ -109,4 +109,6 @@ interface MovieDao {
     @Query("UPDATE movies SET isFavorite = :favorite, favoritedAtMillis = :favoritedAtMillis WHERE id = :id")
     fun setFavorite(id: String, favorite: Boolean, favoritedAtMillis: Long?)
 
+    @Query("SELECT * FROM movies WHERE LOWER(title) LIKE '%' || :query || '%' LIMIT :limit OFFSET :offset")
+    fun searchMovies(query: String, limit: Int, offset: Int): List<Movie>
 }

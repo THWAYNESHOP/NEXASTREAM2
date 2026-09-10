@@ -12,6 +12,7 @@ import androidx.fragment.app.viewModels
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.flowWithLifecycle
 import androidx.lifecycle.lifecycleScope
+import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
 import com.bumptech.glide.load.resource.drawable.DrawableTransitionOptions
@@ -175,6 +176,16 @@ class HomeTvFragment : Fragment() {
         binding.vgvHome.apply {
             adapter = appAdapter.apply {
                 stateRestorationPolicy = RecyclerView.Adapter.StateRestorationPolicy.PREVENT_WHEN_EMPTY
+                onViewAllClickListener = { category ->
+                    if (category.name == "CDN Live Channels") {
+                        findNavController().navigate(
+                            HomeTvFragmentDirections.actionHomeToGenre(
+                                id = "cdn_all_channels",
+                                name = "CDN Live TV"
+                            )
+                        )
+                    }
+                }
             }
             setItemSpacing(resources.getDimension(R.dimen.home_spacing).toInt() * 2)
         }

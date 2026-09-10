@@ -33,15 +33,6 @@ object HomeIptvChannels {
         ChannelData("tnt-3", "TNT Sports 3 HD", "http://ronaldo.tvfor.pro/r25HTg8Sx7/tht6v98456np1k198n81n2t8", logo = "https://i.ibb.co/r25HTg8Sx7/tnt-sports-3.png", group = "TNT Sports"),
         ChannelData("tnt-4", "TNT Sports 4 HD", "http://ronaldo.tvfor.pro/Ff54kV22Cg/tht6v98456np1k198n81n2t8", logo = "https://i.ibb.co/Ff54kV22Cg/tnt-sports-4.png", group = "TNT Sports"),
 
-        // === SETANTA SPORTS ===
-        ChannelData("setanta-ua", "Setanta Sports UA", "http://ronaldo.tvfor.pro/XazEkCLbtM/tht6v98456np1k198n81n2t8", logo = "https://i.ibb.co/XazEkCLbtM/setanta-ua.png", group = "Setanta"),
-        ChannelData("setanta-ua-plus", "Setanta Sports + UA", "http://ronaldo.tvfor.pro/ANchoNjESC/tht6v98456np1k198n81n2t8", logo = "https://i.ibb.co/ANchoNjESC/setanta-ua-plus.png", group = "Setanta"),
-        ChannelData("upl-tv", "UPL TV", "http://ronaldo.tvfor.pro/hfesfdhfjk/tht6v98456np1k198n81n2t8", group = "Setanta"),
-        ChannelData("setanta-1-eu", "Setanta Sports 1 EU", "http://ronaldo.tvfor.pro/SetantaSportHD/tht6v98456np1k198n81n2t8", group = "Setanta"),
-        ChannelData("setanta-2-eu", "Setanta Sports 2 EU", "http://ronaldo.tvfor.pro/SetantaEurasiaplus/tht6v98456np1k198n81n2t8", group = "Setanta"),
-        ChannelData("setanta-1-ge", "Setanta Sports 1 GE", "http://ronaldo.tvfor.pro/REDICiFOuS/tht6v98456np1k198n81n2t8", group = "Setanta"),
-        ChannelData("setanta-3-ge", "Setanta Sports 3 GE", "http://ronaldo.tvfor.pro/cx8xOr4dgSMV/tht6v98456np1k198n81n2t8", group = "Setanta"),
-        
         // === EUROSPORT ===
         ChannelData("eurosport-1", "Eurosport 1 HD", "http://ronaldo.tvfor.pro/EurosportHD/tht6v98456np1k198n81n2t8", logo = "https://i.ibb.co/EurosportHD/eurosport-1.png", group = "Eurosport"),
         ChannelData("eurosport-2", "Eurosport 2 HD", "http://ronaldo.tvfor.pro/Eurosport2HDRussia/tht6v98456np1k198n81n2t8", logo = "https://i.ibb.co/Eurosport2HD/eurosport-2.png", group = "Eurosport"),

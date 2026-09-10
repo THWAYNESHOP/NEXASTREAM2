@@ -8,7 +8,7 @@ import java.util.Calendar
 class People(
     val id: String,
     val name: String,
-    val image: String? = null,
+    var image: String? = null,
     val biography: String? = null,
     val placeOfBirth: String? = null,
     birthday: String? = null,

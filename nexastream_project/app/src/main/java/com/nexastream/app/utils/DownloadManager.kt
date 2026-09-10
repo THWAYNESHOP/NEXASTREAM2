@@ -3,6 +3,8 @@ package com.nexastream.app.utils
 import android.content.Context
 import android.net.Uri
 import android.os.Build
+import android.os.Environment
+import android.os.StatFs
 import android.util.Log
 import androidx.media3.common.MimeTypes
 import androidx.media3.common.util.UnstableApi
@@ -10,6 +12,7 @@ import androidx.media3.exoplayer.offline.Download
 import androidx.media3.exoplayer.offline.DownloadManager
 import androidx.media3.exoplayer.offline.DownloadRequest
 import androidx.media3.exoplayer.offline.DownloadService
+import androidx.media3.exoplayer.scheduler.Requirements
 import com.nexastream.app.database.AppDatabase
 import com.nexastream.app.models.Download as DownloadModel
 import com.nexastream.app.NexastreamApp
@@ -37,6 +40,17 @@ class DownloadManager @Inject constructor(
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var progressPollingJob: Job? = null
     private val progressSamples = ConcurrentHashMap<String, ProgressSample>()
+
+    private fun updateRequirements() {
+        val wifiOnly = UserPreferences.downloadWifiOnly
+        val requirements = if (wifiOnly) {
+            Requirements(Requirements.NETWORK_UNMETERED)
+        } else {
+            Requirements(Requirements.NETWORK)
+        }
+        media3DownloadManager.requirements = requirements
+        media3DownloadManager.maxParallelDownloads = UserPreferences.maxParallelDownloads
+    }
 
     private fun getDatabase(): AppDatabase {
         return AppDatabase.getInstance(context)
@@ -69,6 +83,7 @@ class DownloadManager @Inject constructor(
 
     init {
         Log.i("AAA", "Initializing AppDownloadManager")
+        updateRequirements()
         media3DownloadManager.addListener(object : DownloadManager.Listener {
             override fun onInitialized(downloadManager: DownloadManager) {
                 Log.d("DownloadManager", "Media3 DownloadManager initialized")
@@ -244,6 +259,11 @@ class DownloadManager @Inject constructor(
             val progress = calculateProgress(download, status, downloadedSize, totalSize, existingDownload?.progress ?: 0)
             val speed = calculateSpeed(download.request.id, downloadedSize, status)
             val etaSeconds = calculateEtaSeconds(downloadedSize, totalSize, speed, status)
+            val waitingReason = if (status == DownloadModel.Status.QUEUED || status == DownloadModel.Status.DOWNLOADING) {
+                media3DownloadManager.notMetRequirements
+            } else {
+                0
+            }
 
             database.downloadDao().updateProgress(
                 download.request.id,
@@ -252,7 +272,8 @@ class DownloadManager @Inject constructor(
                 downloadedSize,
                 totalSize,
                 speed,
-                etaSeconds
+                etaSeconds,
+                waitingReason
             )
         } catch (e: Exception) {
             Log.e("AAA", "Error updating progress in DB: ${e.message}")
@@ -332,6 +353,12 @@ class DownloadManager @Inject constructor(
         mimeType: String? = null
     ) {
         scope.launch {
+            if (!hasEnoughDiskSpace()) {
+                Log.e("DownloadManager", "Not enough disk space to start download")
+                // Ideally we should show a Toast or update UI, but for now we just log and return
+                return@launch
+            }
+
             val resolvedMimeType = inferMimeType(url, mimeType)
 
             val downloadModel = DownloadModel(
@@ -474,6 +501,22 @@ class DownloadManager @Inject constructor(
         if (file.isAbsolute && file.exists()) {
             file.delete()
         }
+    }
+
+    private fun hasEnoughDiskSpace(): Boolean {
+        return try {
+            val downloadRoot = context.getExternalFilesDir(null) ?: context.filesDir
+            val stat = StatFs(downloadRoot.path)
+            val availableBytes = stat.availableBlocksLong * stat.blockSizeLong
+            // Require at least 500MB free
+            availableBytes > 500 * 1024 * 1024
+        } catch (e: Exception) {
+            true // Default to true if check fails
+        }
+    }
+
+    fun onSettingsChanged() {
+        updateRequirements()
     }
 
     private suspend fun removeStoredDownload(id: String) {

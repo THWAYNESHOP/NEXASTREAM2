@@ -46,7 +46,8 @@ class GxPlayerExtractor : Extractor() {
                 "User-Agent" to DEFAULT_USER_AGENT,
                 "Referer" to mainUrl
             ),
-            type = MimeTypes.APPLICATION_M3U8
+            type = MimeTypes.APPLICATION_M3U8,
+            maintainToken = true
         )
     }
 

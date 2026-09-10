@@ -59,6 +59,7 @@ object NetworkClient {
     val default: OkHttpClient by lazy { buildClient(DnsResolver.doh) }
     val systemDns: OkHttpClient by lazy { buildClient(Dns.SYSTEM) }
     val noRedirects: OkHttpClient by lazy { buildClient(DnsResolver.doh) { it.followRedirects(false).followSslRedirects(false) } }
+    val minimal: OkHttpClient by lazy { buildClient(Dns.SYSTEM, minimal = true) }
 
     val trustAll: OkHttpClient by lazy {
         val trustAllCerts = arrayOf<TrustManager>(object : X509TrustManager {
@@ -90,27 +91,45 @@ object NetworkClient {
         }
     }
 
-    private fun buildClient(dns: Dns, customizer: ((OkHttpClient.Builder) -> Unit)? = null): OkHttpClient {
+    private fun buildClient(dns: Dns, minimal: Boolean = false, customizer: ((OkHttpClient.Builder) -> Unit)? = null): OkHttpClient {
         val builder = OkHttpClient.Builder()
             .addInterceptor { chain ->
-                val original = chain.request()
-                val requestBuilder = original.newBuilder()
-                val isCorsRequest = original.header("Sec-Fetch-Mode") == "cors" ||
-                        original.header("Sec-Fetch-Dest") == "empty"
+                var originalRequest = chain.request()
+                val originalUrl = originalRequest.url
+                
+                // 1. Handle Artwork Request Headers (Fragments to Real Headers)
+                val artworkHeaders = ArtworkRequestHeaders.headersFor(originalUrl)
+                if (artworkHeaders.isNotEmpty()) {
+                    val newUrl = ArtworkRequestHeaders.stripHeaders(originalUrl)
+                    val newRequestBuilder = originalRequest.newBuilder().url(newUrl)
+                    artworkHeaders.forEach { (key, value) ->
+                        newRequestBuilder.header(key, value)
+                    }
+                    originalRequest = newRequestBuilder.build()
+                }
+
+                if (minimal) return@addInterceptor chain.proceed(originalRequest)
+
+                val requestBuilder = originalRequest.newBuilder()
+                val isCorsRequest = originalRequest.header("Sec-Fetch-Mode") == "cors" ||
+                        originalRequest.header("Sec-Fetch-Dest") == "empty"
+                
                 // Only set default headers if not already provided by the caller (e.g. an extractor)
-                if (original.header("User-Agent") == null)
+                if (originalRequest.header("User-Agent") == null)
                     requestBuilder.header("User-Agent", USER_AGENT)
-                if (original.header("Accept") == null)
+                if (originalRequest.header("Accept") == null)
                     requestBuilder.header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8")
-                if (original.header("Accept-Language") == null)
+                if (originalRequest.header("Accept-Encoding") == null)
+                    requestBuilder.header("Accept-Encoding", "identity")
+                if (originalRequest.header("Accept-Language") == null)
                     requestBuilder.header("Accept-Language", "it-IT,it;q=0.9,en-US;q=0.8,en;q=0.7")
-                if (!isCorsRequest && original.header("Sec-Fetch-Dest") == null)
+                if (!isCorsRequest && originalRequest.header("Sec-Fetch-Dest") == null)
                     requestBuilder.header("Sec-Fetch-Dest", "document")
-                if (!isCorsRequest && original.header("Sec-Fetch-Mode") == null)
+                if (!isCorsRequest && originalRequest.header("Sec-Fetch-Mode") == null)
                     requestBuilder.header("Sec-Fetch-Mode", "navigate")
-                if (!isCorsRequest && original.header("Sec-Fetch-Site") == null)
+                if (!isCorsRequest && originalRequest.header("Sec-Fetch-Site") == null)
                     requestBuilder.header("Sec-Fetch-Site", "none")
-                if (!isCorsRequest && original.header("Upgrade-Insecure-Requests") == null)
+                if (!isCorsRequest && originalRequest.header("Upgrade-Insecure-Requests") == null)
                     requestBuilder.header("Upgrade-Insecure-Requests", "1")
                 chain.proceed(requestBuilder.build())
             }

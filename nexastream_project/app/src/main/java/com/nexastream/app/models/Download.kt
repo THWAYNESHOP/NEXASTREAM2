@@ -21,6 +21,7 @@ data class Download(
     val headers: Map<String, String>? = null,
     val mimeType: String? = null,
     val errorMessage: String? = null,
+    val waitingReason: Int = 0, // 0 means not waiting, otherwise Requirements.RequirementFlags
     val createdAt: Long = System.currentTimeMillis()
 ) {
     enum class Status {

@@ -58,13 +58,14 @@ class CategoryViewHolder(
     fun bind(
         category: Category,
         onMovieClick: ((Movie) -> Unit)? = null,
-        onTvShowClick: ((TvShow) -> Unit)? = null
+        onTvShowClick: ((TvShow) -> Unit)? = null,
+        onViewAllClick: ((Category) -> Unit)? = null
     ) {
         this.category = category
 
         when (_binding) {
-            is ItemCategoryMobileBinding -> displayMobileItem(_binding, onMovieClick, onTvShowClick)
-            is ItemCategoryTvBinding -> displayTvItem(_binding, onMovieClick, onTvShowClick)
+            is ItemCategoryMobileBinding -> displayMobileItem(_binding, onMovieClick, onTvShowClick, onViewAllClick)
+            is ItemCategoryTvBinding -> displayTvItem(_binding, onMovieClick, onTvShowClick, onViewAllClick)
             is ContentCategorySwiperMobileBinding -> displayMobileSwiper(_binding, onMovieClick, onTvShowClick)
             is ContentCategorySwiperTvBinding -> displayTvSwiper(_binding)
         }
@@ -73,9 +74,17 @@ class CategoryViewHolder(
     private fun displayMobileItem(
         binding: ItemCategoryMobileBinding,
         onMovieClick: ((Movie) -> Unit)?,
-        onTvShowClick: ((TvShow) -> Unit)?
+        onTvShowClick: ((TvShow) -> Unit)?,
+        onViewAllClick: ((Category) -> Unit)?
     ) {
         binding.tvCategoryTitle.text = category.name
+        
+        if (onViewAllClick != null && category.name == "CDN Live Channels") {
+            binding.tvCategoryViewAll.visibility = View.VISIBLE
+            binding.tvCategoryViewAll.setOnClickListener { onViewAllClick(category) }
+        } else {
+            binding.tvCategoryViewAll.visibility = View.GONE
+        }
 
         binding.rvCategory.apply {
             val categoryAdapter = (adapter as? AppAdapter) ?: AppAdapter().also { adapter = it }
@@ -93,9 +102,18 @@ class CategoryViewHolder(
     private fun displayTvItem(
         binding: ItemCategoryTvBinding,
         onMovieClick: ((Movie) -> Unit)?,
-        onTvShowClick: ((TvShow) -> Unit)?
+        onTvShowClick: ((TvShow) -> Unit)?,
+        onViewAllClick: ((Category) -> Unit)?
     ) {
         binding.tvCategoryTitle.text = category.name
+
+        if (onViewAllClick != null && category.name == "CDN Live Channels") {
+            binding.tvCategoryViewAll.visibility = View.VISIBLE
+            binding.tvCategoryViewAll.setOnClickListener { onViewAllClick(category) }
+        } else {
+            binding.tvCategoryViewAll.visibility = View.GONE
+        }
+
         binding.hgvCategory.apply {
             setRowHeight(ViewGroup.LayoutParams.WRAP_CONTENT)
 

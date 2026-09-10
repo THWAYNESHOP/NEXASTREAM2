@@ -42,10 +42,17 @@ object AnimeWorldProvider : Provider {
     override val logo = "https://static.animeworld.ac/assets/images/favicon/android-icon-192x192.png?4"
     override val language = "it"
 
-    private var service = AnimeWorldService.build()
+    private var _service: AnimeWorldService? = null
+    private val service: AnimeWorldService
+        get() {
+            if (_service == null) {
+                _service = AnimeWorldService.build()
+            }
+            return _service!!
+        }
 
     private fun rebuildServiceUnsafe() {
-        service = AnimeWorldService.buildUnsafe()
+        _service = AnimeWorldService.buildUnsafe()
     }
 
     private suspend fun <T> withSslFallback(block: suspend (AnimeWorldService) -> T): T {

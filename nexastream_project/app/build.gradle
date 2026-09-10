@@ -18,8 +18,8 @@ android {
 
     defaultConfig {
         applicationId "com.nexastream.app"
-        minSdk 24
-        targetSdk 35
+        minSdk 23
+        targetSdk 34
         versionCode 3
         versionName "1.0.2"
 
@@ -29,19 +29,6 @@ android {
         buildConfigField "String", "SUBDL_API_KEY", "\"${properties.getProperty("SUBDL_API_KEY", "")}\""
         buildConfigField "String", "TRAKT_CLIENT_ID", "\"${properties.getProperty("TRAKT_CLIENT_ID", "")}\""
         buildConfigField "String", "TRAKT_CLIENT_SECRET", "\"${properties.getProperty("TRAKT_CLIENT_SECRET", "")}\""
-    }
-
-    sourceSets {
-        main {
-            def appLayout = properties.getProperty("APP_LAYOUT", "mobile")
-            if (appLayout == "mobile") {
-                manifest.srcFile "${project.projectDir}/src/main/mobile/AndroidManifest.xml"
-            } else if (appLayout == "tv") {
-                manifest.srcFile "${project.projectDir}/src/main/tv/AndroidManifest.xml"
-            } else {
-                manifest.srcFile "${project.projectDir}/src/main/AndroidManifest.xml"
-            }
-        }
     }
 
     compileOptions {
@@ -138,6 +125,7 @@ dependencies {
     implementation(libs.okhttp.logging.interceptor)
     implementation(libs.okhttp.dnsoverhttps)
     implementation(libs.glide)
+    ksp(libs.glide.ksp)
     implementation(libs.glide.compose)
     implementation(libs.glide.okhttp3)
     implementation(libs.androidx.palette.ktx)

@@ -89,6 +89,7 @@ class MainTvActivity : FragmentActivity() {
 
         binding.navMain.setupWithNavController(navController)
         updateNavigationVisibility()
+        handleIntent(intent)
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             binding.navMainFragment.isFocusedByDefault = true
@@ -183,6 +184,37 @@ class MainTvActivity : FragmentActivity() {
         viewModel.checkUpdate()
     }
 
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        handleIntent(intent)
+    }
+
+    private fun handleIntent(intent: Intent?) {
+        if (intent == null) return
+        val navController = (supportFragmentManager.findFragmentById(binding.navMainFragment.id) as NavHostFragment).navController
+
+        when (intent.action) {
+            Intent.ACTION_SEARCH -> {
+                val query = intent.getStringExtra(android.app.SearchManager.QUERY)
+                val args = Bundle().apply { putString("query", query) }
+                navController.navigate(R.id.search, args)
+            }
+            Intent.ACTION_VIEW -> {
+                val data = intent.data ?: return
+                if (data.scheme == "nexastream" && data.host == "resolve") {
+                    val id = data.getQueryParameter("id")
+                    val type = data.getQueryParameter("type")
+                    if (id != null) {
+                        when (type) {
+                            "movie" -> navController.navigate(R.id.movie, Bundle().apply { putString("id", id) })
+                            "tv_show" -> navController.navigate(R.id.tv_show, Bundle().apply { putString("id", id) })
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     private fun applyThemeNavigationChrome() {
         val palette = ThemeManager.palette(UserPreferences.selectedTheme)
         window.statusBarColor = palette.systemBar
@@ -199,6 +231,7 @@ class MainTvActivity : FragmentActivity() {
     private fun updateNavigationVisibility() {
         UserPreferences.currentProvider?.let { provider ->
             val isIptv = provider is IptvProvider
+            binding.navMain.menu.findItem(R.id.search)?.isVisible = true
             binding.navMain.menu.findItem(R.id.movies)?.isVisible = Provider.supportsMovies(provider)
             val tvShowsItem = binding.navMain.menu.findItem(R.id.tv_shows)
             tvShowsItem?.isVisible = Provider.supportsTvShows(provider)

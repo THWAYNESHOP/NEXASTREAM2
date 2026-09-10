@@ -11,6 +11,8 @@ import com.nexastream.app.models.TvShow
 import com.nexastream.app.models.Video
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.Dispatchers
 
 object NexaHomeProvider : Provider {
     override val baseUrl: String = ""
@@ -21,16 +23,16 @@ object NexaHomeProvider : Provider {
     private val tmdb = TmdbProvider("en")
 
     override suspend fun getHome(): List<Category> = coroutineScope {
-        val tmdbHomeDeferred = async { tmdb.getHome() }
-        val liveSportsDeferred = async { SportsProvider.getLiveMatches() }
-        val cdnHomeDeferred = async { CdnLiveTvProvider.getHome() }
-        val localIptvDeferred = async { LocalIptvProvider.getHome() }
-        val upcomingSportsDeferred = async { SportsProvider.getUpcomingMatches() }
+        val tmdbHomeDeferred = async { runCatching { tmdb.getHome() }.getOrElse { emptyList() } }
+        val liveSportsDeferred = async { runCatching { AkSportsLiveProvider.getLiveMatches() }.getOrElse { emptyList() } }
+        val cdnHomeDeferred = async { runCatching { CdnLiveTvProvider.getHome() }.getOrElse { emptyList() } }
+        val localIptvDeferred = async { runCatching { LocalIptvProvider.getHome() }.getOrElse { emptyList() } }
+        val upcomingSportsDeferred = async { runCatching { AkSportsLiveProvider.getUpcomingMatches() }.getOrElse { emptyList() } }
         
         // Fetch specific genres for Netflix-style categories
-        val animationDeferred = async { tmdb.getGenre("16") } // Animation
-        val actionDeferred = async { tmdb.getGenre("28") } // Action
-        val comedyDeferred = async { tmdb.getGenre("35") } // Comedy
+        val animationDeferred = async { runCatching { tmdb.getGenre("16") }.getOrNull() }
+        val actionDeferred = async { runCatching { tmdb.getGenre("28") }.getOrNull() }
+        val comedyDeferred = async { runCatching { tmdb.getGenre("35") }.getOrNull() }
 
         val tmdbHome = tmdbHomeDeferred.await()
         val liveSports = liveSportsDeferred.await()
@@ -54,7 +56,7 @@ object NexaHomeProvider : Provider {
                 Category(
                     name = "Live Sports",
                     list = liveSports.map { match ->
-                        match.copy(id = SportsProvider.playbackId(match)).apply {
+                        match.copy(id = AkSportsLiveProvider.playbackId(match)).apply {
                             itemType = AppAdapter.Type.SPORT_MATCH_ITEM
                         }
                     }
@@ -75,7 +77,7 @@ object NexaHomeProvider : Provider {
         }
 
         // 6. Static Sports Rows (Permanent Lineup)
-        val sportGroups = listOf("Sky Sports", "TNT Sports", "Setanta", "Match!", "Bein Sports", "US Sports", "Global TV")
+        val sportGroups = listOf("Sky Sports", "TNT Sports", "Match!", "Bein Sports", "US Sports", "Global TV")
         sportGroups.forEach { group ->
             val list = HomeIptvChannels.getTvShows(group)
             if (list.isNotEmpty()) {
@@ -97,7 +99,7 @@ object NexaHomeProvider : Provider {
                 Category(
                     name = "Upcoming Sports",
                     list = upcomingSports.take(20).map { match ->
-                        match.copy(id = SportsProvider.playbackId(match)).apply {
+                        match.copy(id = AkSportsLiveProvider.playbackId(match)).apply {
                             itemType = AppAdapter.Type.SPORT_MATCH_ITEM
                         }
                     }
@@ -106,14 +108,14 @@ object NexaHomeProvider : Provider {
         }
 
         // 7. Movies & Series Categories
-        if (animationGenre.shows.isNotEmpty()) {
-            categories.add(Category(name = "Animation", list = animationGenre.shows).apply { itemType = AppAdapter.Type.CATEGORY_MOBILE_ITEM })
+        animationGenre?.shows?.takeIf { it.isNotEmpty() }?.let {
+            categories.add(Category(name = "Animation", list = it).apply { itemType = AppAdapter.Type.CATEGORY_MOBILE_ITEM })
         }
-        if (actionGenre.shows.isNotEmpty()) {
-            categories.add(Category(name = "Action & Adventure", list = actionGenre.shows).apply { itemType = AppAdapter.Type.CATEGORY_MOBILE_ITEM })
+        actionGenre?.shows?.takeIf { it.isNotEmpty() }?.let {
+            categories.add(Category(name = "Action & Adventure", list = it).apply { itemType = AppAdapter.Type.CATEGORY_MOBILE_ITEM })
         }
-        if (comedyGenre.shows.isNotEmpty()) {
-            categories.add(Category(name = "Comedy", list = comedyGenre.shows).apply { itemType = AppAdapter.Type.CATEGORY_MOBILE_ITEM })
+        comedyGenre?.shows?.takeIf { it.isNotEmpty() }?.let {
+            categories.add(Category(name = "Comedy", list = it).apply { itemType = AppAdapter.Type.CATEGORY_MOBILE_ITEM })
         }
 
         // Popular on Platforms
@@ -130,10 +132,11 @@ object NexaHomeProvider : Provider {
                         is SportMatch -> item.title
                         else -> ""
                     }
-                    !title.contains("Kenyan", ignoreCase = true)
+                    !title.contains("Kenyan", ignoreCase = true) && !title.contains("Setanta", ignoreCase = true)
                 }
             ).apply { 
-                this.itemType = category.itemType
+                // SAFETY: Ensure itemType is initialized
+                this.itemType = try { category.itemType } catch(_: Exception) { AppAdapter.Type.CATEGORY_MOBILE_ITEM }
                 this.selectedIndex = category.selectedIndex
                 this.itemSpacing = category.itemSpacing
             }
@@ -143,6 +146,33 @@ object NexaHomeProvider : Provider {
     }
 
     override suspend fun getTvShow(id: String): TvShow {
+        android.util.Log.e("NexaHomeProvider", "getTvShow(id=$id)")
+        if (id.startsWith("cdn:")) {
+            return CdnLiveTvProvider.getTvShow(id)
+        }
+        if (id.startsWith("cdn_match:")) {
+            // Return a placeholder for CDN matches to avoid TMDB crash
+            return TvShow(
+                id = id, 
+                title = "Live Sports Match", 
+                providerName = "CDN Live TV", 
+                quality = "LIVE",
+                poster = "https://cdnlivetv.tv/assets/img/logo.png"
+            ).apply { itemType = AppAdapter.Type.TV_SHOW_MOBILE_ITEM }
+        }
+        if (id.startsWith("localiptv:")) {
+            return LocalIptvProvider.getTvShow(id)
+        }
+        if (AkSportsLiveProvider.ownsPlaybackId(id)) {
+            // Return a placeholder for AK Sports matches
+            return TvShow(
+                id = id, 
+                title = "Live Sports Match", 
+                providerName = "AK Sports Live", 
+                quality = "LIVE",
+                poster = "https://i.ibb.co/W1d0CxF/Logo-IPTV-All-World.jpg"
+            ).apply { itemType = AppAdapter.Type.TV_SHOW_MOBILE_ITEM }
+        }
         // Handle static IPTV channels
         val staticChannel = HomeIptvChannels.channels.find { it.id == id }
         if (staticChannel != null) {
@@ -203,20 +233,87 @@ object NexaHomeProvider : Provider {
         }
 
         return when {
-            SportsProvider.ownsPlaybackId(id) -> SportsProvider.getServers(id, videoType)
+            AkSportsLiveProvider.ownsPlaybackId(id) -> AkSportsLiveProvider.getServers(id, videoType)
             else -> tmdb.getServers(id, videoType)
         }
     }
 
-    override suspend fun getVideo(server: Video.Server): Video {
+    override suspend fun getVideo(server: Video.Server): Video = withContext(Dispatchers.IO) {
         if (server.id.startsWith("localiptv:")) {
-            return LocalIptvProvider.getVideo(server)
+            return@withContext LocalIptvProvider.getVideo(server)
         }
         if (server.name.contains("CDN")) {
-            return CdnLiveTvProvider.getVideo(server)
+            return@withContext CdnLiveTvProvider.getVideo(server)
         }
 
-        return when {
+        if (server.id.startsWith("http://ronaldo.tvfor.pro")) {
+            val channel = HomeIptvChannels.channels.find { it.url == server.id }
+            val cleanUrl = server.id.substringBefore("|")
+            val userAgent = channel?.userAgent ?: "Lavf/56.15.102"
+            
+            try {
+                // Manually resolve redirect to get the stable IP link and capture the token properly
+                val request = okhttp3.Request.Builder()
+                    .url(cleanUrl)
+                    .header("User-Agent", userAgent)
+                    .header("Referer", "http://ronaldo.tvfor.pro/")
+                    .build()
+                
+                // Use a client that follows redirects
+                val response = com.nexastream.app.utils.NetworkClient.noRedirects.newBuilder()
+                    .followRedirects(false) // We want to see the redirect target
+                    .build()
+                    .newCall(request)
+                    .execute()
+                
+                val location = response.header("Location")
+                val cookies = response.headers("Set-Cookie")
+                response.close()
+
+                if (!location.isNullOrBlank()) {
+                    android.util.Log.e("NexaHomeProvider", "Resolved redirect: $location")
+                    android.util.Log.e("NexaHomeProvider", "Captured cookies: $cookies")
+                    
+                    val uri = android.net.Uri.parse(location)
+                    val token = uri.getQueryParameter("token")
+                    if (token != null) {
+                        com.nexastream.app.extractors.TokenManager.latestQuery = "token=$token"
+                    }
+
+                    return@withContext Video(
+                        source = location,
+                        headers = mapOf(
+                            "User-Agent" to userAgent,
+                            "Referer" to "http://ronaldo.tvfor.pro/",
+                            "Origin" to "http://ronaldo.tvfor.pro",
+                            "Accept" to "*/*",
+                            "Accept-Encoding" to "identity",
+                            "Icy-MetaData" to "1",
+                            "Connection" to "keep-alive"
+                        ),
+                        maintainToken = true
+                    )
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("NexaHomeProvider", "Error resolving ronaldo redirect", e)
+            }
+
+            return@withContext Video(
+                source = cleanUrl,
+                headers = mapOf(
+                    "User-Agent" to userAgent,
+                    "Referer" to "http://ronaldo.tvfor.pro/",
+                    "Origin" to "http://ronaldo.tvfor.pro",
+                    "Accept" to "*/*",
+                    "Accept-Encoding" to "identity",
+                    "Icy-MetaData" to "1",
+                    "Connection" to "keep-alive"
+                ),
+                maintainToken = true
+            )
+        }
+
+        return@withContext when {
             server.id.contains("crichd.online") -> {
                 if (server.id.contains(".m3u8")) {
                     Video(source = server.id, headers = mapOf("Referer" to "https://crichd.online/"))
@@ -226,13 +323,24 @@ object NexaHomeProvider : Provider {
             }
             server.id.startsWith("http://ronaldo.tvfor.pro") -> {
                 val channel = HomeIptvChannels.channels.find { it.url == server.id }
+                val cleanUrl = server.id.substringBefore("|")
+                
+                // Use a more neutral set of headers
+                val headers = mutableMapOf<String, String>()
+                headers["User-Agent"] = channel?.userAgent ?: "Lavf/56.15.102"
+                headers["Referer"] = "http://ronaldo.tvfor.pro/"
+                headers["Accept"] = "*/*"
+                headers["Connection"] = "keep-alive"
+                headers["Icy-MetaData"] = "1"
+
                 Video(
-                    source = server.id,
-                    headers = channel?.userAgent?.let { mapOf("User-Agent" to it) } ?: mapOf("User-Agent" to "Lavf/56.15.102")
+                    source = cleanUrl,
+                    headers = headers,
+                    maintainToken = true
                 )
             }
-            SportsProvider.ownsServer(server) -> {
-                SportsProvider.getVideo(server)
+            AkSportsLiveProvider.ownsServer(server) -> {
+                AkSportsLiveProvider.getVideo(server)
             }
             else -> {
                 tmdb.getVideo(server)
@@ -245,6 +353,10 @@ object NexaHomeProvider : Provider {
     override suspend fun getTvShows(page: Int): List<TvShow> = tmdb.getTvShows(page)
     override suspend fun getMovie(id: String): Movie = tmdb.getMovie(id)
     override suspend fun getEpisodesBySeason(seasonId: String): List<Episode> = tmdb.getEpisodesBySeason(seasonId)
-    override suspend fun getGenre(id: String, page: Int): Genre = tmdb.getGenre(id, page)
+    override suspend fun getGenre(id: String, page: Int): Genre = when {
+        id == "cdn_all_channels" -> CdnLiveTvProvider.getGenre(id, page)
+        else -> tmdb.getGenre(id, page)
+    }
+
     override suspend fun getPeople(id: String, page: Int): People = tmdb.getPeople(id, page)
 }

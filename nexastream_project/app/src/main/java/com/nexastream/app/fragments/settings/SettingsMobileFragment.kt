@@ -27,6 +27,7 @@ import androidx.preference.PreferenceManager
 import androidx.preference.PreferenceScreen
 import androidx.preference.SwitchPreference
 import androidx.preference.SwitchPreferenceCompat
+import com.nexastream.app.NexastreamApp
 import com.nexastream.app.BuildConfig
 import com.nexastream.app.R
 import com.nexastream.app.activities.main.MainMobileActivity
@@ -484,16 +485,19 @@ class SettingsMobileFragment : PreferenceFragmentCompat() {
             true
         }
 
-        findPreference<Preference>("p_settings_telegram")?.setOnPreferenceClickListener {
-            try {
-                val tgIntent = Intent(Intent.ACTION_VIEW, Uri.parse("tg://resolve?domain=nexastream"))
-                startActivity(tgIntent)
-            } catch (e: Exception) {
-                Toast.makeText(requireContext(), "Telegram not found.", Toast.LENGTH_SHORT).show()
-                val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://t.me/nexastream"))
-                startActivity(intent)
+        findPreference<Preference>("p_settings_telegram")?.apply {
+            summary = "https://t.me/NEXASTREAM2"
+            setOnPreferenceClickListener {
+                try {
+                    val tgIntent = Intent(Intent.ACTION_VIEW, Uri.parse("tg://resolve?domain=NEXASTREAM2"))
+                    startActivity(tgIntent)
+                } catch (e: Exception) {
+                    Toast.makeText(requireContext(), "Telegram not found.", Toast.LENGTH_SHORT).show()
+                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://t.me/NEXASTREAM2"))
+                    startActivity(intent)
+                }
+                true
             }
-            true
         }
 
         findPreference<Preference>("p_scan_resolver_qr")?.setOnPreferenceClickListener {
@@ -796,6 +800,8 @@ class SettingsMobileFragment : PreferenceFragmentCompat() {
         }
 
         setupParentalControlPreferences()
+        setupDownloadPreferences()
+        setupDownloadPreferences()
 
         findPreference<Preference>("key_backup_export_mobile")?.setOnPreferenceClickListener {
             val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
@@ -1004,6 +1010,56 @@ class SettingsMobileFragment : PreferenceFragmentCompat() {
         }
 
         updateParentalControlPreferenceState()
+        updateDownloadPreferenceState()
+    }
+
+    private fun setupDownloadPreferences() {
+        findPreference<SwitchPreferenceCompat>("DOWNLOAD_WIFI_ONLY")?.apply {
+            isChecked = UserPreferences.downloadWifiOnly
+            setOnPreferenceChangeListener { _, newValue ->
+                UserPreferences.downloadWifiOnly = newValue as Boolean
+                (requireContext().applicationContext as? NexastreamApp)?.appDownloadManager?.onSettingsChanged()
+                true
+            }
+        }
+
+        findPreference<ListPreference>("MAX_PARALLEL_DOWNLOADS")?.apply {
+            value = UserPreferences.maxParallelDownloads.toString()
+            summary = entries?.getOrNull(findIndexOfValue(value)) ?: "%s downloads at once"
+            setOnPreferenceChangeListener { preference, newValue ->
+                val newVal = (newValue as String).toIntOrNull() ?: 3
+                UserPreferences.maxParallelDownloads = newVal
+                (requireContext().applicationContext as? NexastreamApp)?.appDownloadManager?.onSettingsChanged()
+                if (preference is ListPreference) {
+                    preference.summary = preference.entries?.getOrNull(preference.findIndexOfValue(newValue))
+                }
+                true
+            }
+        }
+
+        findPreference<ListPreference>("PREFERRED_DOWNLOAD_QUALITY")?.apply {
+            value = UserPreferences.preferredDownloadQuality ?: "1080p"
+            summary = entries?.getOrNull(findIndexOfValue(value)) ?: "%s"
+            setOnPreferenceChangeListener { preference, newValue ->
+                UserPreferences.preferredDownloadQuality = newValue as String
+                if (preference is ListPreference) {
+                    preference.summary = preference.entries?.getOrNull(preference.findIndexOfValue(newValue))
+                }
+                true
+            }
+        }
+    }
+
+    private fun updateDownloadPreferenceState() {
+        findPreference<SwitchPreferenceCompat>("DOWNLOAD_WIFI_ONLY")?.isChecked = UserPreferences.downloadWifiOnly
+        findPreference<ListPreference>("MAX_PARALLEL_DOWNLOADS")?.apply {
+            value = UserPreferences.maxParallelDownloads.toString()
+            summary = entries?.getOrNull(findIndexOfValue(value)) ?: "%s downloads at once"
+        }
+        findPreference<ListPreference>("PREFERRED_DOWNLOAD_QUALITY")?.apply {
+            value = UserPreferences.preferredDownloadQuality ?: "1080p"
+            summary = entries?.getOrNull(findIndexOfValue(value)) ?: "%s"
+        }
     }
 
     private fun updateParentalControlPreferenceState() {
@@ -1499,5 +1555,6 @@ class SettingsMobileFragment : PreferenceFragmentCompat() {
         findPreference<SwitchPreference>("KEEP_SCREEN_ON_WHEN_PAUSED")?.isChecked = UserPreferences.keepScreenOnWhenPaused
         findPreference<SwitchPreferenceCompat>("ENABLE_TMDB")?.isChecked = UserPreferences.enableTmdb
         updateParentalControlPreferenceState()
+        updateDownloadPreferenceState()
     }
 }

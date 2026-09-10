@@ -16,8 +16,8 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.updatePadding
-import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.flowWithLifecycle
 import androidx.lifecycle.lifecycleScope
@@ -58,7 +58,7 @@ import javax.inject.Inject
 import com.nexastream.app.utils.DownloadManager as AppDownloadManager
 
 @AndroidEntryPoint
-class MainMobileActivity : FragmentActivity() {
+class MainMobileActivity : AppCompatActivity() {
 
     private companion object {
         const val RESOLVER_TIMEOUT_MS = 12_000L
@@ -125,6 +125,8 @@ class MainMobileActivity : FragmentActivity() {
         setContentView(binding.root)
         applyThemeNavigationChrome()
 
+        setSupportActionBar(binding.toolbarMain)
+
         ViewCompat.setOnApplyWindowInsetsListener(binding.mainContent) { view, windowInsets ->
             val insets = windowInsets.getInsets(WindowInsetsCompat.Type.systemBars())
             val navHostFragment = supportFragmentManager.findFragmentById(R.id.nav_main_fragment) as? NavHostFragment
@@ -147,7 +149,8 @@ class MainMobileActivity : FragmentActivity() {
             supportFragmentManager.findFragmentById(R.id.nav_main_fragment) as NavHostFragment
         val navController = navHost.navController
 
-        if (BuildConfig.APP_LAYOUT == "tv" ||
+        if (UserPreferences.forceTvUi ||
+            BuildConfig.APP_LAYOUT == "tv" ||
             (BuildConfig.APP_LAYOUT != "mobile" &&
                 packageManager.hasSystemFeature(PackageManager.FEATURE_LEANBACK))
         ) {
@@ -180,6 +183,7 @@ class MainMobileActivity : FragmentActivity() {
         navController.addOnDestinationChangedListener { _, destination, _ ->
             updateNavigationVisibility(destination.id)
             updateBottomNavigationVisibility(destination.id)
+            binding.ablMain.visibility = if (isTopLevelProviderDestination(destination.id)) View.VISIBLE else View.GONE
             binding.mainContent.post { binding.mainContent.requestApplyInsets() }
         }
 
@@ -249,6 +253,26 @@ class MainMobileActivity : FragmentActivity() {
         }
     }
 
+    override fun onCreateOptionsMenu(menu: android.view.Menu): Boolean {
+        menuInflater.inflate(R.menu.menu_main_toolbar_mobile, menu)
+        return true
+    }
+
+    override fun onOptionsItemSelected(item: android.view.MenuItem): Boolean {
+        val navHost = supportFragmentManager.findFragmentById(R.id.nav_main_fragment) as NavHostFragment
+        return when (item.itemId) {
+            R.id.search -> {
+                navHost.navController.navigate(R.id.search)
+                true
+            }
+            R.id.settings -> {
+                navHost.navController.navigate(R.id.settings)
+                true
+            }
+            else -> super.onOptionsItemSelected(item)
+        }
+    }
+
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
@@ -297,6 +321,7 @@ class MainMobileActivity : FragmentActivity() {
         val supportsTvShows = Provider.supportsTvShows(provider)
         val isIptv = provider is IptvProvider
 
+        binding.bnvMain.menu.findItem(R.id.search)?.isVisible = true
         binding.bnvMain.menu.findItem(R.id.movies)?.isVisible = supportsMovies
         binding.bnvMain.menu.findItem(R.id.tv_shows)?.apply {
             isVisible = supportsTvShows

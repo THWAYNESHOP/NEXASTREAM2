@@ -4,8 +4,6 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.AdapterView
-import android.widget.ArrayAdapter
 import android.widget.Toast
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
@@ -16,6 +14,7 @@ import androidx.recyclerview.widget.RecyclerView
 import com.nexastream.app.R
 import com.nexastream.app.adapters.AppAdapter
 import com.nexastream.app.databinding.FragmentProvidersTvBinding
+import com.nexastream.app.databinding.ItemLanguageTvBinding
 import com.nexastream.app.models.Provider as ModelProvider
 import com.nexastream.app.providers.Provider
 import com.nexastream.app.ui.SpacingItemDecoration
@@ -87,88 +86,92 @@ class ProvidersTvFragment : Fragment() {
 
 
     private fun initializeProviders() {
-        binding.sProvidersLanguage.apply {
-            class Language(
-                val code: String,
-                val name: String,
-            )
+        val languages = Provider.providers.keys
+            .distinctBy { it.language }
+            .map {
+                val locale = Locale.forLanguageTag(it.language)
 
-            val languages = Provider.providers.keys
-                .distinctBy { it.language }
-                .map {
-                    val locale = Locale.forLanguageTag(it.language)
-
-                    Language(
-                        code = it.language,
-                        name = locale.getDisplayLanguage(locale)
-                            .replaceFirstChar { char -> char.titlecase() },
-                    )
-                }
-                .sortedBy { it.name.lowercase() }
-
-            val spinnerAdapter = ArrayAdapter(
-                requireContext(),
-                android.R.layout.simple_spinner_item,
-                mutableListOf(
-                    context.getString(R.string.providers_all_languages),
-                    context.getString(R.string.providers_favorites)
-                ).apply {
-                    addAll(languages.map { it.name })
-                }.toTypedArray()
-            ).also {
-                it.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+                Language(
+                    code = it.language,
+                    name = locale.getDisplayLanguage(locale)
+                        .replaceFirstChar { char -> char.titlecase() },
+                )
             }
-            setAdapter(spinnerAdapter)
+            .sortedBy { it.name.lowercase() }
 
-            onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
-                override fun onItemSelected(
-                    parent: AdapterView<*>?,
-                    view: View?,
-                    position: Int,
-                    id: Long
-                ) {
-                    when (position) {
-                        0 -> {
-                            viewModel.getProviders()
-                            UserPreferences.providerLanguage = null
-                        }
-                        1 -> {
-                            viewModel.getProviders("favorites")
-                            UserPreferences.providerLanguage = "favorites"
-                        }
-                        else -> {
-                            val langCode = languages[position - 2].code
-                            viewModel.getProviders(langCode)
-                            UserPreferences.providerLanguage = langCode
-                        }
-                    }
-                }
+        val allLanguages = mutableListOf(
+            Language(null, getString(R.string.providers_all_languages)),
+            Language("favorites", getString(R.string.providers_favorites))
+        ).apply {
+            addAll(languages)
+        }
 
-                override fun onNothingSelected(parent: AdapterView<*>?) {}
+        val languageAdapter = LanguageAdapter(allLanguages) { language ->
+            UserPreferences.providerLanguage = language.code
+            viewModel.getProviders(language.code)
+        }
+
+        val initialIndex = when (val lang = UserPreferences.providerLanguage) {
+            null -> 0
+            "favorites" -> 1
+            else -> {
+                val index = languages.indexOfFirst { it.code == lang }
+                if (index != -1) index + 2 else 0
             }
+        }
+        languageAdapter.selectedIndex = initialIndex
 
-            setSelection(
-                when (val lang = UserPreferences.providerLanguage) {
-                    null -> 0
-                    "favorites" -> 1
-                    else -> {
-                        val index = languages.indexOfFirst { it.code == lang }
-                        if (index != -1) index + 2 else 0
-                    }
-                }
-            )
+        binding.rvLanguages.apply {
+            adapter = languageAdapter
         }
 
         binding.rvProviders.apply {
+            setNumColumns(5)
             adapter = appAdapter.apply {
                 stateRestorationPolicy = RecyclerView.Adapter.StateRestorationPolicy.PREVENT_WHEN_EMPTY
             }
-            addItemDecoration(
-                SpacingItemDecoration(
-                    requireContext().resources.getDimension(R.dimen.providers_spacing).toInt()
+        }
+    }
+
+    private data class Language(
+        val code: String?,
+        val name: String,
+    )
+
+    private class LanguageAdapter(
+        private val languages: List<Language>,
+        private val onLanguageSelected: (Language) -> Unit
+    ) : RecyclerView.Adapter<LanguageAdapter.ViewHolder>() {
+
+        var selectedIndex = 0
+
+        override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
+            return ViewHolder(
+                ItemLanguageTvBinding.inflate(
+                    LayoutInflater.from(parent.context),
+                    parent,
+                    false
                 )
             )
         }
+
+        override fun onBindViewHolder(holder: ViewHolder, position: Int) {
+            val language = languages[position]
+            holder.binding.tvLanguageName.text = language.name
+            holder.binding.root.isSelected = position == selectedIndex
+
+            holder.binding.root.setOnClickListener {
+                val oldIndex = selectedIndex
+                selectedIndex = holder.layoutPosition
+                notifyItemChanged(oldIndex)
+                notifyItemChanged(selectedIndex)
+                onLanguageSelected(language)
+            }
+        }
+
+        override fun getItemCount() = languages.size
+
+        class ViewHolder(val binding: ItemLanguageTvBinding) : RecyclerView.ViewHolder(binding.root)
     }
 
     private fun displayProviders(providers: List<ModelProvider>) {
