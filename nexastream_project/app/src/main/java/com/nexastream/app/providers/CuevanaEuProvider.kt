@@ -3,6 +3,7 @@ package com.nexastream.app.providers
 import android.util.Log
 import com.tanasi.retrofit_jsoup.converter.JsoupConverterFactory
 import com.nexastream.app.adapters.AppAdapter
+import com.nexastream.app.models.SearchFilters
 import com.nexastream.app.extractors.Extractor
 import com.nexastream.app.models.*
 import com.nexastream.app.providers.Provider
@@ -310,7 +311,7 @@ object CuevanaEuProvider : Provider {
         }
     }
 
-    override suspend fun search(query: String, page: Int): List<AppAdapter.Item> {
+    override suspend fun search(query: String, page: Int, filters: SearchFilters?): List<AppAdapter.Item> {
         if (query.isBlank()) {
             return listOf(
                 Genre("accion", "Acción"),

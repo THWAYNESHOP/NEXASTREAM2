@@ -479,7 +479,15 @@ class PlayerMobileFragment : Fragment() {
                             binding.settings.setOnServerSelectedListener { server ->
                                 viewModel.getVideo(state.servers.find { server.id == it.id }!!)
                             }
-                            viewModel.getVideo(state.servers.first())
+
+                            // If we have a preselected server, use it. Otherwise use the first one.
+                            val initialServer = if (!args.serverId.isNullOrBlank()) {
+                                state.servers.find { it.id == args.serverId } ?: state.servers.first()
+                            } else {
+                                state.servers.first()
+                            }
+                            
+                            viewModel.getVideo(initialServer)
                         }
 
                     }
@@ -786,7 +794,8 @@ class PlayerMobileFragment : Fragment() {
         setupEpisodeNavigationButtons()
 
         binding.settings.setOnSubtitleOffsetSelectedListener { offset ->
-            // player.setSubtitleOffsetUs(offset.value * 1000L)
+            // Note: setSubtitleOffsetUs is not available in Media3 1.5.1
+            // (player as? ExoPlayer)?.setSubtitleOffsetUs(offset.value * 1000L)
         }
 
         binding.pvPlayer.controller.binding.btnExoBack.setOnClickListener {
@@ -1391,6 +1400,8 @@ class PlayerMobileFragment : Fragment() {
         fun startPlayback(positionMs: Long) {
             player.seekTo(positionMs)
             player.prepare()
+            // Note: setSubtitleOffsetUs is not available in Media3 1.5.1
+            // (player as? ExoPlayer)?.setSubtitleOffsetUs(UserPreferences.subtitleOffset * 1000L)
             player.play()
         }
 

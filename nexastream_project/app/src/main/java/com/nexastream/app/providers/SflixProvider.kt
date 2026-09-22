@@ -1,5 +1,6 @@
 package com.nexastream.app.providers
 
+import com.nexastream.app.models.SearchFilters
 import com.tanasi.retrofit_jsoup.converter.JsoupConverterFactory
 import com.nexastream.app.BuildConfig
 import com.nexastream.app.adapters.AppAdapter
@@ -140,7 +141,7 @@ object SflixProvider : Provider, ProviderConfigUrl {
         categories
     }
 
-    override suspend fun search(query: String, page: Int): List<AppAdapter.Item> {
+    override suspend fun search(query: String, page: Int, filters: SearchFilters?): List<AppAdapter.Item> {
         if (query.isEmpty()) {
             val document = service.getHome()
             return document.select("div#sidebar_subs_genre li.nav-item a.nav-link")

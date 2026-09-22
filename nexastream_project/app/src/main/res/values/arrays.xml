@@ -123,4 +123,26 @@
         <item>480p</item>
         <item>360p</item>
     </string-array>
+
+    <string-array name="region_names">
+        <item>United States</item>
+        <item>United Kingdom</item>
+        <item>Spain</item>
+        <item>France</item>
+        <item>Germany</item>
+        <item>Italy</item>
+        <item>Mexico</item>
+        <item>Brazil</item>
+    </string-array>
+
+    <string-array name="region_values">
+        <item>US</item>
+        <item>GB</item>
+        <item>ES</item>
+        <item>FR</item>
+        <item>DE</item>
+        <item>IT</item>
+        <item>MX</item>
+        <item>BR</item>
+    </string-array>
 </resources>

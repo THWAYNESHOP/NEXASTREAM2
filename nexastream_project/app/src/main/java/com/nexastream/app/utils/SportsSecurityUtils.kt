@@ -3,19 +3,26 @@ package com.nexastream.app.utils
 object SportsSecurityUtils {
     var activeSalt: String = "9HY(#b1q6" // Default salt from the code
 
-    private val alphabet = "fFgGjJkKlLmMnNoOpPqQrRsStTuUvVwWxXyYzZaAbBcCdDeEhHiI"
+    private val alphabet = "fFgGjJkKlLaApPbBmMoOzZeEnNcCdDrRqQtTvVuUxXhHiIwWyYsS"
     private val standard = "aAbBcCdDeEfFgGhHiIjJkKlLmMnNoOpPqQrRsStTuUvVwWxXyYzZ"
 
     fun decodeObfuscatedString(input: String): String {
         try {
-            // Logic: Reverse -> Base64 -> Character Rotation
-            val reversed = input.reversed()
-            val decodedBytes = android.util.Base64.decode(reversed, android.util.Base64.DEFAULT)
-            val base64Decoded = String(decodedBytes)
-            
-            return rotateCharacters(base64Decoded)
+            // Logic: Character Rotation -> Base64 Decode
+            val rotated = rotateCharacters(input)
+            val decodedBytes = android.util.Base64.decode(rotated, android.util.Base64.DEFAULT)
+            return String(decodedBytes, Charsets.UTF_8)
         } catch (e: Exception) {
             return input
+        }
+    }
+
+    fun decodeBase64(input: String): String {
+        return try {
+            val decodedBytes = android.util.Base64.decode(input, android.util.Base64.DEFAULT)
+            String(decodedBytes, Charsets.UTF_8)
+        } catch (e: Exception) {
+            ""
         }
     }
 
@@ -23,7 +30,7 @@ object SportsSecurityUtils {
         val result = StringBuilder()
         for (char in input) {
             val index = alphabet.indexOf(char)
-            if (index != -1) {
+            if (index != -1 && index < standard.length) {
                 result.append(standard[index])
             } else {
                 result.append(char)
@@ -45,10 +52,10 @@ object SportsSecurityUtils {
 
     fun generateToken(domainPart: String): String {
         val timestamp = System.currentTimeMillis() / 1000
-        val expiry = timestamp + 77 // The app uses +77 for expiry offset
+        val expiry = timestamp + 3600 // Increased expiry to 1 hour
         
-        // Pattern: domainPart + activeSalt + timestamp
-        val input = "$domainPart$activeSalt$timestamp"
+        // Pattern: domainPart + activeSalt + timestamp + expiry
+        val input = "$domainPart$activeSalt$timestamp$expiry"
         val hash = sha256(input)
         
         return "?token=$hash-$expiry-$timestamp"

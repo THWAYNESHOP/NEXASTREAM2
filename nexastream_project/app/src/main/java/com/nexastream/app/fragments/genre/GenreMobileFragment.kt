@@ -12,11 +12,13 @@ import androidx.lifecycle.flowWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.fragment.navArgs
 import androidx.recyclerview.widget.GridLayoutManager
+import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.nexastream.app.adapters.AppAdapter
 import com.nexastream.app.database.AppDatabase
 import com.nexastream.app.databinding.FragmentGenreMobileBinding
 import com.nexastream.app.databinding.HeaderGenreMobileBinding
+import com.nexastream.app.models.Category
 import com.nexastream.app.models.Genre
 import com.nexastream.app.models.Movie
 import com.nexastream.app.models.TvShow
@@ -110,23 +112,30 @@ class GenreMobileFragment : Fragment() {
 
     private fun initializeGenre() {
         binding.rvGenre.apply {
-            layoutManager = GridLayoutManager(context, 3).also {
-                it.spanSizeLookup = object : GridLayoutManager.SpanSizeLookup() {
-                    override fun getSpanSize(position: Int): Int {
-                        val viewType = appAdapter.getItemViewType(position)
-                        return when (AppAdapter.Type.entries[viewType]) {
-                            AppAdapter.Type.HEADER -> it.spanCount
-                            else -> 1
+            if (args.id == "cdn_sports") {
+                layoutManager = LinearLayoutManager(context)
+                addItemDecoration(
+                    SpacingItemDecoration(20.dp(requireContext()), 0)
+                )
+            } else {
+                layoutManager = GridLayoutManager(context, 3).also {
+                    it.spanSizeLookup = object : GridLayoutManager.SpanSizeLookup() {
+                        override fun getSpanSize(position: Int): Int {
+                            val viewType = appAdapter.getItemViewType(position)
+                            return when (AppAdapter.Type.entries[viewType]) {
+                                AppAdapter.Type.HEADER -> it.spanCount
+                                else -> 1
+                            }
                         }
                     }
                 }
+                addItemDecoration(
+                    SpacingItemDecoration(10.dp(requireContext()))
+                )
             }
             adapter = appAdapter.apply {
                 stateRestorationPolicy = RecyclerView.Adapter.StateRestorationPolicy.PREVENT_WHEN_EMPTY
             }
-            addItemDecoration(
-                SpacingItemDecoration(10.dp(requireContext()))
-            )
         }
     }
 
@@ -148,6 +157,10 @@ class GenreMobileFragment : Fragment() {
             when (it) {
                 is Movie -> it.itemType = AppAdapter.Type.MOVIE_GRID_MOBILE_ITEM
                 is TvShow -> it.itemType = AppAdapter.Type.TV_SHOW_GRID_MOBILE_ITEM
+                is Category -> {
+                    it.itemType = AppAdapter.Type.CATEGORY_MOBILE_ITEM
+                    it.itemSpacing = 10.dp(requireContext())
+                }
             }
         })
 

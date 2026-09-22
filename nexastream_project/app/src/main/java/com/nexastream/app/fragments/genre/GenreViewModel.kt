@@ -4,17 +4,21 @@ import android.util.Log
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.nexastream.app.adapters.AppAdapter
 import com.nexastream.app.database.AppDatabase
 import com.nexastream.app.models.Genre
 import com.nexastream.app.models.Movie
-import com.nexastream.app.models.Show
 import com.nexastream.app.models.TvShow
 import com.nexastream.app.utils.UserPreferences
-import com.nexastream.app.utils.ProviderChangeNotifier
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -34,7 +38,7 @@ class GenreViewModel @Inject constructor(
             if (state is State.SuccessLoading) {
                 val shows = state.genre.shows
                 if (shows.isEmpty()) {
-                    flowOf(emptyList<Show>())
+                    flowOf(emptyList<AppAdapter.Item>())
                 } else {
                     val movies = shows.filterIsInstance<Movie>()
                     val tvShows = shows.filterIsInstance<TvShow>()
@@ -46,16 +50,16 @@ class GenreViewModel @Inject constructor(
                         val mDbMap = mDb.associateBy { it.id }
                         val tvDbMap = tvDb.associateBy { it.id }
                         
-                        shows.map { show ->
-                            when (show) {
-                                is Movie -> mDbMap[show.id]?.takeIf { !show.isSame(it) }?.let { show.copy().merge(it) } ?: show
-                                is TvShow -> tvDbMap[show.id]?.takeIf { !show.isSame(it) }?.let { show.copy().merge(it) } ?: show
-                                else -> show
+                        shows.map { item ->
+                            when (item) {
+                                is Movie -> mDbMap[item.id]?.takeIf { !item.isSame(it) }?.let { item.copy().merge(it) } ?: item
+                                is TvShow -> tvDbMap[item.id]?.takeIf { !item.isSame(it) }?.let { item.copy().merge(it) } ?: item
+                                else -> item
                             }
                         }
                     }
                 }
-            } else flowOf(emptyList<Show>())
+            } else flowOf(emptyList<AppAdapter.Item>())
         }
     ) { state, showsDb ->
         if (state is State.SuccessLoading) {
@@ -69,21 +73,15 @@ class GenreViewModel @Inject constructor(
     private var page = 1
 
     sealed class State {
-        data object Loading : State()
-        data object LoadingMore : State()
+        object Loading : State()
+        object LoadingMore : State()
         data class SuccessLoading(val genre: Genre, val hasMore: Boolean) : State()
         data class FailedLoading(val error: Exception) : State()
     }
 
     init {
         getGenre()
-        viewModelScope.launch {
-            ProviderChangeNotifier.providerChangeFlow.collect {
-                getGenre()
-            }
-        }
     }
-
 
     fun getGenre() = viewModelScope.launch(Dispatchers.IO) {
         _state.emit(State.Loading)

@@ -2,22 +2,25 @@ package com.nexastream.app.ui.screens.search
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.nexastream.app.models.Show
 import com.nexastream.app.repositories.HomeRepository
 import com.nexastream.app.utils.UserPreferences
+import com.nexastream.app.adapters.AppAdapter
+import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import javax.inject.Inject
 
 data class SearchUiState(
-    val results: List<Show> = emptyList(),
+    val results: List<AppAdapter.Item> = emptyList(),
     val isLoading: Boolean = false,
     val error: String? = null
 )
 
-class SearchViewModel(
+@HiltViewModel
+class SearchViewModel @Inject constructor(
     private val repository: HomeRepository
 ) : ViewModel() {
 

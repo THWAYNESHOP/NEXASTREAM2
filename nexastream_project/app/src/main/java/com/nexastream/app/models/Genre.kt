@@ -6,16 +6,17 @@ class Genre(
     val id: String,
     val name: String,
 
-    val shows: List<Show> = listOf(),
+    val shows: List<AppAdapter.Item> = listOf(),
 ) : AppAdapter.Item {
 
     override lateinit var itemType: AppAdapter.Type
+    override var isSelected: Boolean = false
 
 
     fun copy(
         id: String = this.id,
         name: String = this.name,
-        shows: List<Show> = this.shows,
+        shows: List<AppAdapter.Item> = this.shows,
     ) = Genre(
         id,
         name,
@@ -31,6 +32,7 @@ class Genre(
         if (id != other.id) return false
         if (name != other.name) return false
         if (shows != other.shows) return false
+        if (isSelected != other.isSelected) return false
         if (!::itemType.isInitialized || !other::itemType.isInitialized) return false
         return itemType == other.itemType
     }
@@ -39,6 +41,7 @@ class Genre(
         var result = id.hashCode()
         result = 31 * result + name.hashCode()
         result = 31 * result + shows.hashCode()
+        result = 31 * result + isSelected.hashCode()
         result = 31 * result + (if (::itemType.isInitialized) itemType.hashCode() else 0)
         return result
     }

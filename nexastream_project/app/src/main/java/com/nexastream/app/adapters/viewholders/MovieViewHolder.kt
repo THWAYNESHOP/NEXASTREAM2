@@ -163,11 +163,6 @@ class MovieViewHolder(
     }
 
     private fun checkProviderAndRun(action: () -> Unit) {
-        if (!movie.providerName.isNullOrBlank() && movie.providerName != UserPreferences.currentProvider?.name) {
-            Provider.providers.keys.find { it.name == movie.providerName }?.let {
-                UserPreferences.currentProvider = it
-            }
-        }
         action()
     }
 
@@ -372,9 +367,15 @@ class MovieViewHolder(
     }
 
     private fun displayTvItem(binding: ItemMovieTvBinding) {
+        val adapter = binding.root.parent?.let { (it as? RecyclerView)?.adapter as? AppAdapter }
         binding.root.apply {
             isFocusable = true
             setOnClickListener {
+                if (adapter?.isEditMode == true) {
+                    movie.isSelected = !movie.isSelected
+                    binding.ivSelectionCheck.isVisible = movie.isSelected
+                    return@setOnClickListener
+                }
                 checkProviderAndRun {
                     when (context.toActivity()?.getCurrentFragment()) {
                         is HomeTvFragment -> {
@@ -462,6 +463,8 @@ class MovieViewHolder(
         binding.tvMovieReleasedYear.text = movie.released?.format("yyyy")
             ?: context.getString(R.string.movie_item_type)
         binding.tvMovieTitle.text = movie.title
+        
+        binding.ivSelectionCheck.isVisible = adapter?.isEditMode == true && movie.isSelected
     }
 
     private fun displayGridMobileItem(binding: ItemMovieGridMobileBinding) {
@@ -515,9 +518,15 @@ class MovieViewHolder(
     }
 
     private fun displayGridTvItem(binding: ItemMovieGridTvBinding) {
+        val adapter = binding.root.parent?.let { (it as? RecyclerView)?.adapter as? AppAdapter }
         binding.root.apply {
             isFocusable = true
             setOnClickListener {
+                if (adapter?.isEditMode == true) {
+                    movie.isSelected = !movie.isSelected
+                    binding.ivSelectionCheck.isVisible = movie.isSelected
+                    return@setOnClickListener
+                }
                 checkProviderAndRun {
                     when (context.toActivity()?.getCurrentFragment()) {
                         is HomeTvFragment -> findNavController().navigate(HomeTvFragmentDirections.actionHomeToMovie(id = movie.id))
@@ -568,6 +577,8 @@ class MovieViewHolder(
         binding.tvMovieReleasedYear.text = movie.released?.format("yyyy")
             ?: context.getString(R.string.movie_item_type)
         binding.tvMovieTitle.text = movie.title
+        
+        binding.ivSelectionCheck.isVisible = adapter?.isEditMode == true && movie.isSelected
     }
 
     private fun displaySwiperMobileItem(binding: ItemCategorySwiperMobileBinding) {
@@ -875,7 +886,7 @@ class MovieViewHolder(
         }
 
         binding.btnMovieDownload.apply {
-            isVisible = Provider.supportsDownloads(UserPreferences.currentProvider)
+            isVisible = false
             setOnClickListener {
                 showDownloadDialog(Video.Type.Movie(movie.id, movie.title, movie.released?.format("yyyy-MM-dd") ?: "", movie.poster ?: "", movie.imdbId))
             }
@@ -916,6 +927,7 @@ class MovieViewHolder(
         }
     }
 
+    @androidx.media3.common.util.UnstableApi
     private fun showDownloadDialog(videoType: Video.Type) {
         Log.d("DownloadDebug", "showDownloadDialog called for ${movie.title}")
         val provider = UserPreferences.currentProvider ?: run {
@@ -946,33 +958,44 @@ class MovieViewHolder(
                     return@launch
                 }
 
-                AlertDialog.Builder(context)
-                    .setTitle("Select Download Quality")
-                    .setItems(servers.map { downloadQualityDialogLabel(it) }.toTypedArray()) { _, which ->
-                        val selectedServer = servers[which]
-                        lifecycleScope.launch {
-                            try {
-                                Toast.makeText(context, "Starting extraction...", Toast.LENGTH_SHORT).show()
-                                val video = withContext(Dispatchers.IO) {
-                                    provider.getVideo(selectedServer)
+                if (activity != null) {
+                    val bs = com.nexastream.app.ui.DownloadQualityBottomSheet.newInstance(
+                        servers = servers,
+                        mediaId = movie.id,
+                        mediaTitle = movie.title,
+                        mediaPoster = movie.poster,
+                        videoType = videoType
+                    )
+                    bs.show(activity.supportFragmentManager, "DownloadQualityBottomSheet")
+                } else {
+                    AlertDialog.Builder(context)
+                        .setTitle("Select Download Quality")
+                        .setItems(servers.map { downloadQualityDialogLabel(it) }.toTypedArray()) { _, which ->
+                            val selectedServer = servers[which]
+                            lifecycleScope.launch {
+                                try {
+                                    Toast.makeText(context, "Starting extraction...", Toast.LENGTH_SHORT).show()
+                                    val video = withContext(Dispatchers.IO) {
+                                        provider.getVideo(selectedServer)
+                                    }
+                                    downloadManager.startDownload(
+                                        id = movie.id,
+                                        title = movie.title,
+                                        poster = movie.poster,
+                                        url = video.source,
+                                        quality = DownloadQualityFormatter.qualityLabel(selectedServer, video),
+                                        headers = video.headers,
+                                        mimeType = video.type
+                                    )
+                                    Toast.makeText(context, "Download started", Toast.LENGTH_SHORT).show()
+                                } catch (e: Exception) {
+                                    Toast.makeText(context, "Failed to get video: ${e.message}", Toast.LENGTH_SHORT).show()
                                 }
-                                downloadManager.startDownload(
-                                    id = movie.id,
-                                    title = movie.title,
-                                    poster = movie.poster,
-                                    url = video.source,
-                                    quality = DownloadQualityFormatter.qualityLabel(selectedServer, video),
-                                    headers = video.headers,
-                                    mimeType = video.type
-                                )
-                                Toast.makeText(context, "Download started", Toast.LENGTH_SHORT).show()
-                            } catch (e: Exception) {
-                                Toast.makeText(context, "Failed to get video: ${e.message}", Toast.LENGTH_SHORT).show()
                             }
                         }
-                    }
-                    .setNegativeButton(android.R.string.cancel, null)
-                    .show()
+                        .setNegativeButton(android.R.string.cancel, null)
+                        .show()
+                }
 
             } catch (e: Exception) {
                 Toast.makeText(context, "Failed to load servers: ${e.message}", Toast.LENGTH_SHORT).show()

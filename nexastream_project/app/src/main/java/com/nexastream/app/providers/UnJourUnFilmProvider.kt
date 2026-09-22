@@ -3,6 +3,7 @@ package com.nexastream.app.providers
 import android.text.Html
 import com.tanasi.retrofit_jsoup.converter.JsoupConverterFactory
 import com.nexastream.app.adapters.AppAdapter
+import com.nexastream.app.models.SearchFilters
 import com.nexastream.app.extractors.ApiVoirFilmExtractor
 import com.nexastream.app.extractors.Extractor
 import com.nexastream.app.extractors.OnRegardeOuExtractor
@@ -180,7 +181,7 @@ object UnJourUnFilmProvider : Provider, ProviderPortalUrl, ProviderConfigUrl {
         return categories
     }
 
-    override suspend fun search(query: String, page: Int): List<AppAdapter.Item> {
+    override suspend fun search(query: String, page: Int, filters: SearchFilters?): List<AppAdapter.Item> {
         if (page > 1) return emptyList()
         initializeService()
         if (query.isEmpty()) {

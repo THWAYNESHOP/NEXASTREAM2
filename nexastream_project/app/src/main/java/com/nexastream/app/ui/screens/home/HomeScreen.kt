@@ -12,8 +12,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.nexastream.app.R
+import com.nexastream.app.models.Category
 import com.nexastream.app.models.Show
 import com.nexastream.app.ui.components.HeroComponent
 import com.nexastream.app.ui.components.NexastreamTopBar
@@ -22,7 +23,8 @@ import com.nexastream.app.ui.components.PosterRow
 @Composable
 fun HomeScreen(
     onMovieClick: (String) -> Unit,
-    viewModel: HomeViewModel = viewModel()
+    onViewAllClick: (Category) -> Unit,
+    viewModel: HomeViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val scrollState = rememberLazyListState()
@@ -81,7 +83,8 @@ fun HomeScreen(
                         PosterRow(
                             title = category.name,
                             shows = category.list.filterIsInstance<Show>(),
-                            onShowClick = onMovieClick
+                            onShowClick = onMovieClick,
+                            onViewAllClick = { onViewAllClick(category) }
                         )
                     }
                 }

@@ -2,14 +2,15 @@ package com.nexastream.app.providers
 
 import android.util.Log
 import com.nexastream.app.adapters.AppAdapter
+import com.nexastream.app.models.SearchFilters
 import com.nexastream.app.models.*
 import com.nexastream.app.utils.NetworkClient
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import okhttp3.OkHttpClient
 import java.util.concurrent.TimeUnit
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
@@ -28,8 +29,8 @@ object CdnLiveTvProvider : Provider {
     override val language: String = "en"
 
     private val client = NetworkClient.systemDns.newBuilder()
-        .connectTimeout(30, TimeUnit.SECONDS)
-        .readTimeout(30, TimeUnit.SECONDS)
+        .connectTimeout(10, TimeUnit.SECONDS)
+        .readTimeout(10, TimeUnit.SECONDS)
         .build()
 
     private val service = Retrofit.Builder()
@@ -39,107 +40,66 @@ object CdnLiveTvProvider : Provider {
         .build()
         .create(Service::class.java)
 
+    private val scope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + Dispatchers.IO)
+    private var cachedChannels: List<CDNChannel> = emptyList()
+    private var lastFetchTime: Long = 0L
+    private const val CACHE_EXPIRY = 5 * 60 * 1000L // 5 minutes
+
+    private suspend fun refreshCacheSilently() {
+        runCatching {
+            val channelsResp = service.getChannels().channels
+            if (channelsResp.isNotEmpty()) {
+                cachedChannels = channelsResp
+                lastFetchTime = System.currentTimeMillis()
+                Log.d("CdnLiveTv", "Cache refreshed silently. Channels: ${channelsResp.size}")
+            }
+        }.onFailure {
+            Log.e("CdnLiveTv", "Silent cache refresh failed", it)
+        }
+    }
+
     interface Service {
         @GET("channels/")
         suspend fun getChannels(
             @Query("user") user: String = USER,
             @Query("plan") plan: String = PLAN
         ): CDNChannelsResponse
-
-        @GET("events/sports/")
-        suspend fun getAllSports(
-            @Query("user") user: String = USER,
-            @Query("plan") plan: String = PLAN
-        ): Map<String, CDNSportsData>
-
-        @GET("events/sports/soccer/")
-        suspend fun getSoccer(
-            @Query("user") user: String = USER,
-            @Query("plan") plan: String = PLAN
-        ): Map<String, CDNSportsData>
-
-        @GET("events/sports/nba/")
-        suspend fun getNBA(
-            @Query("user") user: String = USER,
-            @Query("plan") plan: String = PLAN
-        ): Map<String, CDNSportsData>
-
-        @GET("events/sports/nhl/")
-        suspend fun getNHL(
-            @Query("user") user: String = USER,
-            @Query("plan") plan: String = PLAN
-        ): Map<String, CDNSportsData>
-
-        @GET("events/sports/nfl/")
-        suspend fun getNFL(
-            @Query("user") user: String = USER,
-            @Query("plan") plan: String = PLAN
-        ): Map<String, CDNSportsData>
     }
 
-    override suspend fun getHome(): List<Category> = coroutineScope {
-        Log.d("CdnLiveTv", "Fetching CDN Home data...")
-        val channelsDeferred = async { 
-            runCatching { 
-                val resp = service.getChannels()
-                Log.d("CdnLiveTv", "Channels fetched: ${resp.channels.size}")
-                resp.channels 
-            }.getOrElse { 
+    override suspend fun getHome(): List<Category> {
+        val now = System.currentTimeMillis()
+        if (cachedChannels.isNotEmpty()) {
+            if (now - lastFetchTime > CACHE_EXPIRY) {
+                Log.d("CdnLiveTv", "Cache stale, triggering silent background refresh...")
+                scope.launch { refreshCacheSilently() }
+            } else {
+                Log.d("CdnLiveTv", "Returning fresh cached categories instantly.")
+            }
+            return buildHomeCategories(cachedChannels)
+        }
+
+        Log.d("CdnLiveTv", "No cache available. Performing initial direct network fetch...")
+        return coroutineScope {
+            val channels = runCatching { service.getChannels().channels }.getOrElse {
                 Log.e("CdnLiveTv", "Error fetching channels", it)
-                emptyList() 
+                emptyList()
             }
-        }
-        val sportsDeferred = async {
-            runCatching { 
-                val resp = service.getAllSports()
-                Log.d("CdnLiveTv", "Sports data fetched keys: ${resp.keys}")
-                resp // Keep the whole map to process all categories
-            }.getOrElse { 
-                Log.e("CdnLiveTv", "Error fetching sports", it)
-                emptyMap() 
+
+            if (channels.isNotEmpty()) {
+                cachedChannels = channels
+                lastFetchTime = System.currentTimeMillis()
             }
+
+            buildHomeCategories(channels)
         }
+    }
 
-        val channels = channelsDeferred.await()
-        val allSportsMap = sportsDeferred.await()
-
+    private suspend fun buildHomeCategories(channels: List<CDNChannel>): List<Category> {
         val categories = mutableListOf<Category>()
 
-        // 1. Sports Events (Dynamic Categories)
-        allSportsMap.forEach { (catName, data) ->
-            if (catName.contains("total", ignoreCase = true)) return@forEach
-            
-            val matches = mutableListOf<CDNSportEvent>()
-            matches.addAll(data.soccer.orEmpty())
-            matches.addAll(data.nba.orEmpty())
-            matches.addAll(data.nhl.orEmpty())
-            matches.addAll(data.nfl.orEmpty())
-            
-            // In case the API adds new fields not yet in our GSON model but in the map
-            // We can't easily extract them without reflection or raw JSON, 
-            // but let's at least process what we have.
-            
-            val liveMatches = matches.filter { 
-                it.status.contains("live", ignoreCase = true) || 
-                it.status.contains("soon", ignoreCase = true) ||
-                it.status.contains("NS", ignoreCase = true)
-            }
-            
-            if (liveMatches.isNotEmpty()) {
-                val displayName = if (catName == "cdn-live-tv") "Live Sports (CDN)" else catName
-                val sportItems = liveMatches.map { async { it.toSportMatch() } }.awaitAll()
-                categories.add(
-                    Category(
-                        name = displayName,
-                        list = sportItems
-                    ).apply { itemType = AppAdapter.Type.CATEGORY_MOBILE_ITEM }
-                )
-            }
-        }
-
-        // 2. Featured Channels
+        // 1. Featured Channels
         if (channels.isNotEmpty()) {
-            val tvShowItems = channels.take(30).map { async { it.toTvShow() } }.awaitAll()
+            val tvShowItems = channels.take(30).map { it.toTvShow() }
             categories.add(
                 Category(
                     name = "CDN Live Channels",
@@ -148,7 +108,7 @@ object CdnLiveTvProvider : Provider {
             )
         }
 
-        categories
+        return categories
     }
 
     private suspend fun CDNChannel.toTvShow() = TvShow(
@@ -170,67 +130,13 @@ object CdnLiveTvProvider : Provider {
         itemType = AppAdapter.Type.TV_SHOW_MOBILE_ITEM 
     }
 
-    private suspend fun CDNSportEvent.toSportMatch() = SportMatch(
-        id = "cdn_match:$gameID",
-        title = "$homeTeam vs $awayTeam",
-        homeTeam = homeTeam,
-        awayTeam = awayTeam,
-        league = tournament,
-        status = when {
-            status.contains("live", ignoreCase = true) -> "LIVE"
-            status.contains("soon", ignoreCase = true) || status.contains("NS", ignoreCase = true) -> "UPCOMING"
-            else -> status.uppercase()
-        },
-        time = time,
-        score = "vs",
-        sport = tournament,
-        poster = com.nexastream.app.utils.ChannelLogoRepository.getLogoUrl(homeTeam) 
-            ?: com.nexastream.app.utils.ChannelLogoRepository.getLogoUrl(tournament)
-            ?: com.nexastream.app.utils.ArtworkRequestHeaders.run {
-                val img = if (homeTeamIMG.isNotEmpty()) homeTeamIMG else countryIMG
-                val urlWithParams = appendQueryParams(img, mapOf("user" to USER, "plan" to PLAN))
-                withHeaders(
-                    urlWithParams,
-                    referer = "https://cdnlivetv.tv/",
-                    origin = "https://cdnlivetv.tv",
-                    userAgent = NetworkClient.USER_AGENT
-                )
-            } ?: (if (homeTeamIMG.isNotEmpty()) homeTeamIMG else countryIMG),
-        date = null
-    ).apply { 
-        itemType = AppAdapter.Type.SPORT_MATCH_ITEM 
-    }
-
-    override suspend fun getServers(id: String, videoType: Video.Type): List<Video.Server> {
+    override suspend fun getServers(id: String
+, videoType: Video.Type): List<Video.Server> {
         if (id.startsWith("cdn:")) {
             val code = id.removePrefix("cdn:")
             val channels = runCatching { service.getChannels().channels }.getOrNull() ?: return emptyList()
             val channel = channels.find { it.code == code } ?: return emptyList()
             return listOf(Video.Server(id = channel.url, name = "CDN Direct"))
-        }
-
-        if (id.startsWith("cdn_match:")) {
-            val gameId = id.removePrefix("cdn_match:")
-            val sportsData = runCatching { service.getAllSports().values }.getOrNull() ?: return emptyList()
-            
-            val allEvents = sportsData.flatMap { data ->
-                (data.soccer.orEmpty() + data.nba.orEmpty() + data.nhl.orEmpty() + data.nfl.orEmpty())
-            }
-            
-            var event = allEvents.find { it.gameID == gameId }
-            
-            // FALLBACK: If gameID not found (maybe changed), search by title
-            if (event == null && videoType is Video.Type.Movie) {
-                val targetTitle = videoType.title.lowercase().replace(" vs ", " ").replace(" ", "")
-                event = allEvents.find { 
-                    val currentTitle = "${it.homeTeam}${it.awayTeam}".lowercase().replace(" ", "")
-                    currentTitle == targetTitle || currentTitle.contains(targetTitle) || targetTitle.contains(currentTitle)
-                }
-            }
-            
-            return event?.channels?.map { channel ->
-                Video.Server(id = channel.url, name = "Mirror: ${channel.channelName}")
-            } ?: emptyList()
         }
 
         return emptyList()
@@ -430,34 +336,53 @@ object CdnLiveTvProvider : Provider {
     }
 
     // Stubs
-    override suspend fun search(query: String, page: Int): List<AppAdapter.Item> = emptyList()
+    override suspend fun search(query: String, page: Int, filters: SearchFilters?): List<AppAdapter.Item> = emptyList()
     override suspend fun getMovies(page: Int): List<Movie> = emptyList()
     override suspend fun getTvShows(page: Int): List<TvShow> = emptyList()
-    override suspend fun getMovie(id: String): Movie = throw UnsupportedOperationException()
+    override suspend fun getMovie(id: String): Movie = Movie(id = id, title = "Not Supported")
     override suspend fun getTvShow(id: String): TvShow {
         if (id.startsWith("cdn:")) {
             val code = id.removePrefix("cdn:")
-            val channels = runCatching { service.getChannels().channels }.getOrNull() ?: throw Exception("Not found")
-            val channel = channels.find { it.code == code } ?: throw Exception("Not found")
+            val channels = runCatching { service.getChannels().channels }.getOrNull() ?: return TvShow(id = id, title = "Error")
+            val channel = channels.find { it.code == code } ?: return TvShow(id = id, title = "Not Found")
             return channel.toTvShow()
         }
-        throw UnsupportedOperationException()
+        return TvShow(id = id, title = "Unsupported")
     }
     override suspend fun getEpisodesBySeason(seasonId: String): List<Episode> = emptyList()
-    override suspend fun getGenre(id: String, page: Int): Genre = coroutineScope {
-        if (id == "cdn_all_channels") {
-            val channels = runCatching { service.getChannels().channels }.getOrElse { 
-                Log.e("CdnLiveTv", "getGenre failed to fetch channels")
-                emptyList() 
+    override suspend fun getGenre(id: String, page: Int): Genre = try {
+        coroutineScope {
+            if (id == "cdn_all_channels" || id == "cdn_sports") {
+                if (page > 1) {
+                    return@coroutineScope Genre(id = id, name = "CDN Live TV", shows = emptyList())
+                }
+                val channels = if (cachedChannels.isNotEmpty()) cachedChannels else runCatching { service.getChannels().channels }.getOrElse { 
+                    Log.e("CdnLiveTv", "getGenre failed to fetch channels")
+                    emptyList() 
+                }
+                
+                val filteredChannels = if (id == "cdn_sports") {
+                    val sportsKeywords = listOf("Sky Sport", "Premier League", "DAZN", "ESPN", "Fox Sports", "SuperSport", "BT Sport", "BeIN", "Football", "Soccer", "NBA", "NFL", "F1", "MotoGP")
+                    channels.filter { channel ->
+                        sportsKeywords.any { channel.name.contains(it, ignoreCase = true) }
+                    }
+                } else {
+                    channels
+                }
+
+                Log.d("CdnLiveTv", "getGenre ($id) returning ${filteredChannels.size} channels")
+                Genre(
+                    id = id,
+                    name = if (id == "cdn_sports") "Live Sports" else "CDN Live TV",
+                    shows = filteredChannels.map { async { it.toTvShow() } }.awaitAll()
+                )
+            } else {
+                Genre(id = id, name = "Unknown", shows = emptyList())
             }
-            Log.d("CdnLiveTv", "getGenre returning ${channels.size} channels")
-            return@coroutineScope Genre(
-                id = id,
-                name = "CDN Live TV",
-                shows = channels.map { async { it.toTvShow() } }.awaitAll()
-            )
         }
-        throw UnsupportedOperationException()
+    } catch (e: Exception) {
+        Log.e("CdnLiveTv", "getGenre failed for $id", e)
+        Genre(id = id, name = "Error", shows = emptyList())
     }
 
     override suspend fun getPeople(id: String, page: Int): People = throw UnsupportedOperationException()

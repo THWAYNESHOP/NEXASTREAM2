@@ -59,7 +59,13 @@ class VixSrcExtractor : Extractor() {
             throw e
         }
         
-        var currentEmbedPath = apiResponse.src.trimStart('/')
+        val src = apiResponse.src ?: ""
+        if (src.isBlank()) {
+            Log.e("VixSrcDebug", "API returned empty source path")
+            throw IllegalStateException("Empty source path from VixSrc API")
+        }
+        
+        var currentEmbedPath = src.trimStart('/')
         Log.i("VixSrcDebug", "Embed path from API: $currentEmbedPath")
         
         val source = try {
@@ -69,17 +75,30 @@ class VixSrcExtractor : Extractor() {
             if (isGone) {
                 Log.w("VixSrcDebug", "410 Gone detected, retrying API call...")
                 val retryApiResponse = service.getSourceApi(apiPath)
-                currentEmbedPath = retryApiResponse.src.trimStart('/')
+                val retrySrc = retryApiResponse.src ?: ""
+                if (retrySrc.isBlank()) {
+                    throw IllegalStateException("Empty source path on retry from VixSrc API")
+                }
+                currentEmbedPath = retrySrc.trimStart('/')
                 service.getSource(currentEmbedPath)
             } else throw e
         }
         val scriptText = source.body().selectFirst("script")?.data() ?: ""
+        if (scriptText.isBlank()) {
+            Log.e("VixSrcDebug", "No script data found in source")
+            throw IllegalStateException("Empty script data from VixSrc source")
+        }
         
         val videoId = scriptText
             .substringAfter("window.video = {", "")
             .substringAfter("id: '", "")
             .substringBefore("',", "")
             .trim()
+
+        if (videoId.isBlank()) {
+            Log.e("VixSrcDebug", "Could not find videoId in script")
+            throw IllegalStateException("VideoId not found in VixSrc script")
+        }
 
         val token = scriptText
             .substringAfter("window.masterPlaylist", "")
@@ -92,6 +111,11 @@ class VixSrcExtractor : Extractor() {
             .substringAfter("'expires': '", "")
             .substringBefore("',", "")
             .trim()
+
+        if (token.isBlank() || expires.isBlank()) {
+            Log.e("VixSrcDebug", "Missing token or expires in masterPlaylist")
+            throw IllegalStateException("Incomplete masterPlaylist data in VixSrc")
+        }
 
         val hasBParam = scriptText
             .substringAfter("url:", "")
@@ -146,10 +170,14 @@ class VixSrcExtractor : Extractor() {
                             patchedLine = uriRegex.replace(line) { matchResult ->
                                 val relative = matchResult.groupValues[1]
                                 if (relative.startsWith("http") || relative.startsWith("data:")) matchResult.value
-                                else "URI=\"${baseUri.resolve(relative) ?: relative}\""
+                                else {
+                                    val resolved = baseUri.resolve(relative)
+                                    if (resolved != null) "URI=\"$resolved\"" else matchResult.value
+                                }
                             }
                         } else if (line.isNotBlank() && !line.startsWith("#")) {
-                            patchedLine = baseUri.resolve(line)?.toString() ?: line
+                            val resolved = baseUri.resolve(line)
+                            patchedLine = resolved?.toString() ?: line
                         }
 
                         if (patchedLine.startsWith("#EXT-X-MEDIA:TYPE=AUDIO")) {
@@ -198,12 +226,16 @@ class VixSrcExtractor : Extractor() {
                     
                     val base64Manifest = Base64.encodeToString(finalLines.joinToString("\n").toByteArray(), Base64.NO_WRAP)
                     videoSource = "data:application/vnd.apple.mpegurl;base64,$base64Manifest"
+                    Log.i("VixSrcDebug", "Successfully patched manifest. Final source is data: URI")
+                } else {
+                    Log.w("VixSrcDebug", "Response not successful or body null: ${response.code}")
                 }
             }
         } catch (e: Exception) {
-            Log.e("VixSrcDebug", "Error in patching: ${e.message}")
+            Log.e("VixSrcDebug", "Error in patching: ${e.message}", e)
         }
 
+        Log.i("VixSrcDebug", "Returning video with source: ${videoSource.take(100)}...")
         return Video(
             source = videoSource,
             subtitles = listOf(),
@@ -253,7 +285,7 @@ class VixSrcExtractor : Extractor() {
         )
         suspend fun getSource(@Url url: String): Document
 
-        data class VixSrcApiResponse(val src: String)
+        data class VixSrcApiResponse(val src: String?)
 
         data class WindowVideo(
             @SerializedName("id") val id: Int,

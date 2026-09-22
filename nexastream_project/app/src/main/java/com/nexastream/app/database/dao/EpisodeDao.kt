@@ -2,6 +2,7 @@ package com.nexastream.app.database.dao
 
 import android.util.Log
 import androidx.room.Dao
+import androidx.room.Delete
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
@@ -102,6 +103,9 @@ interface EpisodeDao {
     fun getEpisodesByTvShowIdAndSeason(tvShowId: String, season: String?): List<Episode>
     @Update
     fun update(episode: Episode)
+
+    @Delete
+    fun delete(episode: Episode)
 
     @Query("DELETE FROM episodes")
     fun deleteAll()

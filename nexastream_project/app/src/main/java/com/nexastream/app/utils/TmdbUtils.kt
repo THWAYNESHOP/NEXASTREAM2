@@ -6,6 +6,9 @@ import com.nexastream.app.models.Movie
 import com.nexastream.app.models.People
 import com.nexastream.app.models.Season
 import com.nexastream.app.models.TvShow
+import com.nexastream.app.models.TmdbMetadataCache
+import com.nexastream.app.database.AppDatabase
+import com.nexastream.app.NexastreamApp
 import com.nexastream.app.utils.TMDb3.original
 import com.nexastream.app.utils.TMDb3.w500
 import java.text.Normalizer
@@ -18,6 +21,8 @@ object TmdbUtils {
     private const val UNKNOWN_AGE_RATING = Int.MIN_VALUE
     private val movieAgeCache = ConcurrentHashMap<String, Int>()
     private val tvAgeCache = ConcurrentHashMap<String, Int>()
+
+    private fun getMetadataCacheDao() = AppDatabase.getInstance(NexastreamApp.instance).metadataCacheDao()
 
     suspend fun getMovie(title: String, year: Int? = null, language: String? = null): Movie? {
         if (!UserPreferences.enableTmdb) return null
@@ -126,7 +131,13 @@ object TmdbUtils {
         val effectiveYear = year ?: extractYear(title)
         val cacheKey = buildLookupCacheKey("movie", title, effectiveYear, language)
         movieAgeCache[cacheKey]?.let(::decodeAgeRatingCacheValue)?.let { return it }
-        if (movieAgeCache.containsKey(cacheKey)) return null
+        
+        // Persistent cache check
+        val persistent = getMetadataCacheDao().getById(cacheKey)
+        if (persistent != null) {
+            movieAgeCache[cacheKey] = encodeAgeRatingCacheValue(persistent.ageRating)
+            return persistent.ageRating
+        }
 
         val ageRating = runCatching {
             val movie = findBestMovieMatch(title, effectiveYear, language) ?: return@runCatching null
@@ -134,6 +145,7 @@ object TmdbUtils {
         }.getOrNull()
 
         movieAgeCache[cacheKey] = encodeAgeRatingCacheValue(ageRating)
+        getMetadataCacheDao().save(TmdbMetadataCache(cacheKey, ageRating))
         return ageRating
     }
 
@@ -143,7 +155,13 @@ object TmdbUtils {
         val effectiveYear = year ?: extractYear(title)
         val cacheKey = buildLookupCacheKey("tv", title, effectiveYear, language)
         tvAgeCache[cacheKey]?.let(::decodeAgeRatingCacheValue)?.let { return it }
-        if (tvAgeCache.containsKey(cacheKey)) return null
+        
+        // Persistent cache check
+        val persistent = getMetadataCacheDao().getById(cacheKey)
+        if (persistent != null) {
+            tvAgeCache[cacheKey] = encodeAgeRatingCacheValue(persistent.ageRating)
+            return persistent.ageRating
+        }
 
         val ageRating = runCatching {
             val tvShow = findBestTvMatch(title, effectiveYear, language) ?: return@runCatching null
@@ -151,6 +169,7 @@ object TmdbUtils {
         }.getOrNull()
 
         tvAgeCache[cacheKey] = encodeAgeRatingCacheValue(ageRating)
+        getMetadataCacheDao().save(TmdbMetadataCache(cacheKey, ageRating))
         return ageRating
     }
 
@@ -193,7 +212,13 @@ object TmdbUtils {
 
         val cacheKey = "movie-id|$id|${language.orEmpty()}"
         movieAgeCache[cacheKey]?.let(::decodeAgeRatingCacheValue)?.let { return it }
-        if (movieAgeCache.containsKey(cacheKey)) return null
+        
+        // Persistent cache check
+        val persistent = getMetadataCacheDao().getById(cacheKey)
+        if (persistent != null) {
+            movieAgeCache[cacheKey] = encodeAgeRatingCacheValue(persistent.ageRating)
+            return persistent.ageRating
+        }
 
         val ageRating = runCatching {
             val details = TMDb3.Movies.details(
@@ -205,6 +230,7 @@ object TmdbUtils {
         }.getOrNull()
 
         movieAgeCache[cacheKey] = encodeAgeRatingCacheValue(ageRating)
+        getMetadataCacheDao().save(TmdbMetadataCache(cacheKey, ageRating))
         return ageRating
     }
 
@@ -254,7 +280,13 @@ object TmdbUtils {
 
         val cacheKey = "tv-id|$id|${language.orEmpty()}"
         tvAgeCache[cacheKey]?.let(::decodeAgeRatingCacheValue)?.let { return it }
-        if (tvAgeCache.containsKey(cacheKey)) return null
+        
+        // Persistent cache check
+        val persistent = getMetadataCacheDao().getById(cacheKey)
+        if (persistent != null) {
+            tvAgeCache[cacheKey] = encodeAgeRatingCacheValue(persistent.ageRating)
+            return persistent.ageRating
+        }
 
         val ageRating = runCatching {
             val details = TMDb3.TvSeries.details(
@@ -266,6 +298,7 @@ object TmdbUtils {
         }.getOrNull()
 
         tvAgeCache[cacheKey] = encodeAgeRatingCacheValue(ageRating)
+        getMetadataCacheDao().save(TmdbMetadataCache(cacheKey, ageRating))
         return ageRating
     }
 

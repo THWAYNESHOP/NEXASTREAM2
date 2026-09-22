@@ -4,6 +4,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
+import android.util.Log
 import android.view.View
 import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
@@ -12,6 +13,7 @@ import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.flowWithLifecycle
 import androidx.lifecycle.lifecycleScope
+import androidx.navigation.NavController
 import androidx.navigation.fragment.NavHostFragment
 import androidx.navigation.navOptions
 import com.bumptech.glide.Glide
@@ -44,6 +46,7 @@ class MainTvActivity : FragmentActivity() {
     private val viewModel by viewModels<MainViewModel>()
 
     private lateinit var updateAppDialog: UpdateAppTvDialog
+    private var navController: NavController? = null
 
     override fun attachBaseContext(newBase: android.content.Context) {
         super.attachBaseContext(AppLanguageManager.wrap(newBase))
@@ -63,97 +66,92 @@ class MainTvActivity : FragmentActivity() {
 
         binding.ivSplashOverlay.animate()
             .alpha(0f)
-            .setDuration(800)
-            .setStartDelay(400)
+            .setDuration(400)
+            .setStartDelay(200)
             .withEndAction {
                 binding.ivSplashOverlay.visibility = View.GONE
             }
 
-        val navHostFragment = this.supportFragmentManager
-            .findFragmentById(binding.navMainFragment.id) as NavHostFragment
-        val navController = navHostFragment.navController
+        try {
+            val navHostFragment = this.supportFragmentManager
+                .findFragmentById(binding.navMainFragment.id) as? NavHostFragment
+            navController = navHostFragment?.navController
 
-        adjustLayoutDelta(null, null)
+            adjustLayoutDelta(null, null)
 
-        if (BuildConfig.APP_LAYOUT == "mobile" || (BuildConfig.APP_LAYOUT != "tv" && !packageManager.hasSystemFeature(PackageManager.FEATURE_LEANBACK))) {
-            finish()
-            startActivity(Intent(this, MainMobileActivity::class.java))
-            return
-        }
-
-        if (savedInstanceState == null) {
-            UserPreferences.currentProvider?.let {
-                navController.navigate(R.id.home)
-            }
-        }
-
-        binding.navMain.setupWithNavController(navController)
-        updateNavigationVisibility()
-        handleIntent(intent)
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            binding.navMainFragment.isFocusedByDefault = true
-        }
-
-        navController.addOnDestinationChangedListener { _, destination, _ ->
-            binding.navMain.headerView?.apply {
-                val header = ContentHeaderMenuMainTvBinding.bind(this)
-
-                Glide.with(context)
-                    .load(UserPreferences.currentProvider?.logo?.takeIf { it.isNotEmpty() } ?: R.drawable.ic_provider_default_logo)
-                    .error(R.drawable.ic_provider_default_logo)
-                    .into(header.ivNavigationHeaderIcon)
-                header.tvNavigationHeaderTitle.text = UserPreferences.currentProvider?.name
-                header.tvNavigationHeaderSubtitle.text = getString(R.string.main_menu_change_provider)
-                val palette = ThemeManager.palette(UserPreferences.selectedTheme)
-                header.tvNavigationHeaderTitle.setTextColor(palette.tvHeaderPrimary)
-                header.tvNavigationHeaderSubtitle.setTextColor(palette.tvHeaderSecondary)
-                setBackgroundColor(palette.tvNavBackground)
-
-                setOnOpenListener {
-                    header.tvNavigationHeaderTitle.visibility = View.VISIBLE
-                    header.tvNavigationHeaderSubtitle.visibility = View.VISIBLE
-                }
-                setOnCloseListener {
-                    header.tvNavigationHeaderTitle.visibility = View.GONE
-                    header.tvNavigationHeaderSubtitle.visibility = View.GONE
-                }
-
-                setOnClickListener {
-                    navController.navigate(R.id.providers)
+            if (savedInstanceState == null) {
+                UserPreferences.currentProvider?.let {
+                    navController?.navigate(R.id.home)
                 }
             }
 
-            when (destination.id) {
-                R.id.search, R.id.home, R.id.movies, R.id.tv_shows, R.id.live_guide, R.id.downloads, R.id.settings -> {
-                    binding.navMain.visibility = View.VISIBLE
-                    updateNavigationVisibility()
-                }
-                else -> {
-                    binding.navMain.visibility = View.GONE
+            navController?.let { controller ->
+                binding.navMain.setupWithNavController(controller)
+                updateNavigationVisibility()
+                handleIntent(intent)
+
+                controller.addOnDestinationChangedListener { _, destination, _ ->
+                    binding.navMain.headerView?.apply {
+                        val header = ContentHeaderMenuMainTvBinding.bind(this)
+
+                        try {
+                            Glide.with(context)
+                                .load(UserPreferences.currentProvider?.logo?.takeIf { it.isNotEmpty() } ?: R.drawable.ic_provider_default_logo)
+                                .error(R.drawable.ic_provider_default_logo)
+                                .into(header.ivNavigationHeaderIcon)
+                        } catch (_: Exception) {
+                            header.ivNavigationHeaderIcon.setImageResource(R.drawable.ic_provider_default_logo)
+                        }
+                        
+                        header.tvNavigationHeaderTitle.text = UserPreferences.currentProvider?.name
+                        header.tvNavigationHeaderSubtitle.text = getString(R.string.main_menu_change_provider)
+                        val palette = ThemeManager.palette(UserPreferences.selectedTheme)
+                        header.tvNavigationHeaderTitle.setTextColor(palette.tvHeaderPrimary)
+                        header.tvNavigationHeaderSubtitle.setTextColor(palette.tvHeaderSecondary)
+                        setBackgroundColor(palette.tvNavBackground)
+
+                        setOnOpenListener {
+                            header.tvNavigationHeaderTitle.visibility = View.VISIBLE
+                            header.tvNavigationHeaderSubtitle.visibility = View.VISIBLE
+                        }
+                        setOnCloseListener {
+                            header.tvNavigationHeaderTitle.visibility = View.GONE
+                            header.tvNavigationHeaderSubtitle.visibility = View.GONE
+                        }
+
+                        setOnClickListener {
+                            controller.navigate(R.id.providers)
+                        }
+                    }
+
+                    when (destination.id) {
+                        R.id.search, R.id.providers, R.id.home, R.id.movies, R.id.tv_shows, R.id.live_guide, R.id.downloads, R.id.settings -> {
+                            binding.navMain.visibility = View.VISIBLE
+                            updateNavigationVisibility()
+                        }
+                        else -> {
+                            binding.navMain.visibility = View.GONE
+                        }
+                    }
                 }
             }
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                binding.navMainFragment.isFocusedByDefault = true
+            }
+        } catch (e: Exception) {
+            Log.e("MainTvActivity", "Error during onCreate", e)
+            Toast.makeText(this, "A navigation error occurred. Resetting...", Toast.LENGTH_LONG).show()
         }
 
         lifecycleScope.launch {
             viewModel.state.flowWithLifecycle(lifecycle, Lifecycle.State.STARTED).collect { state ->
                 when (state) {
                     is MainViewModel.State.SuccessCheckingUpdate -> {
-                        updateAppDialog = UpdateAppTvDialog(this@MainTvActivity, state.newReleases).also {
-                            it.setOnUpdateClickListener { _ ->
-                                if (!it.isLoading) viewModel.downloadUpdate(this@MainTvActivity, state.asset)
-                            }
-                            it.show()
-                        }
+                        // Handled by HomeTvFragment banner for a more integrated TV experience
                     }
-                    MainViewModel.State.DownloadingUpdate -> if (::updateAppDialog.isInitialized) updateAppDialog.isLoading = true
                     is MainViewModel.State.SuccessDownloadingUpdate -> {
                         viewModel.installUpdate(this@MainTvActivity, state.apk)
-                        if (::updateAppDialog.isInitialized) updateAppDialog.hide()
-                    }
-                    MainViewModel.State.InstallingUpdate -> if (::updateAppDialog.isInitialized) updateAppDialog.isLoading = true
-                    is MainViewModel.State.FailedUpdate -> {
-                        // Silent failure for background check
                     }
                     else -> {}
                 }
@@ -162,17 +160,18 @@ class MainTvActivity : FragmentActivity() {
 
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
-                when (navController.currentDestination?.id) {
+                val controller = navController ?: return
+                when (controller.currentDestination?.id) {
                     R.id.home -> {
                         if (binding.navMain.hasFocus()) finish() else binding.navMain.requestFocus()
                     }
-                    R.id.settings, R.id.search, R.id.movies, R.id.tv_shows, R.id.live_guide, R.id.downloads -> {
-                        navigateToProviderHome(navController)
+                    R.id.settings, R.id.search, R.id.providers, R.id.movies, R.id.tv_shows, R.id.live_guide, R.id.downloads -> {
+                        navigateToProviderHome(controller)
                         binding.navMain.requestFocus()
                     }
                     else -> {
                         val handled = (getCurrentFragment() as? PlayerTvFragment)?.onBackPressed() ?: false
-                        if (!handled && !navController.navigateUp()) finish()
+                        if (!handled && !controller.navigateUp()) finish()
                     }
                 }
             }
@@ -238,7 +237,7 @@ class MainTvActivity : FragmentActivity() {
             tvShowsItem?.title = if (isIptv)
                 getString(R.string.main_menu_all_channels) else getString(R.string.main_menu_tv_shows)
 
-            binding.navMain.menu.findItem(R.id.downloads)?.isVisible = Provider.supportsDownloads(provider)
+            binding.navMain.menu.findItem(R.id.downloads)?.isVisible = false
             binding.navMain.menu.findItem(R.id.live_guide)?.isVisible = isIptv
         }
     }

@@ -4,6 +4,7 @@ import android.net.Uri
 import android.util.Base64
 import android.util.Log
 import com.nexastream.app.adapters.AppAdapter
+import com.nexastream.app.models.SearchFilters
 import com.nexastream.app.live.LiveTvCodec
 import com.nexastream.app.live.LiveTvRepository
 import com.nexastream.app.models.Category
@@ -244,7 +245,7 @@ object IptvOrgProvider : IptvProvider {
         return channelCategories
     }
 
-    override suspend fun search(query: String, page: Int): List<AppAdapter.Item> {
+    override suspend fun search(query: String, page: Int, filters: SearchFilters?): List<AppAdapter.Item> {
         if (page > 1) return emptyList()
         val results = mutableListOf<AppAdapter.Item>()
         OFFICIAL_CATEGORIES
@@ -260,8 +261,35 @@ object IptvOrgProvider : IptvProvider {
     }
 
     override suspend fun getGenre(id: String, page: Int): Genre {
-        val channels = getAllChannels().filter { channel ->
-            channel.group?.split(';')?.any { it.trim().equals(id, ignoreCase = true) } == true
+        val allChannels = getAllChannels()
+        val channels = when {
+            id.equals("★ Favorite channels", ignoreCase = true) || id.contains("favorite", ignoreCase = true) -> {
+                val channelsById = allChannels.associateBy { it.tvgId }
+                val preferences = LiveTvRepository.getSavedChannelPreferences()
+                preferences.filter { it.isFavorite }.mapNotNull { channelsById[it.channelId] }
+            }
+            id.equals("Recently watched", ignoreCase = true) -> {
+                val channelsById = allChannels.associateBy { it.tvgId }
+                val preferences = LiveTvRepository.getSavedChannelPreferences()
+                preferences
+                    .filter { it.lastWatchedAt != null }
+                    .sortedByDescending { it.lastWatchedAt }
+                    .mapNotNull { channelsById[it.channelId] }
+            }
+            id.startsWith("My group", ignoreCase = true) -> {
+                val groupName = id.substringAfter("·").trim()
+                val channelsById = allChannels.associateBy { it.tvgId }
+                val preferences = LiveTvRepository.getSavedChannelPreferences()
+                preferences
+                    .filter { it.customGroup?.trim().equals(groupName, ignoreCase = true) || it.customGroup?.trim().equals(id, ignoreCase = true) }
+                    .mapNotNull { channelsById[it.channelId] }
+            }
+            else -> {
+                allChannels.filter { channel ->
+                    channel.group?.contains(id, ignoreCase = true) == true ||
+                    channel.group?.split(';')?.any { it.trim().contains(id, ignoreCase = true) } == true
+                }
+            }
         }
         val pageSize = 40
         return Genre(

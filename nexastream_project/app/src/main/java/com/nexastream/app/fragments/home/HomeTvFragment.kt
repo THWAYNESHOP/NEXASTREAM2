@@ -3,13 +3,17 @@ package com.nexastream.app.fragments.home
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.app.AlertDialog
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Toast
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
+import androidx.fragment.app.activityViewModels
 import androidx.lifecycle.Lifecycle
+import com.nexastream.app.activities.main.MainViewModel
+import com.nexastream.app.utils.GitHub
 import androidx.lifecycle.flowWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.fragment.findNavController
@@ -31,7 +35,10 @@ import com.nexastream.app.utils.LoggingUtils
 import com.nexastream.app.utils.ProviderChangeNotifier
 import com.nexastream.app.utils.UserPreferences
 import com.nexastream.app.utils.viewModelsFactory
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import androidx.core.view.isVisible
 
 class HomeTvFragment : Fragment() {
 
@@ -46,6 +53,7 @@ class HomeTvFragment : Fragment() {
             HomeRepository(requireContext(), AppDatabase.getInstance(requireContext()))
         )
     }
+    private val mainViewModel: MainViewModel by activityViewModels()
 
     private val appAdapter = AppAdapter()
 
@@ -75,6 +83,8 @@ class HomeTvFragment : Fragment() {
 
         // Initial load
         viewModel.getHome()
+
+        setupUpdateBanner()
 
         viewLifecycleOwner.lifecycleScope.launch {
             viewModel.state.flowWithLifecycle(lifecycle, Lifecycle.State.STARTED).collect { state ->
@@ -146,6 +156,35 @@ class HomeTvFragment : Fragment() {
     }
 
 
+    private fun setupUpdateBanner() {
+        binding.btnUpdateBannerClose.setOnClickListener {
+            binding.cvUpdateBanner.isVisible = false
+        }
+
+        viewLifecycleOwner.lifecycleScope.launch {
+            mainViewModel.state.flowWithLifecycle(lifecycle, Lifecycle.State.STARTED).collect { state ->
+                when (state) {
+                    is MainViewModel.State.SuccessCheckingUpdate -> {
+                        binding.cvUpdateBanner.isVisible = true
+                        binding.tvUpdateBannerMessage.text = "Version ${state.newReleases.first().tagName} is available."
+                        binding.btnUpdateBannerInstall.setOnClickListener {
+                            mainViewModel.downloadUpdate(requireContext(), state.asset)
+                        }
+                    }
+                    MainViewModel.State.DownloadingUpdate -> {
+                        binding.btnUpdateBannerInstall.isEnabled = false
+                        binding.btnUpdateBannerInstall.text = "Downloading..."
+                    }
+                    is MainViewModel.State.SuccessDownloadingUpdate -> {
+                        mainViewModel.installUpdate(requireContext(), state.apk)
+                        binding.btnUpdateBannerInstall.text = "Installing..."
+                    }
+                    else -> {}
+                }
+            }
+        }
+    }
+
     private var swiperHasLastFocus: Boolean = false
     fun updateBackground(uri: String?, swiperHasFocus: Boolean? = false) {
         if (swiperHasFocus == null && isBackgroundPinned) return
@@ -173,15 +212,188 @@ class HomeTvFragment : Fragment() {
     }
 
     private fun initializeHome() {
+        val database = AppDatabase.getInstance(requireContext())
+        
+        binding.btnHomeEditMode.setOnClickListener {
+            appAdapter.isEditMode = !appAdapter.isEditMode
+            binding.llHomeEditActions.isVisible = appAdapter.isEditMode
+            binding.btnHomeEditMode.isVisible = !appAdapter.isEditMode
+            
+            if (appAdapter.isEditMode) {
+                binding.btnHomeDeleteSelected.requestFocus()
+            }
+        }
+
+        binding.btnHomeDeleteSelected.setOnClickListener {
+            val selectedItems = appAdapter.items
+                .filterIsInstance<Category>()
+                .flatMap { it.list }
+                .filter { it.isSelected }
+            
+            if (selectedItems.isEmpty()) return@setOnClickListener
+
+            viewLifecycleOwner.lifecycleScope.launch(Dispatchers.IO) {
+                selectedItems.forEach { item ->
+                    when (item) {
+                        is Movie -> database.movieDao().delete(item)
+                        is TvShow -> database.tvShowDao().delete(item)
+                        is Episode -> database.episodeDao().delete(item)
+                    }
+                }
+                withContext(Dispatchers.Main) {
+                    appAdapter.isEditMode = false
+                    binding.llHomeEditActions.isVisible = false
+                    binding.btnHomeEditMode.isVisible = true
+                    viewModel.getHome()
+                }
+            }
+        }
+
+        binding.btnHomeClearAll.setOnClickListener {
+            AlertDialog.Builder(requireContext())
+                .setTitle(R.string.clear_all)
+                .setMessage("Are you sure you want to clear all history and favorites?")
+                .setPositiveButton(android.R.string.ok) { dialog, _ ->
+                    viewLifecycleOwner.lifecycleScope.launch(Dispatchers.IO) {
+                        database.movieDao().deleteAll()
+                        database.tvShowDao().deleteAll()
+                        database.episodeDao().deleteAll()
+                        withContext(Dispatchers.Main) {
+                            appAdapter.isEditMode = false
+                            binding.llHomeEditActions.isVisible = false
+                            binding.btnHomeEditMode.isVisible = true
+                            viewModel.getHome()
+                            dialog.dismiss()
+                        }
+                    }
+                }
+                .setNegativeButton(android.R.string.cancel, null)
+                .show()
+        }
+
         binding.vgvHome.apply {
             adapter = appAdapter.apply {
                 stateRestorationPolicy = RecyclerView.Adapter.StateRestorationPolicy.PREVENT_WHEN_EMPTY
                 onViewAllClickListener = { category ->
-                    if (category.name == "CDN Live Channels") {
+                    val (genreId, genreName) = when (category.name) {
+                        "CDN Live Channels" -> "cdn_all_channels" to "CDN Live TV"
+                        "Live Sports (CDN)" -> "cdn_sports" to "Live Sports"
+                        "Latest Movies" -> "latest_movies" to category.name
+                        "All Cinema" -> "all_cinema" to category.name
+                        "New Season and Episode" -> "new_season_tv" to category.name
+                        
+                        "Netflix Movies" -> "tmdb_watch_provider_movies_8" to category.name
+                        "Disney+ Movies" -> "tmdb_watch_provider_movies_337" to category.name
+                        "Paramount+ Movies" -> "tmdb_watch_provider_movies_531" to category.name
+                        
+                        "Netflix Series" -> "tmdb_network_tv_213" to category.name
+                        "Prime Video Series" -> "tmdb_network_tv_1024" to category.name
+                        "Disney+ Series" -> "tmdb_network_tv_2739" to category.name
+                        "Max Series" -> "tmdb_network_tv_49" to category.name
+                        "Paramount+ Series" -> "tmdb_network_tv_4330" to category.name
+                        "Apple TV Series" -> "tmdb_network_tv_2552" to category.name
+                        "Hulu Series" -> "tmdb_network_tv_453" to category.name
+
+                        "Action Movies" -> "tmdb_movies_genre_28" to category.name
+                        "Crime Movies" -> "tmdb_movies_genre_80" to category.name
+                        "Drama Movies" -> "tmdb_movies_genre_18" to category.name
+                        "Adventure Movies" -> "tmdb_movies_genre_12" to category.name
+                        "Comedy Movies" -> "tmdb_movies_genre_35" to category.name
+                        "Thriller Movies" -> "tmdb_movies_genre_53" to category.name
+                        "Romance Movies" -> "tmdb_movies_genre_10749" to category.name
+                        "Sci-Fi Movies" -> "tmdb_movies_genre_878" to category.name
+                        "Documentary Movies" -> "tmdb_movies_genre_99" to category.name
+                        "Horror Movies" -> "tmdb_movies_genre_27" to category.name
+                        "Fantasy Movies" -> "tmdb_movies_genre_14" to category.name
+                        "Family Movies" -> "tmdb_movies_genre_10751" to category.name
+                        "History Movies" -> "tmdb_movies_genre_36" to category.name
+                        "Mystery Movies" -> "tmdb_movies_genre_9648" to category.name
+                        "War Movies" -> "tmdb_movies_genre_10752" to category.name
+                        "Western Movies" -> "tmdb_movies_genre_37" to category.name
+                        "Teen Romance Movies" -> "teen_romance_movies" to category.name
+                        "Biography Movies" -> "biography_movies" to category.name
+                        "Sport Movies" -> "sport_movies" to category.name
+                        "All Movies" -> "tmdb_movies_popular" to category.name
+                        "Trending Movies" -> "tmdb_movies_popular" to category.name
+
+                        "Action & Adventure Series" -> "tmdb_tv_genre_10759" to category.name
+                        "Comedy Series" -> "tmdb_tv_genre_35" to category.name
+                        "Crime Series" -> "tmdb_tv_genre_80" to category.name
+                        "Documentary Series" -> "tmdb_tv_genre_99" to category.name
+                        "Drama Series" -> "tmdb_tv_genre_18" to category.name
+                        "Family Series" -> "tmdb_tv_genre_10751" to category.name
+                        "Sci-Fi & Fantasy Series" -> "tmdb_tv_genre_10765" to category.name
+                        "History Series" -> "tmdb_tv_genre_36" to category.name
+                        "Horror Series" -> "tmdb_tv_genre_27" to category.name
+                        "Mystery Series" -> "tmdb_tv_genre_9648" to category.name
+                        "Romance Series" -> "tmdb_tv_genre_10749" to category.name
+                        "Thriller Series" -> "tmdb_tv_genre_53" to category.name
+                        "War & Politics Series" -> "tmdb_tv_genre_10768" to category.name
+                        "Reality TV" -> "tmdb_tv_genre_10764" to category.name
+                        "Western Series" -> "tmdb_tv_genre_37" to category.name
+                        "Teen Romance Series" -> "teen_romance_series" to category.name
+                        "Biography Series" -> "biography_series" to category.name
+                        "Sport Series" -> "sport_series" to category.name
+                        "All TV Shows" -> "tmdb_tv_popular" to category.name
+                        "Trending Series" -> "tmdb_tv_popular" to category.name
+
+                        "Kids & Family" -> "tmdb_kids_family" to category.name
+                        "Cartoon Movies" -> "tmdb_cartoon_movies" to category.name
+                        "Cartoon Series" -> "tmdb_cartoon_series" to category.name
+                        "Baby" -> "tmdb_keyword_10229" to category.name
+                        "Age 2-6" -> "tmdb_kids_family" to category.name
+                        "Pixar" -> "tmdb_studio_3" to category.name
+                        "DreamWorks" -> "tmdb_studio_521" to category.name
+                        "Blue Sky Studios" -> "tmdb_studio_10378" to category.name
+                        "Illumination" -> "tmdb_studio_6704" to category.name
+                        "Toys" -> "tmdb_keyword_11134" to category.name
+                        "Kung Fu Panda" -> "search_Kung Fu Panda" to category.name
+                        "Cars" -> "search_Cars" to category.name
+                        "Frozen" -> "search_Frozen" to category.name
+                        "Minions" -> "search_Minions" to category.name
+                        "Peppa Pig" -> "search_Peppa Pig" to category.name
+
+                        "Anime Universe" -> "tmdb_anime_universe" to category.name
+                        "Anime Movies" -> "tmdb_cartoon_movies" to category.name
+                        "Japanese Anime" -> "tmdb_japanese_anime" to category.name
+                        "European & American Anime" -> "tmdb_western_anime" to category.name
+                        "Age 7-12" -> "tmdb_anime_age_7_12" to category.name
+                        "Dragon Ball" -> "search_Dragon Ball" to category.name
+                        "Naruto" -> "search_Naruto" to category.name
+                        "One Piece" -> "search_One Piece" to category.name
+
+                        "Movies Banner" -> "tmdb_movies_popular" to "Movies"
+                        "Series Banner" -> "tmdb_tv_popular" to "Series"
+                        "Kids Banner" -> "tmdb_kids_family" to "Kids & Family"
+                        "Anime Banner" -> "tmdb_anime_universe" to "Anime Universe"
+                        "Trending Today" -> "tmdb_movies_popular" to "Trending"
+
+                        else -> {
+                            val name = category.name
+                            when {
+                                name.startsWith("Popular on") || name.startsWith("Popolari su") -> {
+                                    val platform = name.substringAfter("on ").substringAfter("su ").trim()
+                                    val providerId = when (platform) {
+                                        "Netflix" -> 8
+                                        "Disney+" -> 337
+                                        "Hulu" -> 15
+                                        "HBO" -> 384
+                                        "Apple TV+" -> 350
+                                        "Amazon" -> 10
+                                        else -> 0
+                                    }
+                                    if (providerId != 0) "tmdb_watch_provider_movies_$providerId" to name else "" to name
+                                }
+                                else -> "" to name
+                            }
+                        }
+                    }
+                    
+                    if (genreId.isNotEmpty()) {
                         findNavController().navigate(
                             HomeTvFragmentDirections.actionHomeToGenre(
-                                id = "cdn_all_channels",
-                                name = "CDN Live TV"
+                                id = genreId,
+                                name = genreName
                             )
                         )
                     }

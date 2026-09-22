@@ -3,6 +3,7 @@ package com.nexastream.app.providers
 import android.util.Base64
 import android.util.Log
 import com.nexastream.app.adapters.AppAdapter
+import com.nexastream.app.models.SearchFilters
 import com.nexastream.app.extractors.Extractor
 import com.nexastream.app.models.*
 import com.nexastream.app.utils.JsUnpacker
@@ -210,7 +211,7 @@ object PelotaLibreTvHdProvider : IptvProvider {
 
     override suspend fun getMovies(page: Int): List<Movie> = emptyList()
 
-    override suspend fun search(query: String, page: Int): List<AppAdapter.Item> = emptyList()
+    override suspend fun search(query: String, page: Int, filters: SearchFilters?): List<AppAdapter.Item> = emptyList()
 
     override suspend fun getGenre(id: String, page: Int): Genre = Genre(id = id, name = id, shows = emptyList())
     override suspend fun getPeople(

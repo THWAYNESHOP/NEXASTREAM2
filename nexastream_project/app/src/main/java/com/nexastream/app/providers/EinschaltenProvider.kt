@@ -2,6 +2,7 @@ package com.nexastream.app.providers
 
 import com.tanasi.retrofit_jsoup.converter.JsoupConverterFactory
 import com.nexastream.app.adapters.AppAdapter
+import com.nexastream.app.models.SearchFilters
 import com.nexastream.app.models.Category
 import com.nexastream.app.models.Episode
 import com.nexastream.app.models.Genre
@@ -163,7 +164,7 @@ object EinschaltenProvider : Provider {
     }
 
 
-    override suspend fun search(query: String, page: Int): List<AppAdapter.Item> {
+    override suspend fun search(query: String, page: Int, filters: SearchFilters?): List<AppAdapter.Item> {
         if (query.isBlank()) {
             if (page > 1) return emptyList()
             

@@ -1,5 +1,7 @@
 package com.nexastream.app.providers
 
+import com.nexastream.app.NexastreamApp
+import android.content.pm.PackageManager
 import com.nexastream.app.adapters.AppAdapter
 import com.nexastream.app.extractors.AfterDarkExtractor
 import com.nexastream.app.extractors.Extractor
@@ -18,6 +20,7 @@ import com.nexastream.app.extractors.VidflixExtractor
 import com.nexastream.app.extractors.VidrockExtractor
 import com.nexastream.app.extractors.VideasyExtractor
 import com.nexastream.app.extractors.PrimeSrcExtractor
+import com.nexastream.app.models.SearchFilters
 import com.nexastream.app.models.Category
 import com.nexastream.app.models.Episode
 import com.nexastream.app.models.Genre
@@ -33,6 +36,7 @@ import com.nexastream.app.utils.UserPreferences
 import com.nexastream.app.utils.safeSubList
 import android.util.Base64
 import android.util.Log
+import java.util.Calendar
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -49,83 +53,563 @@ class TmdbProvider(override val language: String) : Provider {
     override val logo =
         "https://upload.wikimedia.org/wikipedia/commons/thumb/8/89/Tmdb.new.logo.svg/1280px-Tmdb.new.logo.svg.png"
 
-    override suspend fun getHome(): List<Category> = coroutineScope {
-        val categories = mutableListOf<Category>()
-        val watchRegion = if (language == "en") "US" else language.uppercase()
+    fun mapMulti(multi: TMDb3.MultiItem): AppAdapter.Item? {
+        return when (multi) {
+            is TMDb3.Movie -> Movie(
+                id = multi.id.toString(),
+                title = multi.title,
+                overview = multi.overview,
+                released = multi.releaseDate,
+                rating = multi.voteAverage.toDouble(),
+                poster = multi.posterPath?.w500,
+                banner = multi.backdropPath?.original,
+            )
 
-        val mapMulti: (TMDb3.MultiItem) -> AppAdapter.Item? = { multi ->
-            when (multi) {
-                is TMDb3.Movie -> Movie(
-                    id = multi.id.toString(),
-                    title = multi.title,
-                    overview = multi.overview,
-                    released = multi.releaseDate,
-                    rating = multi.voteAverage.toDouble(),
-                    poster = multi.posterPath?.w500,
-                    banner = multi.backdropPath?.original,
-                )
+            is TMDb3.Tv -> TvShow(
+                id = multi.id.toString(),
+                title = multi.name,
+                overview = multi.overview,
+                released = multi.firstAirDate,
+                rating = multi.voteAverage.toDouble(),
+                poster = multi.posterPath?.w500,
+                banner = multi.backdropPath?.original,
+            )
 
-                is TMDb3.Tv -> TvShow(
-                    id = multi.id.toString(),
-                    title = multi.name,
-                    overview = multi.overview,
-                    released = multi.firstAirDate,
-                    rating = multi.voteAverage.toDouble(),
-                    poster = multi.posterPath?.w500,
-                    banner = multi.backdropPath?.original,
-                )
+            is TMDb3.Person -> People(
+                id = multi.id.toString(),
+                name = multi.name,
+                image = multi.profilePath?.w500,
+            )
 
-                is TMDb3.Person -> People(
-                    id = multi.id.toString(),
-                    name = multi.name,
-                    image = multi.profilePath?.w500,
-                )
+            else -> null
+        }
+    }
 
-                else -> null
+    suspend fun getFeaturedMovies(): Category = coroutineScope {
+        val results = TMDb3.Trending.all(TMDb3.Params.TimeWindow.DAY, language = language).results
+            .filter { it is TMDb3.Movie }
+            .mapNotNull { mapMulti(it) }
+        Category(name = "Featured Movies", list = results)
+    }
+
+    suspend fun getFeaturedTvShows(): Category = coroutineScope {
+        val results = TMDb3.Trending.all(TMDb3.Params.TimeWindow.DAY, language = language).results
+            .filter { it is TMDb3.Tv }
+            .mapNotNull { mapMulti(it) }
+        Category(name = "Featured Series", list = results)
+    }
+
+    suspend fun getKidsContent(): Category = coroutineScope {
+        val movieKids = async { 
+            TMDb3.Discover.movie(
+                language = language,
+                withGenres = TMDb3.Params.WithBuilder<TMDb3.Genre.Movie>(TMDb3.Genre.Movie.FAMILY.id).or(TMDb3.Genre.Movie.ANIMATION.id)
+            ).results.mapNotNull { mapMulti(it) }
+        }
+        val tvKids = async {
+            TMDb3.Discover.tv(
+                language = language,
+                withGenres = TMDb3.Params.WithBuilder<TMDb3.Genre.Tv>(TMDb3.Genre.Tv.KIDS.id).or(TMDb3.Genre.Tv.FAMILY.id)
+            ).results.mapNotNull { mapMulti(it) }
+        }
+        
+        val combined = (movieKids.await() + tvKids.await()).shuffled()
+        Category(name = "Kids & Family", list = combined)
+    }
+
+    suspend fun getCartoonMovies(): Category = coroutineScope {
+        val results = TMDb3.Discover.movie(
+            language = language,
+            withGenres = TMDb3.Params.WithBuilder<TMDb3.Genre.Movie>(TMDb3.Genre.Movie.ANIMATION.id),
+            sortBy = TMDb3.Params.SortBy.Movie.POPULARITY_DESC
+        ).results.mapNotNull { mapMulti(it) }
+        Category(name = "Cartoon Movies", list = results)
+    }
+
+    suspend fun getCartoonSeries(): Category = coroutineScope {
+        val results = TMDb3.Discover.tv(
+            language = language,
+            withGenres = TMDb3.Params.WithBuilder<TMDb3.Genre.Tv>(TMDb3.Genre.Tv.ANIMATION.id),
+            sortBy = TMDb3.Params.SortBy.Tv.POPULARITY_DESC
+        ).results.mapNotNull { mapMulti(it) }
+        Category(name = "Cartoon Series", list = results)
+    }
+
+    suspend fun getStudioContent(name: String, companyId: Int): Category = coroutineScope {
+        val movies = async {
+            TMDb3.Discover.movie(
+                language = language,
+                withCompanies = TMDb3.Params.WithBuilder<TMDb3.Company.CompanyId>(companyId),
+                sortBy = TMDb3.Params.SortBy.Movie.POPULARITY_DESC
+            ).results.mapNotNull { mapMulti(it) }
+        }
+        val tv = async {
+            TMDb3.Discover.tv(
+                language = language,
+                withCompanies = TMDb3.Params.WithBuilder<TMDb3.Company.CompanyId>(companyId),
+                sortBy = TMDb3.Params.SortBy.Tv.POPULARITY_DESC
+            ).results.mapNotNull { mapMulti(it) }
+        }
+        val combined = (movies.await() + tv.await())
+        val distinct = combined.distinctBy { item ->
+            when (item) {
+                is Movie -> "movie_${item.id}"
+                is TvShow -> "tv_${item.id}"
+                else -> item.hashCode().toString()
+            }
+        }
+        Category(name = name, list = distinct)
+    }
+
+    suspend fun getKeywordContent(name: String, keywordId: Int): Category = coroutineScope {
+        val movies = async {
+            TMDb3.Discover.movie(
+                language = language,
+                withKeywords = TMDb3.Params.WithBuilder<TMDb3.Keyword.KeywordId>(keywordId),
+                sortBy = TMDb3.Params.SortBy.Movie.POPULARITY_DESC
+            ).results.mapNotNull { mapMulti(it) }
+        }
+        val tv = async {
+            TMDb3.Discover.tv(
+                language = language,
+                withKeywords = TMDb3.Params.WithBuilder<TMDb3.Keyword.KeywordId>(keywordId),
+                sortBy = TMDb3.Params.SortBy.Tv.POPULARITY_DESC
+            ).results.mapNotNull { mapMulti(it) }
+        }
+        val combined = (movies.await() + tv.await())
+        val distinct = combined.distinctBy { item ->
+            when (item) {
+                is Movie -> "movie_${item.id}"
+                is TvShow -> "tv_${item.id}"
+                else -> item.hashCode().toString()
+            }
+        }
+        Category(name = name, list = distinct)
+    }
+
+    suspend fun getSearchContent(name: String, query: String): Category = coroutineScope {
+        val results = TMDb3.Search.multi(
+            query = query,
+            language = language
+        ).results.mapNotNull { mapMulti(it) }
+        Category(name = name, list = results)
+    }
+
+    suspend fun getAnimeContent(): Category = coroutineScope {
+        val results = TMDb3.Discover.tv(
+            language = language,
+            withKeywords = TMDb3.Params.WithBuilder<TMDb3.Keyword.KeywordId>(TMDb3.Keyword.KeywordId.ANIME)
+        ).results.mapNotNull { mapMulti(it) }
+        Category(name = "Anime Universe", list = results)
+    }
+
+    suspend fun getAnimeMovies(): Category = coroutineScope {
+        val results = TMDb3.Discover.movie(
+            language = language,
+            withKeywords = TMDb3.Params.WithBuilder<TMDb3.Keyword.KeywordId>(TMDb3.Keyword.KeywordId.ANIME),
+            sortBy = TMDb3.Params.SortBy.Movie.POPULARITY_DESC
+        ).results.mapNotNull { mapMulti(it) }
+        Category(name = "Anime Movies", list = results)
+    }
+
+    suspend fun getJapaneseAnime(): Category = coroutineScope {
+        val movies = async {
+            TMDb3.Discover.movie(
+                language = language,
+                withKeywords = TMDb3.Params.WithBuilder<TMDb3.Keyword.KeywordId>(TMDb3.Keyword.KeywordId.ANIME),
+                withOriginCountry = TMDb3.Params.WithBuilder<String>("JP"),
+                sortBy = TMDb3.Params.SortBy.Movie.POPULARITY_DESC
+            ).results.mapNotNull { mapMulti(it) }
+        }
+        val tv = async {
+            TMDb3.Discover.tv(
+                language = language,
+                withKeywords = TMDb3.Params.WithBuilder<TMDb3.Keyword.KeywordId>(TMDb3.Keyword.KeywordId.ANIME),
+                withOriginCountry = TMDb3.Params.WithBuilder<String>("JP"),
+                sortBy = TMDb3.Params.SortBy.Tv.POPULARITY_DESC
+            ).results.mapNotNull { mapMulti(it) }
+        }
+        val combined = (movies.await() + tv.await())
+        val distinct = combined.distinctBy { item ->
+            when (item) {
+                is Movie -> "movie_${item.id}"
+                is TvShow -> "tv_${item.id}"
+                else -> item.hashCode().toString()
+            }
+        }
+        Category(name = "Japanese Anime", list = distinct)
+    }
+
+    suspend fun getWesternAnime(): Category = coroutineScope {
+        val movies = async {
+            TMDb3.Discover.movie(
+                language = language,
+                withKeywords = TMDb3.Params.WithBuilder<TMDb3.Keyword.KeywordId>(TMDb3.Keyword.KeywordId.ANIME),
+                sortBy = TMDb3.Params.SortBy.Movie.POPULARITY_DESC
+            ).results.filter { it.originalLanguage != "ja" }.mapNotNull { mapMulti(it) }
+        }
+        val tv = async {
+            TMDb3.Discover.tv(
+                language = language,
+                withKeywords = TMDb3.Params.WithBuilder<TMDb3.Keyword.KeywordId>(TMDb3.Keyword.KeywordId.ANIME),
+                sortBy = TMDb3.Params.SortBy.Tv.POPULARITY_DESC
+            ).results.filter { it.originalLanguage != "ja" }.mapNotNull { mapMulti(it) }
+        }
+        val combined = (movies.await() + tv.await())
+        val distinct = combined.distinctBy { item ->
+            when (item) {
+                is Movie -> "movie_${item.id}"
+                is TvShow -> "tv_${item.id}"
+                else -> item.hashCode().toString()
+            }
+        }
+        Category(name = "European & American Anime", list = distinct)
+    }
+
+    suspend fun getAnimeAge7to12(): Category = coroutineScope {
+        val movies = async {
+            TMDb3.Discover.movie(
+                language = language,
+                withKeywords = TMDb3.Params.WithBuilder<TMDb3.Keyword.KeywordId>(TMDb3.Keyword.KeywordId.ANIME),
+                withGenres = TMDb3.Params.WithBuilder<TMDb3.Genre.Movie>(TMDb3.Genre.Movie.FAMILY.id),
+                sortBy = TMDb3.Params.SortBy.Movie.POPULARITY_DESC
+            ).results.mapNotNull { mapMulti(it) }
+        }
+        val tv = async {
+            TMDb3.Discover.tv(
+                language = language,
+                withKeywords = TMDb3.Params.WithBuilder<TMDb3.Keyword.KeywordId>(TMDb3.Keyword.KeywordId.ANIME),
+                withGenres = TMDb3.Params.WithBuilder<TMDb3.Genre.Tv>(TMDb3.Genre.Tv.KIDS.id),
+                sortBy = TMDb3.Params.SortBy.Tv.POPULARITY_DESC
+            ).results.mapNotNull { mapMulti(it) }
+        }
+        val combined = (movies.await() + tv.await())
+        val distinct = combined.distinctBy { item ->
+            when (item) {
+                is Movie -> "movie_${item.id}"
+                is TvShow -> "tv_${item.id}"
+                else -> item.hashCode().toString()
+            }
+        }
+        Category(name = "Age 7-12", list = distinct)
+    }
+
+    // --- NEW GENERIC METHODS ---
+    suspend fun getGenreMovies(genreId: Int, name: String): Category = coroutineScope {
+        val results = TMDb3.Discover.movie(
+            language = language,
+            withGenres = TMDb3.Params.WithBuilder<TMDb3.Genre.Movie>(genreId),
+            sortBy = TMDb3.Params.SortBy.Movie.POPULARITY_DESC
+        ).results.mapNotNull { mapMulti(it) }
+        Category(name = name, list = results)
+    }
+
+    suspend fun getGenreTv(genreId: Int, name: String): Category = coroutineScope {
+        val results = TMDb3.Discover.tv(
+            language = language,
+            withGenres = TMDb3.Params.WithBuilder<TMDb3.Genre.Tv>(genreId),
+            sortBy = TMDb3.Params.SortBy.Tv.POPULARITY_DESC
+        ).results.mapNotNull { mapMulti(it) }
+        Category(name = name, list = results)
+    }
+
+    suspend fun getNetworkTv(networkId: Int, name: String): Category = coroutineScope {
+        val results = TMDb3.Discover.tv(
+            language = language,
+            withNetworks = TMDb3.Params.WithBuilder<TMDb3.Network.NetworkId>(networkId),
+            sortBy = TMDb3.Params.SortBy.Tv.POPULARITY_DESC
+        ).results.mapNotNull { mapMulti(it) }
+        Category(name = name, list = results)
+    }
+
+    suspend fun getWatchProviderMovies(providerId: Int, name: String): Category = coroutineScope {
+        val results = TMDb3.Discover.movie(
+            language = language,
+            withWatchProviders = TMDb3.Params.WithBuilder<TMDb3.Provider.WatchProviderId>(providerId),
+            sortBy = TMDb3.Params.SortBy.Movie.POPULARITY_DESC
+        ).results.mapNotNull { mapMulti(it) }
+        Category(name = name, list = results)
+    }
+
+    // --- NEW SPECIFIC METHODS ---
+    suspend fun getLatestMovies(): Category = coroutineScope {
+        val today = Calendar.getInstance()
+        val results = TMDb3.Discover.movie(
+            language = language,
+            primaryReleaseDate = TMDb3.Params.Range(lte = today),
+            sortBy = TMDb3.Params.SortBy.Movie.PRIMARY_RELEASE_DATE_DESC
+        ).results.mapNotNull { mapMulti(it) }
+        Category(name = "Latest Movies", list = results)
+    }
+
+    suspend fun getAllCinema(): Category = coroutineScope {
+        val today = Calendar.getInstance()
+        val results = TMDb3.Discover.movie(
+            language = language,
+            withReleaseType = TMDb3.Params.WithBuilder<TMDb3.Movie.ReleaseType>(TMDb3.Movie.ReleaseType.THEATRICAL),
+            primaryReleaseDate = TMDb3.Params.Range(lte = today),
+            sortBy = TMDb3.Params.SortBy.Movie.POPULARITY_DESC
+        ).results.mapNotNull { mapMulti(it) }
+        Category(name = "All Cinema", list = results)
+    }
+
+    suspend fun getNewSeasonsAndEpisodes(): Category = coroutineScope {
+        val results = TMDb3.TvSeriesLists.airingToday(
+            language = language
+        ).results.mapNotNull { mapMulti(it) }
+        Category(name = "New Season and Episode", list = results)
+    }
+
+    suspend fun getTeenRomance(isMovie: Boolean, name: String = "Teen Romance"): Category = coroutineScope {
+        val curatedSeries = if (!isMovie) {
+            listOf(
+                TMDb3.Tv(id = 199001, name = "My Life with the Walter Boys", posterPath = "/dQOwpTpBQEqRUcev4423LrU32G6.jpg", overview = "A teenage girl's life is turned upside down when she moves in with a big family in rural Colorado.", firstAirDate = "2023", popularity = 10000f, backdropPath = null, voteAverage = 7.8f, voteCount = 500, originCountry = emptyList(), genresIds = listOf(10749), originalLanguage = "en", originalName = "My Life with the Walter Boys"),
+                TMDb3.Tv(id = 283297, name = "Sterling Point", posterPath = "/cThLWEGs6BEqY0QZMbU4FAeWwPT.jpg", overview = "Sterling Point", firstAirDate = "2026", popularity = 9999f, backdropPath = null, voteAverage = 8.3f, voteCount = 100, originCountry = emptyList(), genresIds = listOf(10749), originalLanguage = "en", originalName = "Sterling Point"),
+                TMDb3.Tv(id = 298168, name = "The Shards", posterPath = "/wP0GdqwVu2g1y3q1KzBXuSrdTvX.jpg", overview = "The Shards", firstAirDate = "2026", popularity = 9998f, backdropPath = null, voteAverage = 7.3f, voteCount = 100, originCountry = emptyList(), genresIds = listOf(10749), originalLanguage = "en", originalName = "The Shards"),
+                TMDb3.Tv(id = 288671, name = "The Map of Longing", posterPath = "/wcgjZ7koqOYDcKUn6DmnNolqmUS.jpg", overview = "The Map of Longing", firstAirDate = "2026", popularity = 9997f, backdropPath = null, voteAverage = 8.3f, voteCount = 100, originCountry = emptyList(), genresIds = listOf(10749), originalLanguage = "en", originalName = "The Map of Longing"),
+                TMDb3.Tv(id = 254420, name = "Elle", posterPath = "/dpH7Lyrs7z7MlTGgfeibryGnWAv.jpg", overview = "Elle", firstAirDate = "2026", popularity = 9996f, backdropPath = null, voteAverage = 7.9f, voteCount = 100, originCountry = emptyList(), genresIds = listOf(10749), originalLanguage = "en", originalName = "Elle"),
+                TMDb3.Tv(id = 260592, name = "Every Year After", posterPath = "/nZGf0jnSJNXLf8o7iSzzX8qxHX9.jpg", overview = "Every Year After", firstAirDate = "2026", popularity = 9995f, backdropPath = null, voteAverage = 8.3f, voteCount = 100, originCountry = emptyList(), genresIds = listOf(10749), originalLanguage = "en", originalName = "Every Year After"),
+                TMDb3.Tv(id = 273240, name = "Off Campus", posterPath = "/tcPc5ZMBO4y2BtCJMe3o2nwZb2B.jpg", overview = "Off Campus", firstAirDate = "2026", popularity = 9994f, backdropPath = null, voteAverage = 8.9f, voteCount = 100, originCountry = emptyList(), genresIds = listOf(10749), originalLanguage = "en", originalName = "Off Campus"),
+                TMDb3.Tv(id = 118833, name = "Cruel Summer", posterPath = "/6pZv8bY69HqHqL1P1bXo7v8m8rL.jpg", overview = "Cruel Summer teen drama fake dating crew girl", firstAirDate = "2021", popularity = 9993f, backdropPath = null, voteAverage = 7.5f, voteCount = 200, originCountry = emptyList(), genresIds = listOf(10749), originalLanguage = "en", originalName = "Cruel Summer"),
+                TMDb3.Tv(id = 85552, name = "Euphoria", posterPath = "/3sc86TRMHkZg6YgIiw624hz6STk.jpg", overview = "A look at life for a group of high school students as they navigate love and friendships.", firstAirDate = "2019", popularity = 9992f, backdropPath = null, voteAverage = 8.4f, voteCount = 9000, originCountry = emptyList(), genresIds = listOf(10749), originalLanguage = "en", originalName = "Euphoria"),
+                TMDb3.Tv(id = 154825, name = "XO, Kitty", posterPath = "/7mId706WvD8p66pMuxvW7O7qOsk.jpg", overview = "A new love story unfolds when teen matchmaker Kitty song Covey reunites with her long-distance boyfriend.", firstAirDate = "2023", popularity = 9991f, backdropPath = null, voteAverage = 8.1f, voteCount = 400, originCountry = emptyList(), genresIds = listOf(10749), originalLanguage = "en", originalName = "XO, Kitty")
+            )
+        } else {
+            emptyList()
+        }
+
+        val rawItems = (if (isMovie) {
+            val p1 = async { runCatching { TMDb3.Discover.movie(language = language, withKeywords = TMDb3.Params.WithBuilder<TMDb3.Keyword.KeywordId>(14534), page = 1).results }.getOrElse { emptyList() } }
+            val p2 = async { runCatching { TMDb3.Discover.movie(language = language, withKeywords = TMDb3.Params.WithBuilder<TMDb3.Keyword.KeywordId>(14534), page = 2).results }.getOrElse { emptyList() } }
+            p1.await() + p2.await()
+        } else {
+            val p1 = async { runCatching { TMDb3.Discover.tv(language = language, withKeywords = TMDb3.Params.WithBuilder<TMDb3.Keyword.KeywordId>(14534), page = 1).results }.getOrElse { emptyList() } }
+            val p2 = async { runCatching { TMDb3.Discover.tv(language = language, withKeywords = TMDb3.Params.WithBuilder<TMDb3.Keyword.KeywordId>(14534), page = 2).results }.getOrElse { emptyList() } }
+            curatedSeries + p1.await() + p2.await()
+        }).distinctBy { 
+            when (it) {
+                is TMDb3.Movie -> it.id
+                is TMDb3.Tv -> it.id
+                else -> 0
             }
         }
 
+        class ScoredItem(
+            val item: TMDb3.MultiItem,
+            val trendingScore: Double,
+            val matrixPriority: Int,
+            val tropeScore: Int,
+            val glossyScore: Int,
+            val popularity: Float,
+            val voteAverage: Float
+        )
+
+        val tropes = listOf(
+            Pair(12, listOf("fake date", "fake dating", "pretend relationship", "pretend dating")),
+            Pair(11, listOf("childhood friend", "best friend", "friends to lovers", "friendship turns")),
+            Pair(10, listOf("enemies to lovers", "rivals", "opposites attract", "hate each other")),
+            Pair(9, listOf("love triangle", "between two", "choose between", "torn between")),
+            Pair(8, listOf("prom", "homecoming", "makeover", "school dance", "high school")),
+            Pair(7, listOf("first love", "summer romance", "secret relationship", "forbidden love"))
+        )
+
+        val glossySignals = listOf("party", "popular", "dare", "school", "summer", "music", "dance", "secret", "fashion", "wedding", "comedy", "teen")
+        val teenSignals = listOf("teen", "school", "college", "young love", "coming of age")
+
+        val scoredList = rawItems.mapNotNull { rawItem ->
+            val genresIds = when (rawItem) {
+                is TMDb3.Movie -> rawItem.genresIds
+                is TMDb3.Tv -> rawItem.genresIds
+                else -> return@mapNotNull null
+            }
+            
+            if (genresIds.contains(16)) return@mapNotNull null // Exclude Animation
+            
+            val dateStr = when (rawItem) {
+                is TMDb3.Movie -> rawItem.releaseDate
+                is TMDb3.Tv -> rawItem.firstAirDate
+                else -> null
+            }
+            val year = dateStr?.take(4)?.toIntOrNull() ?: return@mapNotNull null
+            if (year < 2018) return@mapNotNull null // 2018 or newer cutoff
+
+            val title = when (rawItem) {
+                is TMDb3.Movie -> rawItem.title
+                is TMDb3.Tv -> rawItem.name
+                else -> ""
+            }
+            val overview = when (rawItem) {
+                is TMDb3.Movie -> rawItem.overview
+                is TMDb3.Tv -> rawItem.overview
+                else -> ""
+            }
+            val text = "$title $overview".lowercase()
+
+            var tropeScore = 0
+            for ((weight, patterns) in tropes) {
+                if (patterns.any { text.contains(it) }) {
+                    tropeScore += weight
+                }
+            }
+
+            val glossyScore = glossySignals.count { text.contains(it) }
+
+            val recentReleaseBoost = when {
+                year >= 2024 -> 8
+                year >= 2022 -> 4
+                else -> 0
+            }
+
+            val romanceRelevance = if (genresIds.contains(10749)) 20 else 0
+            val teenRelevance = teenSignals.count { text.contains(it) } * 5
+
+            val popularity = when (rawItem) {
+                is TMDb3.Movie -> rawItem.popularity
+                is TMDb3.Tv -> rawItem.popularity
+                else -> 0f
+            }
+            val voteCount = when (rawItem) {
+                is TMDb3.Movie -> rawItem.voteCount
+                is TMDb3.Tv -> rawItem.voteCount
+                else -> 0
+            }
+            val voteAverage = when (rawItem) {
+                is TMDb3.Movie -> rawItem.voteAverage
+                is TMDb3.Tv -> rawItem.voteAverage
+                else -> 0f
+            }
+
+            val trendingScore = popularity + kotlin.math.min(voteCount / 100.0, 10.0) + recentReleaseBoost + romanceRelevance + teenRelevance
+
+            val isDarkGritty = text.contains("neon") || text.contains("gritty") || text.contains("mystery") || text.contains("dark")
+            val isEliteAmbition = text.contains("sports") || text.contains("college") || text.contains("boarding-school") || text.contains("ambition")
+            val isAtmosphericScenic = text.contains("coastal") || text.contains("beach") || text.contains("adventure") || text.contains("summer")
+            
+            val matrixPriority = when {
+                isDarkGritty -> 1
+                isEliteAmbition -> 2
+                isAtmosphericScenic -> 3
+                else -> 4
+            }
+
+            ScoredItem(rawItem, trendingScore, matrixPriority, tropeScore, glossyScore, popularity, voteAverage)
+        }
+
+        val sortedResults = scoredList.sortedWith(
+            compareByDescending<ScoredItem> { it.trendingScore }
+                .thenByDescending { it.matrixPriority }
+                .thenByDescending { it.tropeScore }
+                .thenByDescending { it.glossyScore }
+                .thenByDescending { it.popularity }
+                .thenByDescending { it.voteAverage }
+        ).map { it.item }
+
+        val results = sortedResults.mapNotNull { mapMulti(it) }
+        Category(name = name, list = results)
+    }
+
+    suspend fun getBiography(isMovie: Boolean, name: String = "Biography"): Category = coroutineScope {
+        val results = if (isMovie) {
+            TMDb3.Discover.movie(
+                language = language,
+                withKeywords = TMDb3.Params.WithBuilder<TMDb3.Keyword.KeywordId>(5565), // Biography keyword
+                sortBy = TMDb3.Params.SortBy.Movie.POPULARITY_DESC
+            ).results.mapNotNull { mapMulti(it) }
+        } else {
+            TMDb3.Discover.tv(
+                language = language,
+                withKeywords = TMDb3.Params.WithBuilder<TMDb3.Keyword.KeywordId>(5565),
+                sortBy = TMDb3.Params.SortBy.Tv.POPULARITY_DESC
+            ).results.mapNotNull { mapMulti(it) }
+        }
+        Category(name = name, list = results)
+    }
+
+    suspend fun getSport(isMovie: Boolean, name: String = "Sport"): Category = coroutineScope {
+        val results = if (isMovie) {
+            TMDb3.Discover.movie(
+                language = language,
+                withKeywords = TMDb3.Params.WithBuilder<TMDb3.Keyword.KeywordId>(6075), // Sport keyword
+                sortBy = TMDb3.Params.SortBy.Movie.POPULARITY_DESC
+            ).results.mapNotNull { mapMulti(it) }
+        } else {
+            TMDb3.Discover.tv(
+                language = language,
+                withKeywords = TMDb3.Params.WithBuilder<TMDb3.Keyword.KeywordId>(6075),
+                sortBy = TMDb3.Params.SortBy.Tv.POPULARITY_DESC
+            ).results.mapNotNull { mapMulti(it) }
+        }
+        Category(name = name, list = results)
+    }
+
+    override suspend fun getHome(): List<Category> = coroutineScope {
+        val categories = mutableListOf<Category>()
+        val watchRegion = UserPreferences.selectedRegion
+        val isTv = try { 
+            NexastreamApp.instance.packageManager.hasSystemFeature(PackageManager.FEATURE_LEANBACK) 
+        } catch (_: Exception) { false }
+
         val trendingDeferred = async {
-            awaitAll(
-                async { TMDb3.Trending.all(TMDb3.Params.TimeWindow.DAY, page = 1, language = language) },
-                async { TMDb3.Trending.all(TMDb3.Params.TimeWindow.DAY, page = 2, language = language) },
-                async { TMDb3.Trending.all(TMDb3.Params.TimeWindow.DAY, page = 3, language = language) },
-            ).flatMap { it.results }
+            if (isTv) {
+                TMDb3.Trending.all(TMDb3.Params.TimeWindow.DAY, page = 1, language = language).results
+            } else {
+                awaitAll(
+                    async { TMDb3.Trending.all(TMDb3.Params.TimeWindow.DAY, page = 1, language = language) },
+                    async { TMDb3.Trending.all(TMDb3.Params.TimeWindow.DAY, page = 2, language = language) },
+                    async { TMDb3.Trending.all(TMDb3.Params.TimeWindow.DAY, page = 3, language = language) },
+                ).flatMap { it.results }
+            }
         }
 
         val popularMoviesDeferred = async {
-            awaitAll(
-                async { TMDb3.MovieLists.popular(page = 1, language = language) },
-                async { TMDb3.MovieLists.popular(page = 2, language = language) },
-                async { TMDb3.MovieLists.popular(page = 3, language = language) },
-            ).flatMap { it.results }
+            if (isTv) {
+                TMDb3.MovieLists.popular(page = 1, language = language).results
+            } else {
+                awaitAll(
+                    async { TMDb3.MovieLists.popular(page = 1, language = language) },
+                    async { TMDb3.MovieLists.popular(page = 2, language = language) },
+                    async { TMDb3.MovieLists.popular(page = 3, language = language) },
+                ).flatMap { it.results }
+            }
         }
 
         val popularTvShowsDeferred = async {
-            awaitAll(
-                async { TMDb3.TvSeriesLists.popular(page = 1, language = language) },
-                async { TMDb3.TvSeriesLists.popular(page = 2, language = language) },
-                async { TMDb3.TvSeriesLists.popular(page = 3, language = language) },
-            ).flatMap { it.results }
+            if (isTv) {
+                TMDb3.TvSeriesLists.popular(page = 1, language = language).results
+            } else {
+                awaitAll(
+                    async { TMDb3.TvSeriesLists.popular(page = 1, language = language) },
+                    async { TMDb3.TvSeriesLists.popular(page = 2, language = language) },
+                    async { TMDb3.TvSeriesLists.popular(page = 3, language = language) },
+                ).flatMap { it.results }
+            }
         }
 
         val popularAnimeDeferred = async {
-            awaitAll(
-                async {
-                    TMDb3.Discover.movie(
-                        language = language,
-                        withKeywords = TMDb3.Params.WithBuilder(TMDb3.Keyword.KeywordId.ANIME)
-                            .or(TMDb3.Keyword.KeywordId.BASED_ON_ANIME),
-                    )
-                },
-                async {
-                    TMDb3.Discover.tv(
-                        language = language,
-                        withKeywords = TMDb3.Params.WithBuilder(TMDb3.Keyword.KeywordId.ANIME)
-                            .or(TMDb3.Keyword.KeywordId.BASED_ON_ANIME),
-                    )
-                },
-            ).flatMap { it.results }
+            if (isTv) {
+                TMDb3.Discover.movie(
+                    language = language,
+                    withKeywords = TMDb3.Params.WithBuilder<TMDb3.Keyword.KeywordId>(TMDb3.Keyword.KeywordId.ANIME)
+                        .or(TMDb3.Keyword.KeywordId.BASED_ON_ANIME),
+                ).results
+            } else {
+                awaitAll(
+                    async {
+                        TMDb3.Discover.movie(
+                            language = language,
+                            withKeywords = TMDb3.Params.WithBuilder<TMDb3.Keyword.KeywordId>(TMDb3.Keyword.KeywordId.ANIME)
+                                .or(TMDb3.Keyword.KeywordId.BASED_ON_ANIME),
+                        )
+                    },
+                    async {
+                        TMDb3.Discover.tv(
+                            language = language,
+                            withKeywords = TMDb3.Params.WithBuilder<TMDb3.Keyword.KeywordId>(TMDb3.Keyword.KeywordId.ANIME)
+                                .or(TMDb3.Keyword.KeywordId.BASED_ON_ANIME),
+                        )
+                    },
+                ).flatMap { it.results }
+            }
         }
 
         val netflixDeferred = async {
@@ -134,13 +618,13 @@ class TmdbProvider(override val language: String) : Provider {
                     TMDb3.Discover.movie(
                         language = language,
                         watchRegion = watchRegion,
-                        withWatchProviders = TMDb3.Params.WithBuilder(TMDb3.Provider.WatchProviderId.NETFLIX),
+                        withWatchProviders = TMDb3.Params.WithBuilder<TMDb3.Provider.WatchProviderId>(TMDb3.Provider.WatchProviderId.NETFLIX),
                     )
                 },
                 async {
                     TMDb3.Discover.tv(
                         language = language,
-                        withNetworks = TMDb3.Params.WithBuilder(TMDb3.Network.NetworkId.NETFLIX),
+                        withNetworks = TMDb3.Params.WithBuilder<TMDb3.Network.NetworkId>(TMDb3.Network.NetworkId.NETFLIX),
                     )
                 },
             ).flatMap { it.results }
@@ -152,13 +636,13 @@ class TmdbProvider(override val language: String) : Provider {
                     TMDb3.Discover.movie(
                         language = language,
                         watchRegion = watchRegion,
-                        withWatchProviders = TMDb3.Params.WithBuilder(TMDb3.Provider.WatchProviderId.AMAZON_VIDEO),
+                        withWatchProviders = TMDb3.Params.WithBuilder<TMDb3.Provider.WatchProviderId>(TMDb3.Provider.WatchProviderId.AMAZON_VIDEO),
                     )
                 },
                 async {
                     TMDb3.Discover.tv(
                         language = language,
-                        withNetworks = TMDb3.Params.WithBuilder(TMDb3.Network.NetworkId.AMAZON),
+                        withNetworks = TMDb3.Params.WithBuilder<TMDb3.Network.NetworkId>(TMDb3.Network.NetworkId.AMAZON),
                     )
                 },
             ).flatMap { it.results }
@@ -170,13 +654,13 @@ class TmdbProvider(override val language: String) : Provider {
                     TMDb3.Discover.movie(
                         language = language,
                         watchRegion = watchRegion,
-                        withWatchProviders = TMDb3.Params.WithBuilder(TMDb3.Provider.WatchProviderId.DISNEY_PLUS),
+                        withWatchProviders = TMDb3.Params.WithBuilder<TMDb3.Provider.WatchProviderId>(TMDb3.Provider.WatchProviderId.DISNEY_PLUS),
                     )
                 },
                 async {
                     TMDb3.Discover.tv(
                         language = language,
-                        withNetworks = TMDb3.Params.WithBuilder(TMDb3.Network.NetworkId.DISNEY_PLUS),
+                        withNetworks = TMDb3.Params.WithBuilder<TMDb3.Network.NetworkId>(TMDb3.Network.NetworkId.DISNEY_PLUS),
                     )
                 },
             ).flatMap { it.results }
@@ -188,13 +672,13 @@ class TmdbProvider(override val language: String) : Provider {
                     TMDb3.Discover.movie(
                         language = language,
                         watchRegion = watchRegion,
-                        withWatchProviders = TMDb3.Params.WithBuilder(TMDb3.Provider.WatchProviderId.HULU),
+                        withWatchProviders = TMDb3.Params.WithBuilder<TMDb3.Provider.WatchProviderId>(TMDb3.Provider.WatchProviderId.HULU),
                     )
                 },
                 async {
                     TMDb3.Discover.tv(
                         language = language,
-                        withNetworks = TMDb3.Params.WithBuilder(TMDb3.Network.NetworkId.HULU),
+                        withNetworks = TMDb3.Params.WithBuilder<TMDb3.Network.NetworkId>(TMDb3.Network.NetworkId.HULU),
                     )
                 },
             ).flatMap { it.results }
@@ -206,63 +690,71 @@ class TmdbProvider(override val language: String) : Provider {
                     TMDb3.Discover.movie(
                         language = language,
                         watchRegion = watchRegion,
-                        withWatchProviders = TMDb3.Params.WithBuilder(TMDb3.Provider.WatchProviderId.APPLE_TV_PLUS),
+                        withWatchProviders = TMDb3.Params.WithBuilder<TMDb3.Provider.WatchProviderId>(TMDb3.Provider.WatchProviderId.APPLE_TV_PLUS),
                     )
                 },
                 async {
                     TMDb3.Discover.tv(
                         language = language,
-                        withNetworks = TMDb3.Params.WithBuilder(TMDb3.Network.NetworkId.APPLE_TV),
+                        withNetworks = TMDb3.Params.WithBuilder<TMDb3.Network.NetworkId>(TMDb3.Network.NetworkId.APPLE_TV),
                     )
                 },
             ).flatMap { it.results }
         }
 
         val hboDeferred = async {
-            awaitAll(
-                async {
-                    TMDb3.Discover.tv(
-                        language = language,
-                        withNetworks = TMDb3.Params.WithBuilder(TMDb3.Network.NetworkId.HBO),
-                        page = 1,
-                    )
-                },
-                async {
-                    TMDb3.Discover.tv(
-                        language = language,
-                        withNetworks = TMDb3.Params.WithBuilder(TMDb3.Network.NetworkId.HBO),
-                        page = 2,
-                    )
-                },
-            ).flatMap { it.results }
+            if (isTv) {
+                TMDb3.Discover.tv(
+                    language = language,
+                    withNetworks = TMDb3.Params.WithBuilder<TMDb3.Network.NetworkId>(TMDb3.Network.NetworkId.HBO),
+                    page = 1,
+                ).results
+            } else {
+                awaitAll(
+                    async {
+                        TMDb3.Discover.tv(
+                            language = language,
+                            withNetworks = TMDb3.Params.WithBuilder<TMDb3.Network.NetworkId>(TMDb3.Network.NetworkId.HBO),
+                            page = 1,
+                        )
+                    },
+                    async {
+                        TMDb3.Discover.tv(
+                            language = language,
+                            withNetworks = TMDb3.Params.WithBuilder<TMDb3.Network.NetworkId>(TMDb3.Network.NetworkId.HBO),
+                            page = 2,
+                        )
+                    },
+                ).flatMap { it.results }
+            }
         }
 
         val trending = trendingDeferred.await()
         categories.add(
             Category(
                 name = Category.FEATURED,
-                list = trending.safeSubList(0, 5).mapNotNull(mapMulti)
+                list = trending.safeSubList(0, 5).mapNotNull { mapMulti(it) }
             )
         )
 
         categories.add(
             Category(
                 name = getTranslation("Trending"),
-                list = trending.safeSubList(5, trending.size).mapNotNull(mapMulti)
+                list = trending.safeSubList(10, trending.size).mapNotNull { mapMulti(it) }
             )
         )
 
         categories.add(
             Category(
                 name = getTranslation("Popular Movies"),
-                list = popularMoviesDeferred.await().mapNotNull(mapMulti)
+                list = popularMoviesDeferred.await().mapNotNull { mapMulti(it) }
             )
         )
 
         categories.add(
             Category(
                 name = getTranslation("Popular TV Shows"),
-                list = popularTvShowsDeferred.await().mapNotNull(mapMulti)
+                list = popularTvShowsDeferred.await().mapNotNull { mapMulti(it) }
             )
         )
 
@@ -277,7 +769,7 @@ class TmdbProvider(override val language: String) : Provider {
                             is TMDb3.Tv -> it.popularity
                         }
                     }
-                    .mapNotNull(mapMulti),
+                    .mapNotNull { mapMulti(it) },
             )
         )
 
@@ -292,7 +784,7 @@ class TmdbProvider(override val language: String) : Provider {
                             is TMDb3.Tv -> it.popularity
                         }
                     }
-                    .mapNotNull(mapMulti),
+                    .mapNotNull { mapMulti(it) },
             )
         )
 
@@ -307,7 +799,7 @@ class TmdbProvider(override val language: String) : Provider {
                             is TMDb3.Tv -> it.popularity
                         }
                     }
-                    .mapNotNull(mapMulti),
+                    .mapNotNull { mapMulti(it) },
             )
         )
 
@@ -322,7 +814,7 @@ class TmdbProvider(override val language: String) : Provider {
                             is TMDb3.Tv -> it.popularity
                         }
                     }
-                    .mapNotNull(mapMulti),
+                    .mapNotNull { mapMulti(it) },
             )
         )
 
@@ -337,7 +829,7 @@ class TmdbProvider(override val language: String) : Provider {
                             is TMDb3.Tv -> it.popularity
                         }
                     }
-                    .mapNotNull(mapMulti),
+                    .mapNotNull { mapMulti(it) },
             )
         )
 
@@ -352,22 +844,22 @@ class TmdbProvider(override val language: String) : Provider {
                             is TMDb3.Tv -> it.popularity
                         }
                     }
-                    .mapNotNull(mapMulti),
+                    .mapNotNull { mapMulti(it) },
             )
         )
 
         categories.add(
             Category(
                 name = getTranslation("Popular on HBO"),
-                list = hboDeferred.await().mapNotNull(mapMulti),
+                list = hboDeferred.await().mapNotNull { mapMulti(it) },
             )
         )
 
         categories
     }
 
-    override suspend fun search(query: String, page: Int): List<AppAdapter.Item> {
-        if (query.isEmpty()) {
+    override suspend fun search(query: String, page: Int, filters: SearchFilters?): List<AppAdapter.Item> {
+        if (query.isEmpty() && (filters == null || filters.isDefault())) {
             val genres = listOf(
                 TMDb3.Genres.movieList(language = language),
                 TMDb3.Genres.tvList(language = language),
@@ -382,6 +874,75 @@ class TmdbProvider(override val language: String) : Provider {
                 }
 
             return genres
+        }
+
+        if (filters != null && !filters.isDefault()) {
+            val results = mutableListOf<AppAdapter.Item>()
+            coroutineScope {
+                val movieResults = if (filters.mediaType == SearchFilters.MediaType.ALL || filters.mediaType == SearchFilters.MediaType.MOVIES) {
+                    async {
+                        TMDb3.Discover.movie(
+                            language = language,
+                            page = page,
+                            year = filters.year,
+                            sortBy = when (filters.sortBy) {
+                                SearchFilters.SortBy.POPULARITY_DESC -> TMDb3.Params.SortBy.Movie.POPULARITY_DESC
+                                SearchFilters.SortBy.POPULARITY_ASC -> TMDb3.Params.SortBy.Movie.POPULARITY_ASC
+                                SearchFilters.SortBy.VOTE_AVERAGE_DESC -> TMDb3.Params.SortBy.Movie.VOTE_AVERAGE_DESC
+                                SearchFilters.SortBy.VOTE_AVERAGE_ASC -> TMDb3.Params.SortBy.Movie.VOTE_AVERAGE_ASC
+                                SearchFilters.SortBy.RELEASE_DATE_DESC -> TMDb3.Params.SortBy.Movie.RELEASE_DATE_DESC
+                                SearchFilters.SortBy.RELEASE_DATE_ASC -> TMDb3.Params.SortBy.Movie.RELEASE_DATE_ASC
+                            },
+                            voteAverage = filters.voteAverageGte?.let { TMDb3.Params.Range(gte = it) },
+                            withGenres = if (filters.genres.isNotEmpty()) TMDb3.Params.WithBuilder<TMDb3.Genre.Movie>(filters.genres.joinToString(",")) else null
+                        ).results.map { movie ->
+                            Movie(
+                                id = movie.id.toString(),
+                                title = movie.title,
+                                overview = movie.overview,
+                                released = movie.releaseDate,
+                                rating = movie.voteAverage.toDouble(),
+                                poster = movie.posterPath?.w500,
+                                banner = movie.backdropPath?.original,
+                            )
+                        }
+                    }
+                } else null
+
+                val tvResults = if (filters.mediaType == SearchFilters.MediaType.ALL || filters.mediaType == SearchFilters.MediaType.TV_SHOWS) {
+                    async {
+                        TMDb3.Discover.tv(
+                            language = language,
+                            page = page,
+                            firstAirDateYear = filters.year,
+                            sortBy = when (filters.sortBy) {
+                                SearchFilters.SortBy.POPULARITY_DESC -> TMDb3.Params.SortBy.Tv.POPULARITY_DESC
+                                SearchFilters.SortBy.POPULARITY_ASC -> TMDb3.Params.SortBy.Tv.POPULARITY_ASC
+                                SearchFilters.SortBy.VOTE_AVERAGE_DESC -> TMDb3.Params.SortBy.Tv.VOTE_AVERAGE_DESC
+                                SearchFilters.SortBy.VOTE_AVERAGE_ASC -> TMDb3.Params.SortBy.Tv.VOTE_AVERAGE_ASC
+                                SearchFilters.SortBy.RELEASE_DATE_DESC -> TMDb3.Params.SortBy.Tv.FIRST_AIR_DATE_DESC
+                                SearchFilters.SortBy.RELEASE_DATE_ASC -> TMDb3.Params.SortBy.Tv.FIRST_AIR_DATE_ASC
+                            },
+                            voteAverage = filters.voteAverageGte?.let { TMDb3.Params.Range(gte = it) },
+                            withGenres = if (filters.genres.isNotEmpty()) TMDb3.Params.WithBuilder<TMDb3.Genre.Tv>(filters.genres.joinToString(",")) else null
+                        ).results.map { tv ->
+                            TvShow(
+                                id = tv.id.toString(),
+                                title = tv.name,
+                                overview = tv.overview,
+                                released = tv.firstAirDate,
+                                rating = tv.voteAverage.toDouble(),
+                                poster = tv.posterPath?.w500,
+                                banner = tv.backdropPath?.original,
+                            )
+                        }
+                    }
+                } else null
+
+                movieResults?.await()?.let { results.addAll(it) }
+                tvResults?.await()?.let { results.addAll(it) }
+            }
+            return results.sortedByDescending { (it as? Movie)?.rating ?: (it as? TvShow)?.rating ?: 0.0 }
         }
 
         val results = TMDb3.Search.multi(query, page = page, language = language).results.mapNotNull { multi ->
@@ -643,7 +1204,7 @@ class TmdbProvider(override val language: String) : Provider {
 
             shows = TMDb3.Discover.movie(
                 page = page,
-                withGenres = TMDb3.Params.WithBuilder(id),
+                withGenres = TMDb3.Params.WithBuilder<TMDb3.Genre.Movie>(id),
                 language = language
             ).results.map { movie ->
                 Movie(
@@ -657,7 +1218,7 @@ class TmdbProvider(override val language: String) : Provider {
                 )
             }.mix(TMDb3.Discover.tv(
                 page = page,
-                withGenres = TMDb3.Params.WithBuilder(id),
+                withGenres = TMDb3.Params.WithBuilder<TMDb3.Genre.Tv>(id),
                 language = language
             ).results.map { tv ->
                 TvShow(
@@ -770,7 +1331,7 @@ class TmdbProvider(override val language: String) : Provider {
                     is Video.Type.Episode -> videoType.tvShow.title
                 }
                 
-                Log.i("StreamFlixES", "[SEARCH START] -> Target: $targetTitle (${if (videoType is Video.Type.Movie) "Movie" else "TV Show"})")
+                Log.i("NexaStream", "[SEARCH START] -> Target: $targetTitle (${if (videoType is Video.Type.Movie) "Movie" else "TV Show"})")
 
                 // Funzione di matching rigorosa per i titoli e tipo
                 fun isMatch(item: AppAdapter.Item, target: String): Boolean {
@@ -806,7 +1367,7 @@ class TmdbProvider(override val language: String) : Provider {
                     // Se il target ha solo una parola importante, deve esserci
                     if (nTargetWords.size == 1) return nItemWords.contains(nTargetWords.first())
                     
-                    // Altrimenti tutte le parole del target devono essere presenti nell'item
+                    // Altrimenti tutte le parole del target devono essere presentes nell'item
                     return nItemWords.containsAll(nTargetWords) || nTargetWords.containsAll(nItemWords)
                 }
 
@@ -821,7 +1382,7 @@ class TmdbProvider(override val language: String) : Provider {
                                 
                                 if (id != null) {
                                     val matchTitle = if (bestMatch is Movie) bestMatch.title else (bestMatch as? TvShow)?.title
-                                    Log.i("StreamFlixES", "[MATCH FOUND] -> Provider: ${provider.name}, Matched: '$matchTitle', ID: $id")
+                                    Log.i("NexaStream", "[MATCH FOUND] -> Provider: ${provider.name}, Matched: '$matchTitle', ID: $id")
                                     
                                     val allServers = provider.getServers(id, videoType)
                                     val filtered = allServers.filter { s ->
@@ -829,14 +1390,14 @@ class TmdbProvider(override val language: String) : Provider {
                                         n.contains("[LAT]") || n.contains("[CAST]") || n.contains("[CAS]") || n.contains("[ES]") ||
                                         n.contains("(LAT)") || n.contains("(ESP)") || n.contains("LATINO") || n.contains("CASTELLANO")
                                     }
-                                    Log.i("StreamFlixES", "[SERVERS OK] -> ${provider.name}: ${filtered.size}/${allServers.size} servers kept")
+                                    Log.i("NexaStream", "[SERVERS OK] -> ${provider.name}: ${filtered.size}/${allServers.size} servers kept")
                                     filtered
                                 } else {
-                                    Log.d("StreamFlixES", "[NO MATCH] -> ${provider.name} did not find a valid match for '$targetTitle'")
+                                    Log.d("NexaStream", "[NO MATCH] -> ${provider.name} did not find a valid match for '$targetTitle'")
                                     emptyList()
                                 }
                             } catch (e: Exception) { 
-                                Log.e("StreamFlixES", "[PROVIDER ERROR] -> ${provider.name}: ${e.message}")
+                                Log.e("NexaStream", "[PROVIDER ERROR] -> ${provider.name}: ${e.message}")
                                 emptyList() 
                             }
                         }
@@ -918,13 +1479,13 @@ class TmdbProvider(override val language: String) : Provider {
             0
         }
 
-        Log.i("StreamFlixES", "[SERVERS LIST] -> Found ${sortedServers.size} servers: ${sortedServers.joinToString { it.name }}")
+        Log.i("NexaStream", "[SERVERS LIST] -> Found ${sortedServers.size} servers: ${sortedServers.joinToString { it.name }}")
         return sortedServers
     }
 
     override suspend fun getVideo(server: Video.Server): Video {
         val url = server.src.ifEmpty { server.id }
-        Log.i("StreamFlixES", "[SERVER] -> Using: ${server.name} (URL: $url)")
+        Log.i("NexaStream", "[SERVER] -> Using: ${server.name} (URL: $url)")
         
         val video = when {
             server.video != null -> server.video!!
@@ -944,7 +1505,7 @@ class TmdbProvider(override val language: String) : Provider {
                 if (isSpanish && isForced) {
                     sub.default = true
                     forcedFound = true
-                    Log.i("StreamFlixES", "[SUBTITLE] -> TMDb (es): Selected FORCED subtitle: ${sub.label}")
+                    Log.i("NexaStream", "[SUBTITLE] -> TMDb (es): Selected FORCED subtitle: ${sub.label}")
                 } else {
                     sub.default = false
                 }
@@ -952,11 +1513,11 @@ class TmdbProvider(override val language: String) : Provider {
             
             if (!forcedFound) {
                 video.subtitles.forEach { it.default = false }
-                Log.i("StreamFlixES", "[SUBTITLE] -> TMDb (es): No forced subs found, keeping them OFF")
+                Log.i("NexaStream", "[SUBTITLE] -> TMDb (es): No forced subs found, keeping them OFF")
             }
         }
         
-        Log.i("StreamFlixES", "[VIDEO] -> Final source: ${video.source}")
+        Log.i("NexaStream", "[VIDEO] -> Final source: ${video.source}")
         return video
     }
 

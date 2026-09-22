@@ -8,7 +8,7 @@ object DownloadQualityFormatter {
 
     fun title(server: Video.Server): String {
         return listOfNotNull(
-            resolution(server).takeIf { it != UNKNOWN },
+            resolution(server, server.video).takeIf { it != UNKNOWN },
             sourceName(server).takeIf { it.isNotBlank() }
         ).ifEmpty {
             listOf(server.name.ifBlank { "Unknown source" })
@@ -26,7 +26,7 @@ object DownloadQualityFormatter {
 
     fun qualityLabel(server: Video.Server, video: Video? = server.video): String {
         return listOfNotNull(
-            resolution(server).takeIf { it != UNKNOWN },
+            resolution(server, video).takeIf { it != UNKNOWN },
             sourceName(server).takeIf { it.isNotBlank() },
             format(video?.type, video?.source ?: server.src)
         ).ifEmpty {
@@ -34,8 +34,34 @@ object DownloadQualityFormatter {
         }.joinToString(" - ")
     }
 
-    private fun resolution(server: Video.Server): String {
-        val text = "${server.name} ${server.src} ${server.video?.source.orEmpty()}".lowercase(Locale.US)
+    private fun resolution(server: Video.Server, video: Video? = server.video): String {
+        val targetVideo = video ?: server.video
+        val sourceUrl = targetVideo?.source.orEmpty()
+        if (sourceUrl.startsWith("data:application/vnd.apple.mpegurl;base64,")) {
+            try {
+                val base64Data = sourceUrl.substringAfter("base64,")
+                val decodedBytes = android.util.Base64.decode(base64Data, android.util.Base64.DEFAULT)
+                val manifestContent = String(decodedBytes, Charsets.UTF_8)
+                
+                val resolutions = Regex("""RESOLUTION=\d+x(\d+)""", RegexOption.IGNORE_CASE)
+                    .findAll(manifestContent)
+                    .mapNotNull { it.groupValues.getOrNull(1)?.toIntOrNull() }
+                    .toList()
+                
+                if (resolutions.isNotEmpty()) {
+                    val maxResolution = resolutions.maxOrNull()
+                    if (maxResolution != null) {
+                        return "${maxResolution}p"
+                    }
+                }
+            } catch (e: Exception) {
+                // Fallback on failure
+            }
+        }
+
+        // Exclude the raw base64 data stream from being scanned by text regex matching
+        val safeSourceText = if (sourceUrl.startsWith("data:")) "" else sourceUrl
+        val text = "${server.name} ${server.src} $safeSourceText".lowercase(Locale.US)
         val numericResolution = Regex("""(?<!\d)(2160|1440|1080|720|576|540|480|360|240)p?(?!\d)""")
             .find(text)
             ?.groupValues
@@ -43,11 +69,11 @@ object DownloadQualityFormatter {
 
         return when {
             numericResolution != null -> "${numericResolution}p"
-            text.contains("4k") || text.contains("uhd") -> "2160p"
-            text.contains("full hd") || text.contains("fhd") -> "1080p"
-            text.contains("hd") -> "720p"
-            text.contains("sd") -> "480p"
-            text.contains("cam") -> "CAM"
+            Regex("""\b(4k|uhd)\b""").containsMatchIn(text) -> "2160p"
+            Regex("""\b(full hd|fhd)\b""").containsMatchIn(text) -> "1080p"
+            Regex("""\bhd\b""").containsMatchIn(text) -> "720p"
+            Regex("""\bsd\b""").containsMatchIn(text) -> "480p"
+            Regex("""\bcam\b""").containsMatchIn(text) -> "CAM"
             else -> UNKNOWN
         }
     }

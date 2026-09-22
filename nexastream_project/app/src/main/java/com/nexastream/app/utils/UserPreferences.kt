@@ -101,8 +101,16 @@ object UserPreferences {
         val providerName = provider?.name ?: currentProvider?.name ?: return
         val innerJson = providerCache.optJSONObject(providerName)
             ?: JSONObject().also { providerCache.put(providerName, it) }
+        
+        val oldValue = innerJson.optString(key)
+        if (oldValue == value) return
+
         innerJson.put(key, value)
         Key.PROVIDER_CACHE.setString(providerCache.toString())
+
+        if (key == PROVIDER_LOGO && providerName == currentProvider?.name) {
+            ProviderChangeNotifier.notifyProviderChanged()
+        }
     }
 
     fun clearProviderCache(providerName: String) {
@@ -558,11 +566,41 @@ object UserPreferences {
             Key.REMOTE_CONTROL_TV_ID.setString(value)
         }
 
+    var loginToken: String?
+        get() = Key.LOGIN_TOKEN.getString()
+        set(value) = Key.LOGIN_TOKEN.setString(value)
+
+    var selectedRegion: String
+        get() = Key.SELECTED_REGION.getString() ?: "US"
+        set(value) = Key.SELECTED_REGION.setString(value)
+
+    var secondarySubtitle: String?
+        get() = Key.SECONDARY_SUBTITLE.getString()
+        set(value) = Key.SECONDARY_SUBTITLE.setString(value)
+
+    var bilingualSubtitles: Boolean
+        get() = Key.BILINGUAL_SUBTITLES.getBoolean() ?: false
+        set(value) = Key.BILINGUAL_SUBTITLES.setBoolean(value)
+
+    var familyMode: Boolean
+        get() = Key.FAMILY_MODE.getBoolean() ?: false
+        set(value) = Key.FAMILY_MODE.setBoolean(value)
+
+    var autoStartOnBoot: Boolean
+        get() = Key.AUTO_START_ON_BOOT.getBoolean() ?: false
+        set(value) = Key.AUTO_START_ON_BOOT.setBoolean(value)
+
     private enum class Key {
         APP_LAYOUT,
         FORCE_TV_UI,
         REMOTE_CONTROL_TV_IP,
         REMOTE_CONTROL_TV_ID,
+        LOGIN_TOKEN,
+        SELECTED_REGION,
+        SECONDARY_SUBTITLE,
+        BILINGUAL_SUBTITLES,
+        FAMILY_MODE,
+        AUTO_START_ON_BOOT,
         CURRENT_LANGUAGE,
         CURRENT_PROVIDER,
         PLAYER_RESIZE,

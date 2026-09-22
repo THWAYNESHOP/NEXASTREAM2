@@ -6,6 +6,7 @@
         <attr name="menu" format="reference" />
         <attr name="menuGravity" />
         <attr name="menuSpacing" format="dimension" />
+        <attr name="android:orientation" />
     </declare-styleable>
 
 </resources>

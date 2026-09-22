@@ -45,5 +45,6 @@ data class CDNSportsData(
     @SerializedName("NBA") val nba: List<CDNSportEvent>? = null,
     @SerializedName("NHL") val nhl: List<CDNSportEvent>? = null,
     @SerializedName("NFL") val nfl: List<CDNSportEvent>? = null,
-    @SerializedName("total_events") val totalEvents: Int = 0
+    @SerializedName("total_events") val totalEvents: Int = 0,
+    @Transient var allEvents: List<CDNSportEvent>? = null
 )

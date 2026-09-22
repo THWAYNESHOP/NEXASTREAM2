@@ -15,6 +15,8 @@ import com.nexastream.app.database.dao.TvShowDao
 import com.nexastream.app.database.dao.DownloadDao
 import com.nexastream.app.database.dao.LiveTvDao
 import com.nexastream.app.database.dao.SearchHistoryDao
+import com.nexastream.app.database.dao.MetadataCacheDao
+import com.nexastream.app.models.TmdbMetadataCache
 import com.nexastream.app.models.Episode
 import com.nexastream.app.models.Movie
 import com.nexastream.app.models.Season
@@ -47,8 +49,9 @@ import com.nexastream.app.utils.UserPreferences
         XmlTvChannel::class,
         EpgChannelMapping::class,
         SearchHistory::class,
+        TmdbMetadataCache::class,
     ],
-    version = 19,
+    version = 20,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -67,6 +70,8 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun liveTvDao(): LiveTvDao
 
     abstract fun searchHistoryDao(): SearchHistoryDao
+
+    abstract fun metadataCacheDao(): MetadataCacheDao
 
     companion object {
 

@@ -36,6 +36,60 @@ fun DownloadsScreen(
     viewModel: DownloadsViewModel = hiltViewModel()
 ) {
     val downloads by viewModel.downloads.collectAsState(initial = emptyList())
+    var showClearAllConfirmation by remember { mutableStateOf(false) }
+    var downloadToDelete by remember { mutableStateOf<Download?>(null) }
+
+    if (showClearAllConfirmation) {
+        AlertDialog(
+            onDismissRequest = { showClearAllConfirmation = false },
+            title = { Text("Clear all downloads?") },
+            text = { Text("This will permanently remove all your offline content. Are you sure?") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.clearAllDownloads()
+                        showClearAllConfirmation = false
+                    }
+                ) {
+                    Text("Delete All", color = Color.Red)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showClearAllConfirmation = false }) {
+                    Text("Cancel", color = Color.White)
+                }
+            },
+            containerColor = Color(0xFF1A1A1A),
+            titleContentColor = Color.White,
+            textContentColor = Color.LightGray
+        )
+    }
+
+    if (downloadToDelete != null) {
+        AlertDialog(
+            onDismissRequest = { downloadToDelete = null },
+            title = { Text("Delete this download?") },
+            text = { Text("Are you sure you want to remove '${downloadToDelete?.title}'?") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        downloadToDelete?.let { viewModel.deleteDownload(it.id) }
+                        downloadToDelete = null
+                    }
+                ) {
+                    Text("Delete", color = Color.Red)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { downloadToDelete = null }) {
+                    Text("Cancel", color = Color.White)
+                }
+            },
+            containerColor = Color(0xFF1A1A1A),
+            titleContentColor = Color.White,
+            textContentColor = Color.LightGray
+        )
+    }
 
     Scaffold(
         topBar = {
@@ -43,7 +97,7 @@ fun DownloadsScreen(
                 title = { Text("Downloads", color = Color.White) },
                 actions = {
                     if (downloads.isNotEmpty()) {
-                        IconButton(onClick = { viewModel.clearAllDownloads() }) {
+                        IconButton(onClick = { showClearAllConfirmation = true }) {
                             Icon(Icons.Default.DeleteSweep, contentDescription = "Clear All", tint = Color.White)
                         }
                     }
@@ -66,7 +120,7 @@ fun DownloadsScreen(
                         onPause = { viewModel.pauseDownload(download.id) },
                         onResume = { viewModel.resumeDownload(download.id) },
                         onRetry = { viewModel.retryDownload(download.id) },
-                        onDelete = { viewModel.deleteDownload(download.id) }
+                        onDelete = { downloadToDelete = download }
                     )
                 }
             }
@@ -105,12 +159,41 @@ fun DownloadItem(
         Spacer(modifier = Modifier.width(12.dp))
 
         Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = download.title,
-                color = Color.White,
-                fontWeight = FontWeight.Bold,
-                fontSize = 14.sp
-            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Text(
+                    text = download.title,
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 14.sp,
+                    modifier = Modifier.weight(1f, fill = false)
+                )
+
+                val qualityText = download.quality
+                if (!qualityText.isNullOrBlank()) {
+                    val resolution = qualityText.substringBefore(" - ")
+                    Surface(
+                        color = when {
+                            resolution.contains("2160p") || resolution.contains("4K") || resolution.contains("UHD") -> Color(0xFFE50914)
+                            resolution.contains("1080p") || resolution.contains("FHD") -> Color(0xFF1E88E5)
+                            resolution.contains("720p") || resolution.contains("HD") -> Color(0xFF43A047)
+                            resolution.contains("CAM") -> Color(0xFFFFB300)
+                            else -> Color(0xFF424242)
+                        },
+                        shape = RoundedCornerShape(4.dp)
+                    ) {
+                        Text(
+                            text = resolution,
+                            color = Color.White,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                        )
+                    }
+                }
+            }
             
             if (download.status == Download.Status.DOWNLOADING) {
                 val hasKnownProgress = download.progress > 0
@@ -197,8 +280,15 @@ fun DownloadItem(
 
 @Composable
 private fun DownloadMetadata(download: Download) {
+    val qualityText = download.quality
+    val displayQuality = if (!qualityText.isNullOrBlank() && qualityText.contains(" - ")) {
+        qualityText.substringAfter(" - ").takeIf { it.isNotBlank() }
+    } else {
+        null
+    }
+
     val parts = listOfNotNull(
-        download.quality?.takeIf { it.isNotBlank() },
+        displayQuality,
         storageLabel(download),
         formatSizeProgress(download).takeIf { it.isNotBlank() },
         formatSpeed(download.downloadSpeed).takeIf { download.status == Download.Status.DOWNLOADING && download.downloadSpeed > 0L },

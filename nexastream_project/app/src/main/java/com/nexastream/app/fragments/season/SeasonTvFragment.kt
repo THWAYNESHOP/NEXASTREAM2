@@ -14,6 +14,8 @@ import androidx.lifecycle.lifecycleScope
 import androidx.navigation.fragment.navArgs
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import com.bumptech.glide.Glide
+import com.bumptech.glide.load.resource.drawable.DrawableTransitionOptions
 import com.nexastream.app.R
 import com.nexastream.app.adapters.AppAdapter
 import com.nexastream.app.databinding.FragmentSeasonTvBinding
@@ -84,17 +86,24 @@ class SeasonTvFragment : Fragment() {
 
     override fun onDestroyView() {
         super.onDestroyView()
-        appAdapter.onSaveInstanceState(binding.hgvEpisodes)
+        appAdapter.onSaveInstanceState(binding.vgvEpisodes)
         _binding = null
     }
 
     private fun initializeSeason() {
         binding.tvSeasonTitle.text = args.seasonTitle
-        binding.hgvEpisodes.apply {
+        
+        Glide.with(this)
+            .load(args.tvShowBanner)
+            .transition(DrawableTransitionOptions.withCrossFade())
+            .into(binding.ivSeasonBackground)
+
+        binding.vgvEpisodes.apply {
+            setNumColumns(4)
             adapter = appAdapter.apply {
                 stateRestorationPolicy = RecyclerView.Adapter.StateRestorationPolicy.PREVENT_WHEN_EMPTY
             }
-            setItemSpacing(resources.getDimension(R.dimen.season_episodes_spacing).toInt())
+            setItemSpacing(24)
         }
     }
 
@@ -102,7 +111,7 @@ class SeasonTvFragment : Fragment() {
 
     private fun displaySeason(episodes: List<Episode>) {
         val preparedEpisodes = episodes.onEach { episode ->
-            episode.itemType = AppAdapter.Type.EPISODE_TV_ITEM
+            episode.itemType = AppAdapter.Type.EPISODE_TV_GRID_ITEM
         }
         val lastWatchedIndex = episodes
             .filter { it.watchHistory != null }
@@ -118,7 +127,7 @@ class SeasonTvFragment : Fragment() {
                 lastWatchedIndex < episodes.lastIndex -> lastWatchedIndex + 1
                 else -> lastWatchedIndex
             }
-            binding.hgvEpisodes.scrollAndFocus(scrollIndex)
+            binding.vgvEpisodes.scrollAndFocus(scrollIndex)
             focusedEpisodeIndex = scrollIndex
         }
     }

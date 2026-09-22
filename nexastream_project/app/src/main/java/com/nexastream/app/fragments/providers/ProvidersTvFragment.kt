@@ -126,7 +126,7 @@ class ProvidersTvFragment : Fragment() {
         }
 
         binding.rvProviders.apply {
-            setNumColumns(5)
+            setNumColumns(6)
             adapter = appAdapter.apply {
                 stateRestorationPolicy = RecyclerView.Adapter.StateRestorationPolicy.PREVENT_WHEN_EMPTY
             }

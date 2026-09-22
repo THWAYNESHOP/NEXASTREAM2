@@ -7,8 +7,10 @@ import android.os.Build.VERSION_CODES
 import android.text.TextUtils
 import android.view.LayoutInflater
 import android.view.View
+import android.view.ViewGroup
 import android.widget.FrameLayout
 import android.widget.ImageView
+import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.appcompat.view.menu.MenuItemImpl
 import androidx.appcompat.view.menu.MenuView.ItemView
@@ -31,6 +33,19 @@ class NavigationSlideItemView(
     private val label = view.findViewById<TextView>(R.id.tv_navigation_item_label)
 
     var itemPosition = INVALID_ITEM_POSITION
+
+    fun setOrientation(orientation: Int) {
+        val root = view.findViewById<View>(R.id.cl_navigation_item) ?: return
+        val params = root.layoutParams
+        if (orientation == LinearLayout.HORIZONTAL) {
+            params.width = ViewGroup.LayoutParams.WRAP_CONTENT
+            params.height = ViewGroup.LayoutParams.MATCH_PARENT
+        } else {
+            params.width = ViewGroup.LayoutParams.MATCH_PARENT
+            params.height = ViewGroup.LayoutParams.WRAP_CONTENT
+        }
+        root.layoutParams = params
+    }
 
     private lateinit var itemData: MenuItemImpl
 

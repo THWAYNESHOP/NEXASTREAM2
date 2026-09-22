@@ -1,6 +1,7 @@
 package com.nexastream.app.providers
 
 import android.util.Log
+import com.nexastream.app.models.SearchFilters
 import com.nexastream.app.adapters.AppAdapter
 import com.nexastream.app.models.*
 import okhttp3.*
@@ -160,7 +161,7 @@ class VavooProvider(override val language: String) : IptvProvider {
         }
     }
 
-    override suspend fun search(query: String, page: Int): List<AppAdapter.Item> {
+    override suspend fun search(query: String, page: Int, filters: SearchFilters?): List<AppAdapter.Item> {
         val cursor = if (page > 1) (page - 1) * 300 else null
         val channels = primaryGroups.flatMap { group -> fetchChannels(query, group, cursor).first }
         return channels.map { ch ->

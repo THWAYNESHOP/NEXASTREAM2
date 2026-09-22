@@ -80,13 +80,15 @@ abstract class PlayerSettingsView @JvmOverloads constructor(
             field = value
         }
 
-    protected var currentSettings = Setting.MAIN
+    var currentSettings = Setting.MAIN
 
-    protected enum class Setting {
+    enum class Setting {
         MAIN,
         QUALITY,
         AUDIO,
         SUBTITLES,
+        SECONDARY_SUBTITLES,
+        BILINGUAL,
         CAPTION_STYLE,
         CAPTION_STYLE_FONT_COLOR,
         CAPTION_STYLE_TEXT_SIZE,
@@ -107,6 +109,17 @@ abstract class PlayerSettingsView @JvmOverloads constructor(
         GESTURES,
         KEEP_SCREEN_ON,
         MANUAL_ZOOM,
+    }
+
+    protected var onBilingualSelected: ((Boolean) -> Unit) =
+        fun(enabled) {
+            UserPreferences.bilingualSubtitles = enabled
+            bilingualSelectionListener?.invoke(enabled)
+        }
+
+    protected var bilingualSelectionListener: ((Boolean) -> Unit)? = null
+    fun setOnBilingualSelectedListener(listener: (Boolean) -> Unit) {
+        bilingualSelectionListener = listener
     }
 
     protected var onSubtitleOffsetSelected: ((Settings.Subtitle.Offset.OffsetItem) -> Unit) =
@@ -207,6 +220,27 @@ abstract class PlayerSettingsView @JvmOverloads constructor(
                 else -> {}
             }
         }
+
+    protected var onSecondarySubtitleSelected: ((Settings.Subtitle) -> Unit) =
+        fun(subtitle) {
+            when (subtitle) {
+                is Settings.Subtitle.None -> {
+                    UserPreferences.secondarySubtitle = null
+                }
+
+                is Settings.Subtitle.TextTrackInformation -> {
+                    UserPreferences.secondarySubtitle = (subtitle.language ?: subtitle.label).substringBefore(" ")
+                }
+
+                else -> {}
+            }
+            secondarySubtitleSelectionListener?.invoke(subtitle)
+        }
+
+    protected var secondarySubtitleSelectionListener: ((Settings.Subtitle) -> Unit)? = null
+    fun setOnSecondarySubtitleSelectedListener(listener: (Settings.Subtitle) -> Unit) {
+        secondarySubtitleSelectionListener = listener
+    }
 
     protected var onCaptionStyleChanged: ((CaptionStyleCompat) -> Unit) =
         fun(captionStyle) {
@@ -413,12 +447,34 @@ abstract class PlayerSettingsView @JvmOverloads constructor(
                 Quality,
                 Audio,
                 Subtitle,
+                SecondarySubtitle,
+                Bilingual,
                 Speed,
                 Server,
                 ExtraBuffering,
                 SoftwareDecoder,
                 ManualZoom,
             )
+        }
+
+        data object SecondarySubtitle : Settings()
+
+        sealed class Bilingual : Item {
+            companion object : Settings() {
+                val list = listOf(On, Off)
+                val selected: Bilingual get() = if (UserPreferences.bilingualSubtitles) On else Off
+            }
+            abstract val isSelected: Boolean
+            abstract val stringId: Int
+
+            data object On : Bilingual() {
+                override val isSelected: Boolean get() = UserPreferences.bilingualSubtitles
+                override val stringId: Int get() = R.string.settings_autoupdate_on
+            }
+            data object Off : Bilingual() {
+                override val isSelected: Boolean get() = !UserPreferences.bilingualSubtitles
+                override val stringId: Int get() = R.string.settings_autoupdate_off
+            }
         }
 
         data object ManualZoom : Settings()

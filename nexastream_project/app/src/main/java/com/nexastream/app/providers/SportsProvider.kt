@@ -1,6 +1,7 @@
 package com.nexastream.app.providers
 
 import android.util.Log
+import com.nexastream.app.models.SearchFilters
 import com.nexastream.app.adapters.AppAdapter
 import com.nexastream.app.models.Category
 import com.nexastream.app.models.Episode
@@ -236,7 +237,7 @@ object SportsProvider : Provider {
     }
 
     // Provider Interface Stubs
-    override suspend fun search(query: String, page: Int): List<AppAdapter.Item> = emptyList()
+    override suspend fun search(query: String, page: Int, filters: SearchFilters?): List<AppAdapter.Item> = emptyList()
     override suspend fun getMovies(page: Int): List<Movie> = emptyList()
     override suspend fun getTvShows(page: Int): List<TvShow> = emptyList()
     override suspend fun getMovie(id: String): Movie = throw UnsupportedOperationException()

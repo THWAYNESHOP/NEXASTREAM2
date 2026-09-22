@@ -13,6 +13,7 @@ import com.nexastream.app.ui.screens.downloads.DownloadsScreen
 import com.nexastream.app.ui.screens.player.PlayerScreen
 import com.nexastream.app.ui.screens.providers.ProvidersScreen
 import com.nexastream.app.ui.screens.search.SearchScreen
+import com.nexastream.app.ui.screens.genre.GenreScreen
 import com.nexastream.app.providers.Provider
 import com.nexastream.app.utils.UserPreferences
 
@@ -38,30 +39,88 @@ fun NavGraph(navController: NavHostController) {
             )
         }
         
-        composable(Screen.Home.route) {
-            HomeScreen(
-                onMovieClick = { id ->
-                    navController.navigate(Screen.Details.createRoute(id))
-                }
-            )
-        }
-
         composable(Screen.Search.route) {
             SearchScreen(
                 onMovieClick = { id ->
                     navController.navigate(Screen.Details.createRoute(id))
+                },
+                onGenreClick = { id, name ->
+                    navController.navigate(Screen.Genre.createRoute(id, name))
                 }
             )
         }
 
+        val onViewAllClick: (com.nexastream.app.models.Category) -> Unit = { category ->
+            val (genreId, genreName) = when (category.name) {
+                "Livestream" -> "cdn_all_channels" to "CDN Live TV"
+                "Latest Movies" -> "latest_movies" to category.name
+                "All Cinema" -> "all_cinema" to category.name
+                "New Season & Episode" -> "new_season_tv" to category.name
+                "Top Rated Movies" -> "tmdb_movies_popular" to category.name
+                "Top Rated TV Shows" -> "tmdb_tv_popular" to category.name
+                "Trending Today" -> "tmdb_movies_popular" to "Trending"
+                "Movies", "Sports", "News", "Entertainment", "Series", "Animation", "Comedy" -> category.name to category.name
+                else -> {
+                    val name = category.name
+                    when {
+                        name.startsWith("Popular on") -> {
+                            val platform = name.substringAfter("on ").trim()
+                            val providerId = when (platform) {
+                                "Netflix" -> 8
+                                "Disney+" -> 337
+                                "Hulu" -> 15
+                                "HBO" -> 384
+                                "Apple TV+" -> 350
+                                "Amazon" -> 10
+                                else -> 0
+                            }
+                            if (providerId != 0) "tmdb_watch_provider_movies_$providerId" to name else "" to name
+                        }
+                        else -> name to name
+                    }
+                }
+            }
+            if (genreId.isNotEmpty()) {
+                navController.navigate(Screen.Genre.createRoute(genreId, genreName))
+            }
+        }
+
+        composable(Screen.Home.route) {
+            HomeScreen(
+                onMovieClick = { id ->
+                    navController.navigate(Screen.Details.createRoute(id))
+                },
+                onViewAllClick = onViewAllClick
+            )
+        }
+
         composable(Screen.Movies.route) {
-            // Reusing HomeScreen with a filter or similar if needed, 
-            // but for now let's just point to home or a placeholder
-            HomeScreen(onMovieClick = { id -> navController.navigate(Screen.Details.createRoute(id)) })
+            HomeScreen(
+                onMovieClick = { id -> navController.navigate(Screen.Details.createRoute(id)) },
+                onViewAllClick = onViewAllClick
+            )
         }
 
         composable(Screen.TvShows.route) {
-            HomeScreen(onMovieClick = { id -> navController.navigate(Screen.Details.createRoute(id)) })
+            HomeScreen(
+                onMovieClick = { id -> navController.navigate(Screen.Details.createRoute(id)) },
+                onViewAllClick = onViewAllClick
+            )
+        }
+
+        composable(
+            route = Screen.Genre.route,
+            arguments = listOf(
+                navArgument("id") { type = NavType.StringType },
+                navArgument("name") { type = NavType.StringType }
+            )
+        ) {
+            GenreScreen(
+                onBack = { navController.popBackStack() },
+                onShowClick = { id ->
+                    navController.navigate(Screen.Details.createRoute(id))
+                }
+            )
         }
 
         composable(Screen.Downloads.route) {

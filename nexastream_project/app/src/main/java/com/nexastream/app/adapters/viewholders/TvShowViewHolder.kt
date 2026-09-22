@@ -101,6 +101,7 @@ class TvShowViewHolder(
 
         when (_binding) {
             is ItemTvShowMobileBinding -> displayMobileItem(_binding)
+            is ItemLivestreamMobileBinding -> displayLivestreamMobileItem(_binding)
             is ItemTvShowTvBinding -> displayTvItem(_binding)
             is ItemTvShowGridMobileBinding -> displayGridMobileItem(_binding)
             is ItemTvShowGridBinding -> displayGridTvItem(_binding)
@@ -129,15 +130,15 @@ class TvShowViewHolder(
     }
 
     private fun checkProviderAndRun(action: () -> Unit) {
-        if (!tvShow.providerName.isNullOrBlank() && tvShow.providerName != UserPreferences.currentProvider?.name) {
-            Provider.providers.keys.find { it.name == tvShow.providerName }?.let {
-                UserPreferences.currentProvider = it
-            }
-        }
         action()
     }
 
     private fun handleDirectPlay(navController: NavController) {
+        if (tvShow.id.isBlank()) {
+            Toast.makeText(context, "Error: Missing channel ID", Toast.LENGTH_SHORT).show()
+            return
+        }
+
         tvShow.liveMetadata?.channelId?.let { channelId ->
             LiveTvRepository.markChannelWatched(channelId, tvShow.id, tvShow.title)
         }
@@ -285,6 +286,27 @@ class TvShowViewHolder(
         }
     }
 
+    private fun displayLivestreamMobileItem(binding: ItemLivestreamMobileBinding) {
+        binding.root.setOnClickListener {
+            checkProviderAndRun {
+                handleDirectPlay(binding.root.findNavController())
+            }
+        }
+        binding.root.setOnLongClickListener {
+            if (tvShow.liveMetadata != null) LiveChannelOptionsDialog.show(context, tvShow)
+            true
+        }
+        
+        Glide.with(context)
+            .load(tvShow.poster ?: tvShow.banner)
+            .placeholder(R.drawable.bg_poster_gradient)
+            .error(R.drawable.bg_poster_gradient)
+            .transition(DrawableTransitionOptions.withCrossFade())
+            .into(binding.ivLivestreamPoster)
+
+        binding.tvLivestreamTitle.text = tvShow.title
+    }
+
     private fun displayMobileItem(binding: ItemTvShowMobileBinding) {
         binding.root.setOnClickListener {
             checkProviderAndRun {
@@ -319,8 +341,14 @@ class TvShowViewHolder(
     }
 
     private fun displayTvItem(binding: ItemTvShowTvBinding) {
+        val adapter = binding.root.parent?.let { (it as? RecyclerView)?.adapter as? AppAdapter }
         binding.root.apply {
             setOnClickListener {
+                if (adapter?.isEditMode == true) {
+                    tvShow.isSelected = !tvShow.isSelected
+                    binding.ivSelectionCheck.isVisible = tvShow.isSelected
+                    return@setOnClickListener
+                }
                 checkProviderAndRun {
                     if (isIptvProvider()) {
                         handleDirectPlay(findNavController())
@@ -363,6 +391,8 @@ class TvShowViewHolder(
         }
         binding.tvTvShowLastEpisode.text = if (isIptvProvider()) "LIVE" else tvShow.seasons.lastOrNull()?.episodes?.lastOrNull()?.let { "E${it.number}" } ?: tvShow.released?.format("yyyy") ?: context.getString(R.string.tv_show_item_type)
         binding.tvTvShowTitle.text = tvShow.title
+        
+        binding.ivSelectionCheck.isVisible = adapter?.isEditMode == true && tvShow.isSelected
     }
 
     private fun displayGridMobileItem(binding: ItemTvShowGridMobileBinding) {
@@ -404,8 +434,14 @@ class TvShowViewHolder(
     }
 
     private fun displayGridTvItem(binding: ItemTvShowGridBinding) {
+        val adapter = binding.root.parent?.let { (it as? RecyclerView)?.adapter as? AppAdapter }
         binding.root.apply {
             setOnClickListener {
+                if (adapter?.isEditMode == true) {
+                    tvShow.isSelected = !tvShow.isSelected
+                    binding.ivSelectionCheck.isVisible = tvShow.isSelected
+                    return@setOnClickListener
+                }
                 checkProviderAndRun {
                     if (isIptvProvider()) {
                         handleDirectPlay(findNavController())
@@ -446,6 +482,8 @@ class TvShowViewHolder(
         }
         binding.tvTvShowLastEpisode.text = if (isIptvProvider()) "LIVE" else tvShow.seasons.lastOrNull()?.episodes?.lastOrNull()?.let { "E${it.number}" } ?: tvShow.released?.format("yyyy") ?: context.getString(R.string.tv_show_item_type)
         binding.tvTvShowTitle.text = tvShow.title
+        
+        binding.ivSelectionCheck.isVisible = adapter?.isEditMode == true && tvShow.isSelected
     }
 
     private fun isPackageInstalled(packageName: String): Boolean {

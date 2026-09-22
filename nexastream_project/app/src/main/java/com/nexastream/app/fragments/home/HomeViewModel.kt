@@ -140,27 +140,62 @@ class HomeViewModel @Inject constructor(
             }
 
             val categories = mutableListOf<Category>()
+            
+            // 1. Featured (Hero)
             state.categories.find { c -> c.name == Category.FEATURED }?.let { c ->
                 categories.add(c.copy(list = c.list.map(::mergeItem))) 
             }
+
+            // 1.5. Livestream (Priority)
+            state.categories.find { it.name == "Livestream" }?.let { c ->
+                categories.add(c.copy(list = c.list.map(::mergeItem)))
+            }
             
-            categories.add(Category(
-                name = Category.CONTINUE_WATCHING,
-                list = continueWatching.distinctBy { item ->
-                    when (item) {
-                        is Episode -> item.tvShow?.id ?: item.id
-                        is Movie -> item.id
-                        else -> item.hashCode().toString()
+            // 2. Continue Watching
+            val continueWatchingList = continueWatching.distinctBy { item ->
+                when (item) {
+                    is Episode -> item.tvShow?.id ?: item.id
+                    is Movie -> item.id
+                    else -> item.hashCode().toString()
+                }
+            }
+            if (continueWatchingList.isNotEmpty()) {
+                categories.add(Category(
+                    name = Category.CONTINUE_WATCHING,
+                    list = continueWatchingList
+                ).apply { itemType = AppAdapter.Type.CATEGORY_MOBILE_ITEM })
+            }
+            
+            // 3. Add other categories from provider (CDN, Trending Today, Genres)
+            // and insert Favorites after Trending Today
+            state.categories.filter { c -> c.name != Category.FEATURED && c.name != "Livestream" }.forEach { c ->
+                val mergedCategory = c.copy(list = c.list.map(::mergeItem))
+                categories.add(mergedCategory)
+                
+                if (mergedCategory.name == "Trending Today") {
+                    if (favoritesMovies.isNotEmpty()) {
+                        categories.add(Category(name = Category.FAVORITE_MOVIES, list = favoritesMovies.map(::mergeItem))
+                            .apply { itemType = AppAdapter.Type.CATEGORY_MOBILE_ITEM })
+                    }
+                    if (favoriteTvShows.isNotEmpty()) {
+                        categories.add(Category(name = Category.FAVORITE_TV_SHOWS, list = favoriteTvShows.map(::mergeItem))
+                            .apply { itemType = AppAdapter.Type.CATEGORY_MOBILE_ITEM })
                     }
                 }
-            ))
+            }
             
-            categories.add(Category(name = Category.FAVORITE_MOVIES, list = favoritesMovies))
-            categories.add(Category(name = Category.FAVORITE_TV_SHOWS, list = favoriteTvShows))
-            
-            categories.addAll(state.categories.filter { c -> c.name != Category.FEATURED }.map { c -> c.copy(list = c.list.map(::mergeItem)) })
+            // If Trending Today wasn't found, add Favorites at the end
+            if (categories.none { it.name == Category.FAVORITE_MOVIES } && (favoritesMovies.isNotEmpty() || favoriteTvShows.isNotEmpty())) {
+                if (favoritesMovies.isNotEmpty()) categories.add(Category(name = Category.FAVORITE_MOVIES, list = favoritesMovies.map(::mergeItem)).apply { itemType = AppAdapter.Type.CATEGORY_MOBILE_ITEM })
+                if (favoriteTvShows.isNotEmpty()) categories.add(Category(name = Category.FAVORITE_TV_SHOWS, list = favoriteTvShows.map(::mergeItem)).apply { itemType = AppAdapter.Type.CATEGORY_MOBILE_ITEM })
+            }
 
-            State.SuccessLoading(ParentalControlUtils.filterCategories(categories))
+            val filtered = if (UserPreferences.isParentalControlActive || UserPreferences.familyMode) {
+                ParentalControlUtils.filterCategories(categories)
+            } else {
+                categories
+            }
+            State.SuccessLoading(filtered)
         } else state
     }.flowOn(Dispatchers.IO)
 
@@ -199,11 +234,12 @@ class HomeViewModel @Inject constructor(
 
     fun getHome() = viewModelScope.launch(Dispatchers.IO) {
         val provider = currentProvider ?: return@launch
-        _state.emit(State.Loading)
-
+        
         val cached = repository.getCachedHome(provider)
         if (!cached.isNullOrEmpty()) {
             _state.emit(State.SuccessLoading(cached))
+        } else {
+            _state.emit(State.Loading)
         }
 
         try {

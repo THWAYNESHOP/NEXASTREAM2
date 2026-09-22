@@ -1,7 +1,6 @@
 package com.nexastream.app.extractors
 
 import com.nexastream.app.models.Video
-import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.jsoup.Jsoup
 import android.util.Base64
@@ -14,15 +13,18 @@ class EmbedStExtractor : Extractor() {
     override val aliasUrls: List<String> = listOf(
         "top-embed.com",
         "streamed.st",
-        "streamed.is",
-        "streamed.su",
         "streamed.pk",
+        "streamed.is",
+        "v3.streamed.su",
+        "streamed.su",
+        "strmd.link",
+        "streampk.org",
         "stream.pk"
     )
 
-    private val client = OkHttpClient.Builder()
-        .connectTimeout(5, java.util.concurrent.TimeUnit.SECONDS)
-        .readTimeout(5, java.util.concurrent.TimeUnit.SECONDS)
+    private val client = com.nexastream.app.utils.NetworkClient.compatibleTrustAll.newBuilder()
+        .connectTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
+        .readTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
         .build()
 
     override suspend fun extract(link: String): Video = withContext(Dispatchers.IO) {
@@ -55,7 +57,7 @@ class EmbedStExtractor : Extractor() {
             val scriptContent = script.html()
             
             // Check for Clappr/Hls source pattern
-            val sourceRegex = Regex("""source\s*:\s*["'](https?://[^"']+\.m3u8[^"']*)["']""")
+            val sourceRegex = Regex("""source\s*[:\s]+["'](https?://[^"']+\.m3u8[^"']*)["']""")
             sourceRegex.find(scriptContent)?.let {
                 val url = it.groupValues[1]
                 android.util.Log.d("EmbedStExtractor", "Found m3u8 source: $url")
@@ -80,7 +82,7 @@ class EmbedStExtractor : Extractor() {
                             source = decoded,
                             headers = mapOf(
                                 "Referer" to referer,
-                            "Origin" to referer.trimEnd('/')
+                                "Origin" to referer.trimEnd('/')
                             ),
                             maintainToken = true
                         )
@@ -88,11 +90,11 @@ class EmbedStExtractor : Extractor() {
                 } catch (ignored: Exception) {}
             }
 
-            // Pattern for vars like hls_url = "..."
-            val varRegex = Regex("""(?:var|let|const)\s+(?:hls_url|stream_url|url)\s*=\s*["'](https?://[^"']+\.m3u8[^"']*)["']""")
-            varRegex.find(scriptContent)?.let {
+            // Pattern for vars like hls_url = "..." or file: "..."
+            val genericRegex = Regex("""(?:var|let|const|file|url)\s*[:=]\s*["'](https?://[^"']+\.m3u8[^"']*)["']""")
+            genericRegex.find(scriptContent)?.let {
                 val url = it.groupValues[1]
-                android.util.Log.d("EmbedStExtractor", "Found var source: $url")
+                android.util.Log.d("EmbedStExtractor", "Found generic source: $url")
                 return@withContext Video(
                     source = url,
                     headers = mapOf(
@@ -139,6 +141,48 @@ class EmbedStExtractor : Extractor() {
                             maintainToken = true
                         )
                     }
+                }
+            }
+        }
+
+        // Pattern 4: window.__SVELTEKIT_DATA__ or script data-sveltekit-fetched
+        // Modern sites store JSON props here.
+        if (html.contains("sveltekit")) {
+            val svelteDataRegex = Regex("""<script[^>]*>\s*(?:window\.)?__SVELTEKIT_DATA__\s*=\s*(\{.*?\});?\s*</script>""", RegexOption.DOT_MATCHES_ALL)
+            svelteDataRegex.find(html)?.let { match ->
+                val json = match.groupValues[1]
+                val m3u8Regex = Regex("""(https?[:\\]+[^"']+\.m3u8[^"']*)""")
+                m3u8Regex.find(json)?.let { m ->
+                    val url = m.groupValues[1].replace("\\/", "/").replace("\\u002F", "/")
+                    android.util.Log.d("EmbedStExtractor", "Found m3u8 in SvelteKit data: $url")
+                    return@withContext Video(
+                        source = url,
+                        headers = mapOf(
+                            "Referer" to referer,
+                            "Origin" to referer.trimEnd('/')
+                        ),
+                        maintainToken = true
+                    )
+                }
+            }
+        }
+
+        // Pattern 5: Generic script-based JSON extraction
+        scripts.forEach { script ->
+            val content = script.html()
+            if (content.contains(".m3u8")) {
+                val m3u8Regex = Regex("""(https?[:\\]+[^"']+\.m3u8[^"']*)""")
+                m3u8Regex.find(content)?.let { m ->
+                    val url = m.groupValues[1].replace("\\/", "/").replace("\\u002F", "/")
+                    android.util.Log.d("EmbedStExtractor", "Found m3u8 in generic script: $url")
+                    return@withContext Video(
+                        source = url,
+                        headers = mapOf(
+                            "Referer" to referer,
+                            "Origin" to referer.trimEnd('/')
+                        ),
+                        maintainToken = true
+                    )
                 }
             }
         }

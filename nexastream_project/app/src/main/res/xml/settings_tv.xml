@@ -62,6 +62,25 @@
                 android:key="PARENTAL_CONTROL_UNLOCK"
                 android:title="@string/settings_parental_unlock_title"
                 android:summary="@string/settings_parental_unlock_summary" />
+
+            <SwitchPreferenceCompat
+                android:key="FAMILY_MODE"
+                android:title="@string/family_mode"
+                android:summary="@string/family_mode_tips"
+                android:defaultValue="false" />
+        </PreferenceCategory>
+
+        <PreferenceCategory
+            android:key="pc_region_settings"
+            android:title="@string/settings_region_title">
+
+            <ListPreference
+                android:key="SELECTED_REGION"
+                android:title="@string/settings_region_title"
+                android:summary="@string/settings_region_summary"
+                android:entries="@array/region_names"
+                android:entryValues="@array/region_values"
+                android:defaultValue="US" />
         </PreferenceCategory>
     </PreferenceScreen>
 
@@ -202,6 +221,12 @@
                 android:entries="@array/doh_provider_names"
                 android:entryValues="@array/doh_provider_urls"
                 android:defaultValue="https://cloudflare-dns.com/dns-query" />
+
+            <Preference
+                android:key="p_speed_test"
+                android:title="Network Speed Test"
+                android:summary="Check your internet connection speed"
+                android:widgetLayout="@layout/preference_widget_chevron" />
         </PreferenceCategory>
 
         <PreferenceCategory
@@ -234,6 +259,16 @@
                 android:key="TRAKT_LOGIN"
                 android:title="@string/settings_trakt_login"
                 android:summary="@string/settings_trakt_summary" />
+        </PreferenceCategory>
+
+        <PreferenceCategory
+            android:key="pc_pairing_settings"
+            android:title="@string/settings_qr_login">
+
+            <Preference
+                android:key="QR_LOGIN"
+                android:title="@string/settings_qr_login"
+                android:summary="@string/settings_qr_login_summary" />
         </PreferenceCategory>
     </PreferenceScreen>
 
@@ -406,10 +441,22 @@
         android:title="@string/miscelaneous_title">
 
         <SwitchPreference
+            android:key="AUTO_START_ON_BOOT"
+            android:title="Auto-Start on Boot"
+            android:summary="Launch NexaStream automatically when TV turns on"
+            android:defaultValue="false" />
+
+        <SwitchPreference
             android:key="UPDATE_CHECK_ENABLED"
             android:title="@string/settings_update_check"
             android:summary="@string/settings_update_check_summary"
             android:defaultValue="true" />
+
+        <Preference
+            android:key="SUPPORT_WHATSAPP"
+            android:title="WhatsApp Support"
+            android:summary="Scan QR code to chat with us"
+            android:icon="@drawable/ic_telegram" />
 
         <Preference
             android:icon="@drawable/ic_telegram"

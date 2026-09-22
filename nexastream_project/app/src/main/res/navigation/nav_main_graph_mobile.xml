@@ -28,6 +28,9 @@
     <action
         android:id="@+id/action_global_movie"
         app:destination="@id/movie" />
+    <action
+        android:id="@+id/action_global_sports_servers"
+        app:destination="@id/sports_servers" />
 
     <fragment
         android:id="@+id/home"
@@ -220,12 +223,35 @@
         <argument
             android:name="videoType"
             app:argType="com.nexastream.app.models.Video$Type" />
+        <argument
+            android:name="serverId"
+            app:argType="string"
+            app:nullable="true"
+            android:defaultValue="@null" />
         <action
             android:id="@+id/action_playerMobileFragment_self"
             app:destination="@id/player"
             app:popUpTo="@id/player"
             app:popUpToInclusive="true" />
     </fragment>
+
+    <dialog
+        android:id="@+id/sports_servers"
+        android:name="com.nexastream.app.fragments.player.SportsServersDialogFragment"
+        android:label="SportsServersDialogFragment">
+        <argument
+            android:name="id"
+            app:argType="string" />
+        <argument
+            android:name="title"
+            app:argType="string" />
+        <argument
+            android:name="subtitle"
+            app:argType="string" />
+        <argument
+            android:name="videoType"
+            app:argType="com.nexastream.app.models.Video$Type" />
+    </dialog>
     <fragment
         android:id="@+id/settings"
         android:name="com.nexastream.app.fragments.settings.SettingsMobileFragment"

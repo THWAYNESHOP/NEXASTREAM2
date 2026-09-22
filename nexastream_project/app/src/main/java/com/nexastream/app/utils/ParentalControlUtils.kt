@@ -36,7 +36,10 @@ object ParentalControlUtils {
     }
 
     suspend fun <T : AppAdapter.Item> filterItems(items: List<T>): List<T> {
-        if (!UserPreferences.isParentalControlActive) return items
+        val pcActive = UserPreferences.isParentalControlActive
+        val familyActive = UserPreferences.familyMode
+        
+        if (!pcActive && !familyActive) return items
 
         return coroutineScope {
             val visibility = items.map { item ->
@@ -48,6 +51,9 @@ object ParentalControlUtils {
     }
 
     private suspend fun filterItem(item: AppAdapter.Item): AppAdapter.Item? {
+        val familyActive = UserPreferences.familyMode
+        if (familyActive && isMatureContent(item)) return null
+
         return when (item) {
             is Movie -> item.takeIf { isAllowedMovie(it) }
             is TvShow -> item.takeIf { isAllowedTvShow(it) }
@@ -112,5 +118,21 @@ object ParentalControlUtils {
         // }
         // return Provider.findByName(providerName)
         return UserPreferences.currentProvider
+    }
+
+    private val MATURE_KEYWORDS = listOf("porn", "sex", "erotic", "nsfw", "adult", "xxx")
+
+    private fun isMatureContent(item: AppAdapter.Item): Boolean {
+        val title = when (item) {
+            is Movie -> item.title
+            is TvShow -> item.title
+            is Episode -> item.title ?: ""
+            else -> ""
+        }.lowercase()
+
+        if (MATURE_KEYWORDS.any { title.contains(it) }) return true
+        
+        // Additional TMDb checks can be added here if needed
+        return false
     }
 }

@@ -5,6 +5,7 @@ import android.content.Context
 import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.View
+import android.widget.Toast
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.fragment.NavHostFragment
 import com.bumptech.glide.Glide
@@ -271,10 +272,12 @@ class ShowOptionsTvDialog(
                             }
                         }
                         UserDataCache.removeEpisodeFromContinueWatching(context, provider, episode.id)
+                        withContext(Dispatchers.Main) {
+                            Toast.makeText(context, R.string.option_clear_program, Toast.LENGTH_SHORT).show()
+                            hide()
+                        }
                     }
                 }
-
-                hide()
             }
 
             visibility = when {
@@ -377,10 +380,12 @@ class ShowOptionsTvDialog(
                             AppDatabase.getInstance(context).movieDao().save(updatedMovie)
                             UserDataCache.syncMovieToCache(context, provider, updatedMovie)
                             UserDataCache.removeMovieFromContinueWatching(context, provider, freshMovie.id)
+                            withContext(Dispatchers.Main) {
+                                Toast.makeText(context, R.string.option_clear_program, Toast.LENGTH_SHORT).show()
+                                hide()
+                            }
                         }
                     }
-
-                    hide()
                 }
 
                 visibility = when {

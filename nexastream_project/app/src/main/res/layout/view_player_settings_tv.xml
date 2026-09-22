@@ -6,7 +6,7 @@
     android:layout_height="match_parent">
 
     <androidx.constraintlayout.widget.ConstraintLayout
-        android:layout_width="350dp"
+        android:layout_width="300dp"
         android:layout_height="0dp"
         android:background="#202020"
         app:layout_constraintBottom_toBottomOf="parent"
@@ -28,11 +28,34 @@
             app:layout_constraintTop_toTopOf="parent"
             tools:text="Settings" />
 
+        <FrameLayout
+            android:id="@+id/fl_subtitle_preview_container"
+            android:layout_width="0dp"
+            android:layout_height="100dp"
+            android:layout_marginStart="16dp"
+            android:layout_marginTop="16dp"
+            android:layout_marginEnd="16dp"
+            android:background="#101010"
+            android:visibility="gone"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/tv_settings_header"
+            tools:visibility="visible">
+
+            <androidx.media3.ui.SubtitleView
+                android:id="@+id/subtitle_preview_view"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:layout_gravity="center"
+                android:padding="8dp" />
+
+        </FrameLayout>
+
         <androidx.recyclerview.widget.RecyclerView
             android:id="@+id/rv_settings"
             android:layout_width="0dp"
             android:layout_height="0dp"
-            android:layout_marginTop="24dp"
+            android:layout_marginTop="16dp"
             android:clipToPadding="false"
             android:orientation="vertical"
             android:paddingBottom="32dp"
@@ -40,7 +63,8 @@
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/tv_settings_header"
+            app:layout_constraintTop_toBottomOf="@id/fl_subtitle_preview_container"
+            app:layout_goneMarginTop="24dp"
             tools:listitem="@layout/item_setting_tv" />
 
     </androidx.constraintlayout.widget.ConstraintLayout>

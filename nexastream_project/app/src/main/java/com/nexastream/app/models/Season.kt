@@ -28,6 +28,9 @@ class Season(
     @Ignore
     override lateinit var itemType: AppAdapter.Type
 
+    @Ignore
+    override var isSelected: Boolean = false
+
     fun copy(
         id: String = this.id,
         number: Int = this.number,
@@ -54,6 +57,7 @@ class Season(
         if (number != other.number) return false
         if (title != other.title) return false
         if (poster != other.poster) return false
+        if (isSelected != other.isSelected) return false
         if (!::itemType.isInitialized || !other::itemType.isInitialized) return false
         return itemType == other.itemType
     }
@@ -63,6 +67,7 @@ class Season(
         result = 31 * result + number
         result = 31 * result + (title?.hashCode() ?: 0)
         result = 31 * result + (poster?.hashCode() ?: 0)
+        result = 31 * result + isSelected.hashCode()
         result = 31 * result + (if (::itemType.isInitialized) itemType.hashCode() else 0)
         return result
     }

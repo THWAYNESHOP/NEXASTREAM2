@@ -28,6 +28,7 @@ import com.nexastream.app.BuildConfig
 import com.nexastream.app.R
 import com.nexastream.app.activities.tools.BypassWebViewActivity
 import com.nexastream.app.databinding.ActivityMainMobileBinding
+import com.nexastream.app.fragments.home.HomeMobileFragment
 import com.nexastream.app.fragments.player.PlayerMobileFragment
 import com.nexastream.app.providers.AnimeOnlineNinjaProvider
 import com.nexastream.app.providers.Cine24hProvider
@@ -126,6 +127,9 @@ class MainMobileActivity : AppCompatActivity() {
         applyThemeNavigationChrome()
 
         setSupportActionBar(binding.toolbarMain)
+        supportActionBar?.setDisplayShowTitleEnabled(false)
+        binding.toolbarMain.title = null
+        title = ""
 
         ViewCompat.setOnApplyWindowInsetsListener(binding.mainContent) { view, windowInsets ->
             val insets = windowInsets.getInsets(WindowInsetsCompat.Type.systemBars())
@@ -133,10 +137,11 @@ class MainMobileActivity : AppCompatActivity() {
             val currentFragment = navHostFragment?.childFragmentManager?.primaryNavigationFragment
 
             val isPlayer = currentFragment is PlayerMobileFragment
+            val isHome = currentFragment is HomeMobileFragment
             val isBottomNavVisible = binding.bnvMain.visibility == View.VISIBLE
 
             val bottomPadding = if (isPlayer || isBottomNavVisible) 0 else insets.bottom
-            val topPadding = if (isPlayer) 0 else insets.top
+            val topPadding = if (isPlayer || isHome) 0 else insets.top
 
             view.setPadding(insets.left, topPadding, insets.right, bottomPadding)
             windowInsets
@@ -148,16 +153,6 @@ class MainMobileActivity : AppCompatActivity() {
         val navHost =
             supportFragmentManager.findFragmentById(R.id.nav_main_fragment) as NavHostFragment
         val navController = navHost.navController
-
-        if (UserPreferences.forceTvUi ||
-            BuildConfig.APP_LAYOUT == "tv" ||
-            (BuildConfig.APP_LAYOUT != "mobile" &&
-                packageManager.hasSystemFeature(PackageManager.FEATURE_LEANBACK))
-        ) {
-            finish()
-            startActivity(Intent(this, MainTvActivity::class.java))
-            return
-        }
 
         if (savedInstanceState == null) {
             UserPreferences.currentProvider?.let {
@@ -179,11 +174,32 @@ class MainMobileActivity : AppCompatActivity() {
         binding.bnvMain.setupWithNavController(navController)
         updateNavigationVisibility()
         updateBottomNavigationVisibility(navController.currentDestination?.id)
+        updateToolbarLogo()
 
         navController.addOnDestinationChangedListener { _, destination, _ ->
             updateNavigationVisibility(destination.id)
             updateBottomNavigationVisibility(destination.id)
-            binding.ablMain.visibility = if (isTopLevelProviderDestination(destination.id)) View.VISIBLE else View.GONE
+            binding.ablMain.visibility = if (isTopLevelProviderDestination(destination.id) && destination.id != R.id.home) View.VISIBLE else View.GONE
+            updateToolbarLogo()
+
+            val params = binding.navMainFragment.layoutParams as androidx.constraintlayout.widget.ConstraintLayout.LayoutParams
+            if (destination.id == R.id.home) {
+                binding.ablMain.setBackgroundColor(android.graphics.Color.TRANSPARENT)
+                binding.toolbarMain.setBackgroundColor(android.graphics.Color.TRANSPARENT)
+                binding.ablMain.elevation = 0f
+
+                params.topToBottom = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.UNSET
+                params.topToTop = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.PARENT_ID
+            } else {
+                val palette = ThemeManager.palette(UserPreferences.selectedTheme)
+                binding.ablMain.setBackgroundColor(palette.systemBar)
+                binding.toolbarMain.setBackgroundColor(palette.systemBar)
+
+                params.topToTop = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.UNSET
+                params.topToBottom = binding.ablMain.id
+            }
+            binding.navMainFragment.layoutParams = params
+
             binding.mainContent.post { binding.mainContent.requestApplyInsets() }
         }
 
@@ -192,6 +208,7 @@ class MainMobileActivity : AppCompatActivity() {
                 .flowWithLifecycle(lifecycle, Lifecycle.State.STARTED)
                 .collect {
                     updateNavigationVisibility(navController.currentDestination?.id)
+                    updateToolbarLogo()
                 }
         }
 
@@ -263,6 +280,10 @@ class MainMobileActivity : AppCompatActivity() {
         return when (item.itemId) {
             R.id.search -> {
                 navHost.navController.navigate(R.id.search)
+                true
+            }
+            R.id.change_provider -> {
+                navHost.navController.navigate(R.id.providers)
                 true
             }
             R.id.settings -> {
@@ -593,6 +614,7 @@ class MainMobileActivity : AppCompatActivity() {
             .show()
     }
 
+    @androidx.media3.common.util.UnstableApi
     override fun onUserLeaveHint() {
         super.onUserLeaveHint()
         (getCurrentFragment() as? PlayerMobileFragment)?.onUserLeaveHint()
@@ -605,6 +627,10 @@ class MainMobileActivity : AppCompatActivity() {
         } else {
             controller.show(WindowInsetsCompat.Type.systemBars())
         }
+    }
+
+    private fun updateToolbarLogo() {
+        binding.ivToolbarLogo.visibility = View.GONE
     }
 
     private fun applyThemeNavigationChrome() {

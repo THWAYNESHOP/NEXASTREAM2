@@ -9,6 +9,7 @@ import com.nexastream.app.models.Show
 import com.nexastream.app.models.TvShow
 import com.nexastream.app.models.WatchItem
 import com.nexastream.app.providers.Provider
+import com.nexastream.app.adapters.AppAdapter
 import com.nexastream.app.providers.AnimeOnlineNinjaProvider
 import com.nexastream.app.utils.HomeCacheStore
 import com.nexastream.app.utils.UserDataCache
@@ -40,11 +41,12 @@ class HomeRepository(
         continueWatchingSeasonEpisodesCache.clear()
     }
 
-    suspend fun search(provider: Provider, query: String): List<Show> {
+    suspend fun search(provider: Provider, query: String): List<AppAdapter.Item> {
         return provider.search(query).mapNotNull { item ->
             when (item) {
                 is Movie -> item
                 is TvShow -> item
+                is com.nexastream.app.models.Genre -> item
                 else -> null
             }
         }
@@ -68,51 +70,59 @@ class HomeRepository(
         provider: Provider,
         episodes: List<Episode>
     ): List<Episode> = coroutineScope {
-        episodes.map { episode ->
+        // Limit enrichment to the most recent 10 items for performance, especially on TV
+        val targetList = if (episodes.size > 10) episodes.take(10) else episodes
+        
+        targetList.map { episode ->
             async {
-                val tvShowId = episode.tvShow?.id ?: return@async episode
-                val resolvedTvShow = continueWatchingTvShowCache[tvShowId] ?: runCatching {
-                    provider.getTvShow(tvShowId)
-                }.getOrNull()?.also { fetchedTvShow ->
-                    continueWatchingTvShowCache[tvShowId] = fetchedTvShow
-                }
-
-                val mergedTvShow = resolvedTvShow?.copy().apply {
-                    this?.let { show ->
-                        episode.tvShow?.let { existingTvShow -> show.merge(existingTvShow) }
+                try {
+                    val tvShowId = episode.tvShow?.id ?: return@async episode
+                    val resolvedTvShow = continueWatchingTvShowCache[tvShowId] ?: runCatching {
+                        provider.getTvShow(tvShowId)
+                    }.getOrNull()?.also { fetchedTvShow ->
+                        continueWatchingTvShowCache[tvShowId] = fetchedTvShow
                     }
-                } ?: episode.tvShow
 
-                val resolvedSeason = episode.season?.let { season ->
-                    mergedTvShow?.seasons?.firstOrNull { it.id == season.id || it.number == season.number }
-                        ?: season
-                }
-
-                val resolvedEpisode = if (UserPreferences.enableTmdb) {
-                    val seasonId = resolvedSeason?.id ?: episode.season?.id
-                    seasonId?.let { key ->
-                        continueWatchingSeasonEpisodesCache[key] ?: runCatching {
-                            provider.getEpisodesBySeason(key)
-                        }.getOrDefault(emptyList()).also { fetchedEpisodes ->
-                            if (fetchedEpisodes.isNotEmpty()) {
-                                continueWatchingSeasonEpisodesCache[key] = fetchedEpisodes
-                            }
+                    val mergedTvShow = resolvedTvShow?.copy().apply {
+                        this?.let { show ->
+                            episode.tvShow?.let { existingTvShow -> show.merge(existingTvShow) }
                         }
-                    }?.firstOrNull { seasonEpisode ->
-                        seasonEpisode.id == episode.id || seasonEpisode.number == episode.number
-                    }
-                } else {
-                    null
-                }
+                    } ?: episode.tvShow
 
-                episode.copy(
-                    title = resolvedEpisode?.title ?: episode.title,
-                    overview = resolvedEpisode?.overview ?: episode.overview,
-                    poster = resolvedEpisode?.poster ?: episode.poster,
-                    tvShow = mergedTvShow,
-                    season = resolvedSeason,
-                ).apply {
-                    merge(episode)
+                    val resolvedSeason = episode.season?.let { season ->
+                        mergedTvShow?.seasons?.firstOrNull { it.id == season.id || it.number == season.number }
+                            ?: season
+                    }
+
+                    val resolvedEpisode = if (UserPreferences.enableTmdb) {
+                        val seasonId = resolvedSeason?.id ?: episode.season?.id
+                        seasonId?.let { key ->
+                            continueWatchingSeasonEpisodesCache[key] ?: runCatching {
+                                provider.getEpisodesBySeason(key)
+                            }.getOrDefault(emptyList()).also { fetchedEpisodes ->
+                                if (fetchedEpisodes.isNotEmpty()) {
+                                    continueWatchingSeasonEpisodesCache[key] = fetchedEpisodes
+                                }
+                            }
+                        }?.firstOrNull { seasonEpisode ->
+                            seasonEpisode.id == episode.id || seasonEpisode.number == episode.number
+                        }
+                    } else {
+                        null
+                    }
+
+                    episode.copy(
+                        title = resolvedEpisode?.title ?: episode.title,
+                        overview = resolvedEpisode?.overview ?: episode.overview,
+                        poster = resolvedEpisode?.poster ?: episode.poster,
+                        tvShow = mergedTvShow,
+                        season = resolvedSeason,
+                    ).apply {
+                        merge(episode)
+                    }
+                } catch (e: Exception) {
+                    android.util.Log.e("HomeRepository", "Failed to enrich episode: ${episode.id}", e)
+                    episode
                 }
             }
         }.awaitAll()

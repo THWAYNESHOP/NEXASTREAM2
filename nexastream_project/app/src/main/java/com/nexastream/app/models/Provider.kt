@@ -13,4 +13,5 @@ open class Provider(
 
 
     override lateinit var itemType: AppAdapter.Type
+    override var isSelected: Boolean = false
 }

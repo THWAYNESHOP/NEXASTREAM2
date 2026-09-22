@@ -1,0 +1,223 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="450dp"
+    android:layout_height="wrap_content"
+    android:background="@drawable/bg_btn_exoplayer_tv"
+    android:padding="24dp">
+
+    <TextView
+        android:id="@+id/tv_pin_title"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:gravity="center"
+        android:textColor="#FFFFFF"
+        android:textSize="24sp"
+        android:textStyle="bold"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        tools:text="Parental PIN" />
+
+    <TextView
+        android:id="@+id/tv_pin_message"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:gravity="center"
+        android:textColor="#B3FFFFFF"
+        android:textSize="14sp"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/tv_pin_title"
+        tools:text="Enter current PIN to continue" />
+
+    <LinearLayout
+        android:id="@+id/ll_pin_dots"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="24dp"
+        android:gravity="center"
+        android:orientation="horizontal"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/tv_pin_message">
+
+        <ImageView
+            android:id="@+id/iv_dot_1"
+            android:layout_width="16dp"
+            android:layout_height="16dp"
+            android:layout_margin="8dp"
+            android:src="@drawable/ic_pin_dot"
+            android:contentDescription="@null"
+            app:tint="#40FFFFFF" />
+
+        <ImageView
+            android:id="@+id/iv_dot_2"
+            android:layout_width="16dp"
+            android:layout_height="16dp"
+            android:layout_margin="8dp"
+            android:src="@drawable/ic_pin_dot"
+            android:contentDescription="@null"
+            app:tint="#40FFFFFF" />
+
+        <ImageView
+            android:id="@+id/iv_dot_3"
+            android:layout_width="16dp"
+            android:layout_height="16dp"
+            android:layout_margin="8dp"
+            android:src="@drawable/ic_pin_dot"
+            android:contentDescription="@null"
+            app:tint="#40FFFFFF" />
+
+        <ImageView
+            android:id="@+id/iv_dot_4"
+            android:layout_width="16dp"
+            android:layout_height="16dp"
+            android:layout_margin="8dp"
+            android:src="@drawable/ic_pin_dot"
+            android:contentDescription="@null"
+            app:tint="#40FFFFFF" />
+    </LinearLayout>
+
+    <GridLayout
+        android:id="@+id/gl_pin_grid"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="24dp"
+        android:alignmentMode="alignMargins"
+        android:columnCount="3"
+        android:rowCount="4"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/ll_pin_dots">
+
+        <TextView
+            android:id="@+id/btn_pin_1"
+            style="@style/AppTheme.Widget.Tv.Button"
+            android:layout_width="80dp"
+            android:layout_height="50dp"
+            android:layout_margin="4dp"
+            android:gravity="center"
+            android:text="1" />
+
+        <TextView
+            android:id="@+id/btn_pin_2"
+            style="@style/AppTheme.Widget.Tv.Button"
+            android:layout_width="80dp"
+            android:layout_height="50dp"
+            android:layout_margin="4dp"
+            android:gravity="center"
+            android:text="2" />
+
+        <TextView
+            android:id="@+id/btn_pin_3"
+            style="@style/AppTheme.Widget.Tv.Button"
+            android:layout_width="80dp"
+            android:layout_height="50dp"
+            android:layout_margin="4dp"
+            android:gravity="center"
+            android:text="3" />
+
+        <TextView
+            android:id="@+id/btn_pin_4"
+            style="@style/AppTheme.Widget.Tv.Button"
+            android:layout_width="80dp"
+            android:layout_height="50dp"
+            android:layout_margin="4dp"
+            android:gravity="center"
+            android:text="4" />
+
+        <TextView
+            android:id="@+id/btn_pin_5"
+            style="@style/AppTheme.Widget.Tv.Button"
+            android:layout_width="80dp"
+            android:layout_height="50dp"
+            android:layout_margin="4dp"
+            android:gravity="center"
+            android:text="5" />
+
+        <TextView
+            android:id="@+id/btn_pin_6"
+            style="@style/AppTheme.Widget.Tv.Button"
+            android:layout_width="80dp"
+            android:layout_height="50dp"
+            android:layout_margin="4dp"
+            android:gravity="center"
+            android:text="6" />
+
+        <TextView
+            android:id="@+id/btn_pin_7"
+            style="@style/AppTheme.Widget.Tv.Button"
+            android:layout_width="80dp"
+            android:layout_height="50dp"
+            android:layout_margin="4dp"
+            android:gravity="center"
+            android:text="7" />
+
+        <TextView
+            android:id="@+id/btn_pin_8"
+            style="@style/AppTheme.Widget.Tv.Button"
+            android:layout_width="80dp"
+            android:layout_height="50dp"
+            android:layout_margin="4dp"
+            android:gravity="center"
+            android:text="8" />
+
+        <TextView
+            android:id="@+id/btn_pin_9"
+            style="@style/AppTheme.Widget.Tv.Button"
+            android:layout_width="80dp"
+            android:layout_height="50dp"
+            android:layout_margin="4dp"
+            android:gravity="center"
+            android:text="9" />
+
+        <TextView
+            android:id="@+id/btn_pin_clr"
+            style="@style/AppTheme.Widget.Tv.Button"
+            android:layout_width="80dp"
+            android:layout_height="50dp"
+            android:layout_margin="4dp"
+            android:gravity="center"
+            android:text="CLR"
+            android:textSize="12sp" />
+
+        <TextView
+            android:id="@+id/btn_pin_0"
+            style="@style/AppTheme.Widget.Tv.Button"
+            android:layout_width="80dp"
+            android:layout_height="50dp"
+            android:layout_margin="4dp"
+            android:gravity="center"
+            android:text="0" />
+
+        <TextView
+            android:id="@+id/btn_pin_ok"
+            style="@style/AppTheme.Widget.Tv.Button"
+            android:layout_width="80dp"
+            android:layout_height="50dp"
+            android:layout_margin="4dp"
+            android:gravity="center"
+            android:text="OK"
+            android:textSize="12sp" />
+
+    </GridLayout>
+
+    <TextView
+        android:id="@+id/tv_pin_error"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:gravity="center"
+        android:textColor="@color/netflix_red"
+        android:textSize="12sp"
+        android:visibility="invisible"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/gl_pin_grid"
+        tools:text="Invalid PIN"
+        tools:visibility="visible" />
+
+</androidx.constraintlayout.widget.ConstraintLayout>

@@ -30,6 +30,7 @@ import com.nexastream.app.utils.ProviderChangeNotifier
 import com.nexastream.app.utils.UserPreferences
 import com.nexastream.app.utils.dp
 import com.nexastream.app.utils.viewModelsFactory
+import com.google.android.material.tabs.TabLayout
 import kotlinx.coroutines.launch
 
 class HomeMobileFragment : Fragment() {
@@ -47,6 +48,7 @@ class HomeMobileFragment : Fragment() {
     }
 
     private val appAdapter = AppAdapter()
+    private var allCategories: List<Category> = emptyList()
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -60,13 +62,35 @@ class HomeMobileFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
+        androidx.core.view.ViewCompat.setOnApplyWindowInsetsListener(binding.root) { _, insets ->
+            val systemBars = insets.getInsets(androidx.core.view.WindowInsetsCompat.Type.systemBars())
+            binding.clHomeHeader.setPadding(0, systemBars.top, 0, 0)
+            insets
+        }
+
         initializeHome()
+
+        // Bind header controls
+        binding.ivSearch.setOnClickListener {
+            findNavController().navigate(R.id.search)
+        }
+        binding.ivChangeProvider.setOnClickListener {
+            findNavController().navigate(R.id.providers)
+        }
+        binding.ivSettings.setOnClickListener {
+            findNavController().navigate(R.id.settings)
+        }
+
+        updateProviderLogo()
 
         // Lightweight refresh when provider changes
         viewLifecycleOwner.lifecycleScope.launch {
             ProviderChangeNotifier.providerChangeFlow
                 .flowWithLifecycle(lifecycle, Lifecycle.State.STARTED)
-                .collect { viewModel.getHome() }
+                .collect { 
+                    viewModel.getHome()
+                    updateProviderLogo()
+                }
         }
 
         // Initial load
@@ -126,15 +150,154 @@ class HomeMobileFragment : Fragment() {
 
 
     private fun initializeHome() {
+        val tabs = binding.root.findViewById<TabLayout>(R.id.tl_home_tabs)
+        tabs?.apply {
+            if (tabCount == 0) {
+                val isIptv = UserPreferences.currentProvider is com.nexastream.app.providers.IptvProvider
+                if (!isIptv) {
+                    addTab(newTab().setText("Recommended"))
+                    addTab(newTab().setText("Movies"))
+                    addTab(newTab().setText("Series"))
+                    addTab(newTab().setText("Kids"))
+                    addTab(newTab().setText("Anime"))
+                } else {
+                    addTab(newTab().setText("All Live"))
+                }
+            }
+
+            addOnTabSelectedListener(object : TabLayout.OnTabSelectedListener {
+                override fun onTabSelected(tab: TabLayout.Tab?) {
+                    filterAndDisplayHome(tab?.position ?: 0)
+                }
+                override fun onTabUnselected(tab: TabLayout.Tab?) {}
+                override fun onTabReselected(tab: TabLayout.Tab?) {}
+            })
+        }
+
         binding.rvHome.apply {
             adapter = appAdapter.apply {
                 stateRestorationPolicy = RecyclerView.Adapter.StateRestorationPolicy.PREVENT_WHEN_EMPTY
                 onViewAllClickListener = { category ->
-                    if (category.name == "CDN Live Channels") {
+                    val (genreId, genreName) = when (category.name) {
+                        "CDN Live Channels", "Livestream" -> "cdn_all_channels" to "CDN Live TV"
+                        "Live Sports (CDN)" -> "cdn_sports" to "Live Sports"
+                        "Latest Movies" -> "latest_movies" to category.name
+                        "All Cinema", "At Cinema" -> "all_cinema" to category.name
+                        "New Season and Episode", "New Season & Episode" -> "new_season_tv" to category.name
+                        
+                        "Netflix Movies" -> "tmdb_watch_provider_movies_8" to category.name
+                        "Disney+ Movies" -> "tmdb_watch_provider_movies_337" to category.name
+                        "Paramount+ Movies" -> "tmdb_watch_provider_movies_531" to category.name
+                        
+                        "Netflix Series" -> "tmdb_network_tv_213" to category.name
+                        "Prime Video Series" -> "tmdb_network_tv_1024" to category.name
+                        "Disney+ Series" -> "tmdb_network_tv_2739" to category.name
+                        "Max Series" -> "tmdb_network_tv_49" to category.name
+                        "Paramount+ Series" -> "tmdb_network_tv_4330" to category.name
+                        "Apple TV Series" -> "tmdb_network_tv_2552" to category.name
+                        "Hulu Series" -> "tmdb_network_tv_453" to category.name
+
+                        "Action Movies" -> "tmdb_movies_genre_28" to category.name
+                        "Crime Movies" -> "tmdb_movies_genre_80" to category.name
+                        "Drama Movies" -> "tmdb_movies_genre_18" to category.name
+                        "Adventure Movies" -> "tmdb_movies_genre_12" to category.name
+                        "Comedy Movies" -> "tmdb_movies_genre_35" to category.name
+                        "Thriller Movies" -> "tmdb_movies_genre_53" to category.name
+                        "Romance Movies" -> "tmdb_movies_genre_10749" to category.name
+                        "Sci-Fi Movies" -> "tmdb_movies_genre_878" to category.name
+                        "Documentary Movies" -> "tmdb_movies_genre_99" to category.name
+                        "Horror Movies" -> "tmdb_movies_genre_27" to category.name
+                        "Fantasy Movies" -> "tmdb_movies_genre_14" to category.name
+                        "Family Movies" -> "tmdb_movies_genre_10751" to category.name
+                        "History Movies" -> "tmdb_movies_genre_36" to category.name
+                        "Mystery Movies" -> "tmdb_movies_genre_9648" to category.name
+                        "War Movies" -> "tmdb_movies_genre_10752" to category.name
+                        "Western Movies" -> "tmdb_movies_genre_37" to category.name
+                        "Teen Romance Movies" -> "teen_romance_movies" to category.name
+                        "Biography Movies" -> "biography_movies" to category.name
+                        "Sport Movies" -> "sport_movies" to category.name
+                        "All Movies", "Top Movies" -> "tmdb_movies_popular" to category.name
+                        "Trending Movies" -> "tmdb_movies_popular" to category.name
+
+                        "Action & Adventure Series" -> "tmdb_tv_genre_10759" to category.name
+                        "Comedy Series" -> "tmdb_tv_genre_35" to category.name
+                        "Crime Series" -> "tmdb_tv_genre_80" to category.name
+                        "Documentary Series" -> "tmdb_tv_genre_99" to category.name
+                        "Drama Series" -> "tmdb_tv_genre_18" to category.name
+                        "Family Series" -> "tmdb_tv_genre_10751" to category.name
+                        "Sci-Fi & Fantasy Series" -> "tmdb_tv_genre_10765" to category.name
+                        "History Series" -> "tmdb_tv_genre_36" to category.name
+                        "Horror Series" -> "tmdb_tv_genre_27" to category.name
+                        "Mystery Series" -> "tmdb_tv_genre_9648" to category.name
+                        "Romance Series" -> "tmdb_tv_genre_10749" to category.name
+                        "Thriller Series" -> "tmdb_tv_genre_53" to category.name
+                        "War & Politics Series" -> "tmdb_tv_genre_10768" to category.name
+                        "Reality TV" -> "tmdb_tv_genre_10764" to category.name
+                        "Western Series" -> "tmdb_tv_genre_37" to category.name
+                        "Teen Romance Series", "Teen Romance", "Trending Teen Romance" -> "teen_romance_series" to category.name
+                        "Biography Series" -> "biography_series" to category.name
+                        "Sport Series" -> "sport_series" to category.name
+                        "Musical Series" -> "search_Musical Series" to category.name
+                        "All TV Shows", "Top TV Shows" -> "tmdb_tv_popular" to category.name
+                        "Trending Series" -> "tmdb_tv_popular" to category.name
+
+                        "Kids & Family", "Kids" -> "tmdb_kids_family" to category.name
+                        "Cartoon Movies" -> "tmdb_cartoon_movies" to category.name
+                        "Cartoon Series" -> "tmdb_cartoon_series" to category.name
+                        "Baby" -> "tmdb_keyword_10229" to category.name
+                        "Age 2-6" -> "tmdb_kids_family" to category.name
+                        "Pixar" -> "tmdb_studio_3" to category.name
+                        "DreamWorks" -> "tmdb_studio_521" to category.name
+                        "Blue Sky Studios" -> "tmdb_studio_10378" to category.name
+                        "Illumination" -> "tmdb_studio_6704" to category.name
+                        "Toys" -> "tmdb_keyword_11134" to category.name
+                        "Kung Fu Panda" -> "search_Kung Fu Panda" to category.name
+                        "Cars" -> "search_Cars" to category.name
+                        "Frozen" -> "search_Frozen" to category.name
+                        "Minions" -> "search_Minions" to category.name
+                        "Peppa Pig" -> "search_Peppa Pig" to category.name
+
+                        "Anime Universe", "Anime" -> "tmdb_anime_universe" to category.name
+                        "Anime Movies" -> "tmdb_cartoon_movies" to category.name
+                        "Japanese Anime" -> "tmdb_japanese_anime" to category.name
+                        "European & American Anime" -> "tmdb_western_anime" to category.name
+                        "Age 7-12" -> "tmdb_anime_age_7_12" to category.name
+                        "Dragon Ball" -> "search_Dragon Ball" to category.name
+                        "Naruto" -> "search_Naruto" to category.name
+                        "One Piece" -> "search_One Piece" to category.name
+
+                        "Movies Banner" -> "tmdb_movies_popular" to "Movies"
+                        "Series Banner" -> "tmdb_tv_popular" to "Series"
+                        "Kids Banner" -> "tmdb_kids_family" to "Kids & Family"
+                        "Anime Banner" -> "tmdb_anime_universe" to "Anime Universe"
+                        "Trending Today" -> "tmdb_movies_popular" to "Trending"
+
+                        else -> {
+                            val name = category.name
+                            when {
+                                name.startsWith("Popular on") || name.startsWith("Popolari su") -> {
+                                    val platform = name.substringAfter("on ").substringAfter("su ").trim()
+                                    val providerId = when (platform) {
+                                        "Netflix" -> 8
+                                        "Disney+" -> 337
+                                        "Hulu" -> 15
+                                        "HBO" -> 384
+                                        "Apple TV+" -> 350
+                                        "Amazon" -> 10
+                                        else -> 0
+                                    }
+                                    if (providerId != 0) "tmdb_watch_provider_movies_$providerId" to name else "" to name
+                                }
+                                else -> "" to name
+                            }
+                        }
+                    }
+                    
+                    if (genreId.isNotEmpty()) {
                         findNavController().navigate(
                             HomeMobileFragmentDirections.actionHomeToGenre(
-                                id = "cdn_all_channels",
-                                name = "CDN Live TV"
+                                id = genreId,
+                                name = genreName
                             )
                         )
                     }
@@ -144,74 +307,143 @@ class HomeMobileFragment : Fragment() {
                 SpacingItemDecoration(20.dp(requireContext()))
             )
         }
-
-        binding.ivProviderLogo.apply {
-            Glide.with(context)
-                .load(UserPreferences.currentProvider?.logo?.takeIf { it.isNotEmpty() }
-                    ?: R.drawable.ic_provider_default_logo)
-                .error(R.drawable.ic_provider_default_logo)
-                .fitCenter()
-                .into(this)
-
-            setOnClickListener {
-                findNavController().navigate(R.id.providers)
-            }
-        }
         
         // Ensure background image is hidden on mobile to show theme color
         binding.ivHomeBackground.visibility = View.GONE
     }
 
     private fun displayHome(categories: List<Category>) {
-        categories
-            .find { it.name == Category.FEATURED }
-            ?.also {
-                it.list.forEach { show ->
-                    when (show) {
-                        is Movie -> show.itemType = AppAdapter.Type.MOVIE_SWIPER_MOBILE_ITEM
-                        is TvShow -> show.itemType = AppAdapter.Type.TV_SHOW_SWIPER_MOBILE_ITEM
-                    }
+        this.allCategories = categories
+        val tabs = binding.root.findViewById<TabLayout>(R.id.tl_home_tabs)
+        tabs?.apply {
+            val isIptv = UserPreferences.currentProvider is com.nexastream.app.providers.IptvProvider
+            val currentTabText = if (tabCount > 0) getTabAt(0)?.text?.toString() else null
+            
+            val needsRebuild = if (isIptv) {
+                currentTabText == "Recommended" || tabCount != categories.size + 1
+            } else {
+                currentTabText == "All Live" || tabCount != 5
+            }
+            
+            if (needsRebuild) {
+                removeAllTabs()
+                if (isIptv) {
+                    addTab(newTab().setText("All Live"))
+                    categories.forEach { addTab(newTab().setText(it.name)) }
+                } else {
+                    addTab(newTab().setText("Recommended"))
+                    addTab(newTab().setText("Movies"))
+                    addTab(newTab().setText("Series"))
+                    addTab(newTab().setText("Kids"))
+                    addTab(newTab().setText("Anime"))
                 }
             }
+        }
+        filterAndDisplayHome(tabs?.selectedTabPosition ?: 0)
+    }
 
-        categories
-            .find { it.name == Category.CONTINUE_WATCHING }
-            ?.also {
-                it.name = getString(R.string.home_continue_watching)
-                it.list.forEach { show ->
-                    when (show) {
-                        is Episode -> show.itemType = AppAdapter.Type.EPISODE_CONTINUE_WATCHING_MOBILE_ITEM
-                        is Movie -> show.itemType = AppAdapter.Type.MOVIE_CONTINUE_WATCHING_MOBILE_ITEM
-                    }
+    private fun updateProviderLogo() {
+        val providerLogo = UserPreferences.currentProvider?.logo
+        Glide.with(this)
+            .load(providerLogo?.takeIf { it.isNotEmpty() } ?: R.drawable.ic_provider_default_logo)
+            .error(R.drawable.ic_provider_default_logo)
+            .fitCenter()
+            .into(binding.ivProviderLogo)
+    }
+
+    private fun filterAndDisplayHome(tabIndex: Int) {
+        val isIptv = UserPreferences.currentProvider is com.nexastream.app.providers.IptvProvider
+
+        val filtered = if (isIptv) {
+            if (tabIndex == 0) {
+                allCategories
+            } else {
+                val selectedCategory = allCategories.getOrNull(tabIndex - 1)
+                if (selectedCategory != null) listOf(selectedCategory) else emptyList()
+            }
+        } else {
+            val kidsCategories = listOf(
+                "Kids Banner", "Kids & Family", "Cartoon Movies", "Cartoon Series",
+                "Baby", "Age 2-6", "Pixar", "DreamWorks", "Blue Sky Studios",
+                "Illumination", "Toys", "Kung Fu Panda", "Cars", "Frozen", "Minions", "Peppa Pig"
+            )
+            val animeCategories = listOf(
+                "Anime Banner", "Anime Universe", "Anime Movies", "Japanese Anime",
+                "European & American Anime", "Age 7-12", "Dragon Ball", "Naruto", "One Piece"
+            )
+            val moviesCategories = listOf(
+                "Movies Banner", "Trending Movies", "Top Rated Movies", "Upcoming Movies",
+                "Latest Movies", "All Cinema", "Netflix Movies", "Disney+ Movies", "Paramount+ Movies",
+                "Action Movies", "Crime Movies", "Drama Movies", "Adventure Movies", "Comedy Movies",
+                "Thriller Movies", "Romance Movies", "Sci-Fi Movies", "Documentary Movies",
+                "Horror Movies", "Fantasy Movies", "Family Movies", "History Movies",
+                "Mystery Movies", "War Movies", "Biography Movies", "Sport Movies", "Western Movies", "Teen Romance Movies",
+                "All Movies", "Top Movies", "At Cinema"
+            )
+            val seriesCategories = listOf(
+                "Series Banner", "Trending Series", "Top Rated TV Shows",
+                "New Season and Episode", "Netflix Series", "Prime Video Series", "Disney+ Series",
+                "Max Series", "Paramount+ Series", "Apple TV Series", "Hulu Series",
+                "Action & Adventure Series", "Comedy Series", "Crime Series", "Teen Romance Series",
+                "Documentary Series", "Drama Series", "Family Series", "Sci-Fi & Fantasy Series",
+                "History Series", "Horror Series", "Mystery Series", "Romance Series",
+                "Thriller Series", "War & Politics Series", "Biography Series", "Reality TV", "Sport Series", "Western Series",
+                "All TV Shows", "Top TV Shows", "New Season & Episode", "Teen Romance", "Musical Series"
+            )
+
+            when (tabIndex) {
+                1 -> allCategories.filter { it.name in moviesCategories }
+                2 -> allCategories.filter { it.name in seriesCategories }
+                3 -> allCategories.filter { it.name in kidsCategories }
+                4 -> allCategories.filter { it.name in animeCategories }
+                else -> allCategories.filter { 
+                    (it.name !in moviesCategories &&
+                    it.name !in seriesCategories &&
+                    it.name !in kidsCategories &&
+                    it.name !in animeCategories) || it.name == "Teen Romance"
                 }
             }
-
-        categories
-            .find { it.name == Category.FAVORITE_MOVIES }
-            ?.also { it.name = getString(R.string.home_favorite_movies) }
-
-        categories
-            .find { it.name == Category.FAVORITE_TV_SHOWS }
-            ?.also { it.name = getString(R.string.home_favorite_tv_shows) }
+        }
 
         appAdapter.submitList(
-            categories
+            filtered
                 .filter { it.list.isNotEmpty() }
-                .onEach { category ->
-                    if (category.name != Category.FEATURED && category.name != getString(R.string.home_continue_watching)) {
-                        category.list.onEach { show ->
+                .mapIndexed { index, category ->
+                    val isSwiper = index == 0 && UserPreferences.currentProvider !is com.nexastream.app.providers.IptvProvider // First item in each tab is always a swiper banner unless it's an IPTV provider
+                    
+                    val itemsToProcess = if (isSwiper) category.list.take(4) else category.list
+                    val clonedList = itemsToProcess.map { show ->
+                        if (isSwiper) {
                             when (show) {
-                                is Episode -> show.itemType = AppAdapter.Type.EPISODE_MOBILE_ITEM
-                                is Movie -> show.itemType = AppAdapter.Type.MOVIE_MOBILE_ITEM
-                                is TvShow -> show.itemType = AppAdapter.Type.TV_SHOW_MOBILE_ITEM
-                                is SportMatch -> show.itemType = AppAdapter.Type.SPORT_MATCH_ITEM
+                                is Movie -> show.copy().apply { itemType = AppAdapter.Type.MOVIE_SWIPER_MOBILE_ITEM }
+                                is TvShow -> show.copy().apply { itemType = AppAdapter.Type.TV_SHOW_SWIPER_MOBILE_ITEM }
+                                else -> show
+                            }
+                        } else if (category.name == "Livestream") {
+                            when (show) {
+                                is TvShow -> show.copy().apply { itemType = AppAdapter.Type.LIVESTREAM_MOBILE_ITEM }
+                                else -> show
+                            }
+                        } else if (category.name == getString(R.string.home_continue_watching)) {
+                            when (show) {
+                                is Episode -> show.copy().apply { itemType = AppAdapter.Type.EPISODE_CONTINUE_WATCHING_MOBILE_ITEM }
+                                is Movie -> show.copy().apply { itemType = AppAdapter.Type.MOVIE_CONTINUE_WATCHING_MOBILE_ITEM }
+                                else -> show
+                            }
+                        } else {
+                            when (show) {
+                                is Episode -> show.copy().apply { itemType = AppAdapter.Type.EPISODE_MOBILE_ITEM }
+                                is Movie -> show.copy().apply { itemType = AppAdapter.Type.MOVIE_MOBILE_ITEM }
+                                is TvShow -> show.copy().apply { itemType = AppAdapter.Type.TV_SHOW_MOBILE_ITEM }
+                                is SportMatch -> (show as? SportMatch)?.copy()?.apply { itemType = AppAdapter.Type.SPORT_MATCH_ITEM } ?: show
+                                else -> show
                             }
                         }
                     }
-                    category.itemSpacing = 10.dp(requireContext())
-                    category.itemType = when (category.name) {
-                        Category.FEATURED -> AppAdapter.Type.CATEGORY_MOBILE_SWIPER
-                        else -> AppAdapter.Type.CATEGORY_MOBILE_ITEM
+
+                    category.copy(list = clonedList).apply {
+                        itemSpacing = 10.dp(requireContext())
+                        itemType = if (isSwiper) AppAdapter.Type.CATEGORY_MOBILE_SWIPER else AppAdapter.Type.CATEGORY_MOBILE_ITEM
                     }
                 }
         )

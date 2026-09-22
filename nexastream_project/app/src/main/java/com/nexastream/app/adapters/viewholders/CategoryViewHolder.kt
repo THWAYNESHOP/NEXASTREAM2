@@ -29,6 +29,7 @@ import com.nexastream.app.ui.SpacingItemDecoration
 import com.nexastream.app.utils.format
 import com.nexastream.app.utils.getCurrentFragment
 import com.nexastream.app.utils.toActivity
+import com.bumptech.glide.Glide
 import java.util.Locale
 import com.nexastream.app.utils.UserPreferences
 import com.nexastream.app.providers.Provider
@@ -63,11 +64,29 @@ class CategoryViewHolder(
     ) {
         this.category = category
 
+        val isBanner = category.name.contains("Banner", ignoreCase = true) || 
+                       category.name == Category.FEATURED ||
+                       (::category.isInitialized && (category.itemType == AppAdapter.Type.CATEGORY_MOBILE_SWIPER || category.itemType == AppAdapter.Type.CATEGORY_TV_SWIPER))
+
         when (_binding) {
-            is ItemCategoryMobileBinding -> displayMobileItem(_binding, onMovieClick, onTvShowClick, onViewAllClick)
-            is ItemCategoryTvBinding -> displayTvItem(_binding, onMovieClick, onTvShowClick, onViewAllClick)
-            is ContentCategorySwiperMobileBinding -> displayMobileSwiper(_binding, onMovieClick, onTvShowClick)
-            is ContentCategorySwiperTvBinding -> displayTvSwiper(_binding)
+            is ItemCategoryMobileBinding -> {
+                displayMobileItem(_binding, onMovieClick, onTvShowClick, onViewAllClick)
+                _binding.tvCategoryTitle.visibility = if (isBanner) View.GONE else View.VISIBLE
+                _binding.tvCategoryViewAll.visibility = if (isBanner) View.GONE else _binding.tvCategoryViewAll.visibility
+            }
+            is ItemCategoryTvBinding -> {
+                displayTvItem(_binding, onMovieClick, onTvShowClick, onViewAllClick)
+                _binding.tvCategoryTitle.visibility = if (isBanner) View.GONE else View.VISIBLE
+                _binding.tvCategoryViewAll.visibility = if (isBanner) View.GONE else _binding.tvCategoryViewAll.visibility
+            }
+            is ContentCategorySwiperMobileBinding -> {
+                displayMobileSwiper(_binding, onMovieClick, onTvShowClick)
+                _binding.tvCategoryTitle.visibility = if (isBanner) View.GONE else View.VISIBLE
+            }
+            is ContentCategorySwiperTvBinding -> {
+                displayTvSwiper(_binding)
+                _binding.tvCategoryTitle.visibility = if (isBanner) View.GONE else View.VISIBLE
+            }
         }
     }
 
@@ -79,7 +98,7 @@ class CategoryViewHolder(
     ) {
         binding.tvCategoryTitle.text = category.name
         
-        if (onViewAllClick != null && category.name == "CDN Live Channels") {
+        if (onViewAllClick != null && category.list.isNotEmpty() && category.name != Category.FEATURED) {
             binding.tvCategoryViewAll.visibility = View.VISIBLE
             binding.tvCategoryViewAll.setOnClickListener { onViewAllClick(category) }
         } else {
@@ -106,19 +125,23 @@ class CategoryViewHolder(
         onViewAllClick: ((Category) -> Unit)?
     ) {
         binding.tvCategoryTitle.text = category.name
+        binding.tvCategoryTitle.visibility = if (category.name.contains("Banner", ignoreCase = true) || category.name == Category.FEATURED) View.GONE else View.VISIBLE
 
-        if (onViewAllClick != null && category.name == "CDN Live Channels") {
+        if (onViewAllClick != null && category.list.isNotEmpty() && category.name != Category.FEATURED) {
             binding.tvCategoryViewAll.visibility = View.VISIBLE
             binding.tvCategoryViewAll.setOnClickListener { onViewAllClick(category) }
         } else {
             binding.tvCategoryViewAll.visibility = View.GONE
         }
 
+        val parentAdapter = binding.root.parent?.let { (it as? RecyclerView)?.adapter as? AppAdapter }
+
         binding.hgvCategory.apply {
             setRowHeight(ViewGroup.LayoutParams.WRAP_CONTENT)
 
             val categoryAdapter = (adapter as? AppAdapter) ?: AppAdapter().also { adapter = it }
             categoryAdapter.apply {
+                this.isEditMode = parentAdapter?.isEditMode ?: false
                 this.onMovieClickListener = onMovieClick
                 this.onTvShowClickListener = onTvShowClick
                 submitList(category.list)
@@ -136,7 +159,6 @@ class CategoryViewHolder(
         onMovieClick: ((Movie) -> Unit)?,
         onTvShowClick: ((TvShow) -> Unit)?
     ) {
-        binding.tvCategoryTitle.text = category.name
         val handler = Handler(Looper.getMainLooper())
         handler.postDelayed(8_000) {
             binding.vpCategorySwiper.currentItem += 1
@@ -205,19 +227,11 @@ class CategoryViewHolder(
 
     private fun displayTvSwiper(binding: ContentCategorySwiperTvBinding) {
         binding.tvCategoryTitle.text = category.name
+        binding.tvCategoryTitle.visibility = if (category.name.contains("Banner", ignoreCase = true) || category.name == Category.FEATURED) View.GONE else View.VISIBLE
+        
         val selected = category.list.getOrNull(category.selectedIndex) as? Show ?: return
 
         fun checkProviderAndRun(show: Show, action: () -> Unit) {
-            val providerName = when(show){
-                is Movie -> show.providerName
-                is TvShow -> show.providerName
-            }
-
-            if (!providerName.isNullOrBlank() && providerName != UserPreferences.currentProvider?.name) {
-                Provider.providers.keys.find { it.name == providerName }?.let {
-                    UserPreferences.currentProvider = it
-                }
-            }
             action()
         }
         

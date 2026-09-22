@@ -13,6 +13,7 @@ import com.nexastream.app.databinding.ItemSettingMobileBinding
 import com.nexastream.app.databinding.ViewPlayerSettingsMobileBinding
 import com.nexastream.app.utils.dp
 import com.nexastream.app.utils.margin
+import com.nexastream.app.utils.UserPreferences
 
 class PlayerSettingsMobileView @JvmOverloads constructor(
     context: Context,
@@ -74,6 +75,8 @@ class PlayerSettingsMobileView @JvmOverloads constructor(
             Setting.KEEP_SCREEN_ON,
             Setting.EXTRA_BUFFERING,
             Setting.SOFTWARE_DECODER,
+            Setting.SECONDARY_SUBTITLES,
+            Setting.BILINGUAL,
             Setting.MANUAL_ZOOM -> displaySettings(Setting.MAIN)
             Setting.CAPTION_STYLE -> displaySettings(Setting.SUBTITLES)
             Setting.CAPTION_STYLE_FONT_COLOR,
@@ -127,6 +130,8 @@ class PlayerSettingsMobileView @JvmOverloads constructor(
                 Setting.EXTRA_BUFFERING -> context.getString(R.string.player_settings_extra_buffer_title)
                 Setting.SOFTWARE_DECODER -> context.getString(R.string.player_settings_software_decoder_title)
                 Setting.SERVERS -> context.getString(R.string.player_settings_servers_title)
+                Setting.SECONDARY_SUBTITLES -> context.getString(R.string.player_settings_secondary_subtitles_label)
+                Setting.BILINGUAL -> context.getString(R.string.player_settings_bilingual_label)
                 Setting.CAPTION_STYLE_MARGIN -> context.getString(R.string.player_settings_caption_style_margin_title)
                 Setting.GESTURES -> context.getString(R.string.player_settings_gestures_title)
                 Setting.KEEP_SCREEN_ON -> context.getString(R.string.player_settings_keep_screen_on_title)
@@ -160,6 +165,8 @@ class PlayerSettingsMobileView @JvmOverloads constructor(
             Setting.CAPTION_STYLE_MARGIN -> marginAdapter
             Setting.GESTURES -> gesturesAdapter
             Setting.KEEP_SCREEN_ON -> keepScreenOnAdapter
+            Setting.SECONDARY_SUBTITLES -> subtitlesAdapter
+            Setting.BILINGUAL -> settingsAdapter
             Setting.MANUAL_ZOOM -> settingsAdapter
         }
     }
@@ -215,6 +222,8 @@ class PlayerSettingsMobileView @JvmOverloads constructor(
                                 Settings.ExtraBuffering -> settingsView.displaySettings(Setting.EXTRA_BUFFERING)
                                 Settings.SoftwareDecoder -> settingsView.displaySettings(Setting.SOFTWARE_DECODER)
                                 Settings.Server -> settingsView.displaySettings(Setting.SERVERS)
+                                Settings.SecondarySubtitle -> settingsView.displaySettings(Setting.SECONDARY_SUBTITLES)
+                                Settings.Bilingual -> settingsView.displaySettings(Setting.BILINGUAL)
                                 Settings.Gestures -> settingsView.displaySettings(Setting.GESTURES)
                                 Settings.KeepScreenOn -> settingsView.displaySettings(Setting.KEEP_SCREEN_ON)
                                 Settings.ManualZoom -> {
@@ -242,7 +251,11 @@ class PlayerSettingsMobileView @JvmOverloads constructor(
 
                                 is Settings.Subtitle.None,
                                 is Settings.Subtitle.TextTrackInformation -> {
-                                    settingsView.onSubtitleSelected.invoke(item)
+                                    if (settingsView.currentSettings == Setting.SECONDARY_SUBTITLES) {
+                                        settingsView.onSecondarySubtitleSelected.invoke(item)
+                                    } else {
+                                        settingsView.onSubtitleSelected.invoke(item)
+                                    }
                                     settingsView.displaySettings(Setting.MAIN)
                                 }
 
@@ -377,6 +390,11 @@ class PlayerSettingsMobileView @JvmOverloads constructor(
                             settingsView.displaySettings(Setting.MAIN)
                         }
 
+                        is Settings.Bilingual -> {
+                            // Mobile doesn't support bilingual for now
+                            settingsView.displaySettings(Setting.MAIN)
+                        }
+
                         is Settings.Gestures -> {
                             when (item) {
                                 is Settings.Gestures.On -> com.nexastream.app.utils.UserPreferences.playerGestures = true
@@ -429,9 +447,11 @@ class PlayerSettingsMobileView @JvmOverloads constructor(
                         Settings.Speed -> R.drawable.ic_player_settings_playback_speed
                         Settings.ExtraBuffering -> R.drawable.ic_player_settings_extra_buffer
                         Settings.SoftwareDecoder -> R.drawable.ic_player_settings_extra_buffer
-                        Settings.Server -> R.drawable.ic_player_settings_servers
+                        Settings.Server -> if (Settings.Server.selected != null) R.drawable.ic_player_settings_servers else R.drawable.ic_player_settings_servers
+                        Settings.SecondarySubtitle -> if (UserPreferences.secondarySubtitle != null) R.drawable.ic_player_settings_subtitle_on else R.drawable.ic_player_settings_subtitle_off
                         Settings.Gestures -> R.drawable.ic_player_settings_gestures
                         Settings.KeepScreenOn -> R.drawable.ic_brightness
+                        Settings.Bilingual -> R.drawable.ic_player_settings_subtitle_on
                         Settings.ManualZoom -> R.drawable.exo_styled_controls_aspect_ratio
                     })
                 )
@@ -446,9 +466,11 @@ class PlayerSettingsMobileView @JvmOverloads constructor(
                         Settings.Speed -> context.getString(R.string.player_settings_speed_label)
                         Settings.ExtraBuffering -> context.getString(R.string.player_settings_extra_buffer_server_label)
                         Settings.SoftwareDecoder -> context.getString(R.string.player_settings_software_decoder_label)
+                        Settings.SecondarySubtitle -> context.getString(R.string.player_settings_secondary_subtitles_label)
                         Settings.Server -> context.getString(R.string.player_settings_servers_label)
                         Settings.Gestures -> context.getString(R.string.player_settings_gestures_title)
                         Settings.KeepScreenOn -> context.getString(R.string.player_settings_keep_screen_on_title)
+                        Settings.Bilingual -> context.getString(R.string.player_settings_bilingual_label)
                         Settings.ManualZoom -> context.getString(R.string.player_settings_manual_zoom_label)
                     }
 
@@ -561,6 +583,8 @@ class PlayerSettingsMobileView @JvmOverloads constructor(
                         Settings.SoftwareDecoder -> context.getString(Settings.SoftwareDecoder.selected.stringId)
                         Settings.Gestures -> context.getString(Settings.Gestures.selected.stringId)
                         Settings.KeepScreenOn -> context.getString(Settings.KeepScreenOn.selected.stringId)
+                        Settings.Bilingual -> context.getString(Settings.Bilingual.selected.stringId)
+                        Settings.SecondarySubtitle -> UserPreferences.secondarySubtitle ?: context.getString(R.string.player_settings_subtitles_off)
                         Settings.Server -> Settings.Server.selected?.name ?: ""
                         Settings.ManualZoom -> ""
                         else -> ""
@@ -615,11 +639,19 @@ class PlayerSettingsMobileView @JvmOverloads constructor(
 
                     is Settings.Subtitle -> when (item) {
                         is Settings.Subtitle.None -> when {
-                            item.isSelected -> View.VISIBLE
+                            if (settingsView.currentSettings == Setting.SECONDARY_SUBTITLES) {
+                                UserPreferences.secondarySubtitle == null
+                            } else {
+                                item.isSelected
+                            } -> View.VISIBLE
                             else -> View.GONE
                         }
                         is Settings.Subtitle.TextTrackInformation -> when {
-                            item.isSelected -> View.VISIBLE
+                            if (settingsView.currentSettings == Setting.SECONDARY_SUBTITLES) {
+                                UserPreferences.secondarySubtitle == (item.language ?: item.label).substringBefore(" ")
+                            } else {
+                                item.isSelected
+                            } -> View.VISIBLE
                             else -> View.GONE
                         }
                         else -> View.GONE
@@ -695,6 +727,11 @@ class PlayerSettingsMobileView @JvmOverloads constructor(
                         else -> View.GONE
                     }
 
+                    is Settings.Bilingual -> when {
+                        item.isSelected -> View.VISIBLE
+                        else -> View.GONE
+                    }
+
                     is Settings.Server -> when {
                         item.isSelected -> View.VISIBLE
                         else -> View.GONE
@@ -714,6 +751,8 @@ class PlayerSettingsMobileView @JvmOverloads constructor(
                             Settings.Speed,
                             Settings.ExtraBuffering,
                             Settings.SoftwareDecoder,
+                            Settings.SecondarySubtitle,
+                            Settings.Bilingual,
                             Settings.Gestures,
                             Settings.KeepScreenOn,
                             Settings.Server -> View.VISIBLE

@@ -1,6 +1,7 @@
 package com.nexastream.app.providers
 
 import com.nexastream.app.adapters.AppAdapter
+import com.nexastream.app.models.SearchFilters
 import com.nexastream.app.extractors.Extractor
 import com.nexastream.app.models.Category
 import com.nexastream.app.models.Episode
@@ -76,7 +77,7 @@ object DoramasflixProvider : Provider {
         }
     }
 
-    override suspend fun search(query: String, page: Int): List<AppAdapter.Item> {
+    override suspend fun search(query: String, page: Int, filters: SearchFilters?): List<AppAdapter.Item> {
         if (query.isBlank()) {
             return emptyList()
         }

@@ -13,6 +13,7 @@ import com.nexastream.app.models.Show
 import com.nexastream.app.models.TvShow
 import com.nexastream.app.models.Video
 import com.nexastream.app.providers.Provider
+import com.nexastream.app.models.SearchFilters
 import com.tanasi.retrofit_jsoup.converter.JsoupConverterFactory
 import okhttp3.FormBody
 import okhttp3.OkHttpClient
@@ -71,7 +72,7 @@ object ZeriunProvider : Provider {
         }
     }
 
-    override suspend fun search(query: String, page: Int): List<AppAdapter.Item> {
+    override suspend fun search(query: String, page: Int, filters: SearchFilters?): List<AppAdapter.Item> {
         if (query.isBlank()) {
             return buildGenreItems()
         }

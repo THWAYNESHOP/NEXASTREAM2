@@ -25,10 +25,18 @@ class NavigationSlideMenuView(
     lateinit var presenter: NavigationSlidePresenter
     private lateinit var menu: MenuBuilder
 
-    private val layoutParams = FrameLayout.LayoutParams(
-        ViewGroup.LayoutParams.MATCH_PARENT,
-        ViewGroup.LayoutParams.WRAP_CONTENT
-    )
+    private val layoutParams: LinearLayout.LayoutParams
+        get() = if (orientation == HORIZONTAL) {
+            LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+            )
+        } else {
+            LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            )
+        }
 
     var menuGravity: Int
         get() = layoutParams.gravity
@@ -40,21 +48,31 @@ class NavigationSlideMenuView(
         }
 
     var menuSpacing: Int
-        get() = dividerDrawable.intrinsicHeight
+        get() = if (orientation == HORIZONTAL) dividerDrawable.intrinsicWidth else dividerDrawable.intrinsicHeight
         set(value) {
             dividerDrawable = ShapeDrawable().apply {
                 alpha = 0
-                intrinsicHeight = value
+                if (orientation == HORIZONTAL) {
+                    intrinsicWidth = value
+                } else {
+                    intrinsicHeight = value
+                }
             }
             showDividers = SHOW_DIVIDER_MIDDLE
         }
 
 
     init {
-        orientation = VERTICAL
         setLayoutParams(layoutParams)
     }
 
+
+    override fun setOrientation(orientation: Int) {
+        if (this.orientation != orientation) {
+            super.setOrientation(orientation)
+            setLayoutParams(layoutParams)
+        }
+    }
 
     override fun initialize(menu: MenuBuilder) {
         this.menu = menu
@@ -81,6 +99,7 @@ class NavigationSlideMenuView(
 
             child.initialize(item as MenuItemImpl, 0)
             child.itemPosition = i
+            child.setOrientation(orientation)
 
             addView(child)
         }
@@ -108,6 +127,7 @@ class NavigationSlideMenuView(
         childs.forEachIndexed { i, child ->
             presenter.updateSuspended = true
             child.initialize((menu.getItem(i) as MenuItemImpl), 0)
+            child.setOrientation(orientation)
             presenter.updateSuspended = false
         }
 

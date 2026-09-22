@@ -37,6 +37,7 @@ import com.nexastream.app.ui.components.MoviePoster
 import com.nexastream.app.utils.DownloadQualityFormatter
 import com.nexastream.app.utils.format
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DetailScreen(
     onPlayClick: (String) -> Unit,
@@ -46,48 +47,170 @@ fun DetailScreen(
     val uiState by viewModel.uiState.collectAsState()
     var showDownloadDialog by remember { mutableStateOf(false) }
     var selectedVideoType by remember { mutableStateOf<Video.Type?>(null) }
+    var selectedResolution by remember(uiState.servers) { mutableStateOf("") }
 
     if (showDownloadDialog) {
-        AlertDialog(
+        val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+        val context = androidx.compose.ui.platform.LocalContext.current
+        
+        LaunchedEffect(selectedVideoType) {
+            selectedVideoType?.let { type ->
+                val downloadId = when (type) {
+                    is Video.Type.Movie -> type.id
+                    is Video.Type.Episode -> type.id
+                }
+                viewModel.loadServers(downloadId, type)
+            }
+        }
+
+        ModalBottomSheet(
             onDismissRequest = { showDownloadDialog = false },
-            title = { Text(stringResource(id = R.string.detail_download_quality_title)) },
-            text = {
-                Column {
-                    LaunchedEffect(selectedVideoType) {
-                        selectedVideoType?.let { type ->
-                            val downloadId = when (type) {
-                                is Video.Type.Movie -> type.id
-                                is Video.Type.Episode -> type.id
-                            }
-                            viewModel.loadServers(downloadId, type)
+            sheetState = sheetState,
+            containerColor = Color(0xFF141416),
+            scrimColor = Color.Black.copy(alpha = 0.7f)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp)
+                    .padding(bottom = 24.dp)
+            ) {
+                Text(
+                    text = stringResource(id = R.string.detail_download_quality_title),
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp,
+                    modifier = Modifier.padding(bottom = 12.dp)
+                )
+
+                if (uiState.servers.isEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(150.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CircularProgressIndicator(color = Color.Red)
+                    }
+                } else {
+                    val resolutions = uiState.servers.map { server ->
+                        val text = "${server.name} ${server.src} ${server.video?.source.orEmpty()}".lowercase()
+                        val numeric = Regex("""(?<!\d)(2160|1440|1080|720|576|540|480|360|240)p?(?!\d)""").find(text)?.groupValues?.getOrNull(1)
+                        when {
+                            numeric != null -> "${numeric}p"
+                            text.contains("4k") || text.contains("uhd") -> "2160p"
+                            text.contains("full hd") || text.contains("fhd") -> "1080p"
+                            text.contains("hd") -> "720p"
+                            text.contains("sd") -> "480p"
+                            text.contains("cam") -> "CAM"
+                            else -> "720p"
                         }
+                    }.distinct().sortedByDescending { 
+                        it.substringBefore("p").toIntOrNull() ?: 0 
                     }
 
-                    if (uiState.servers.isEmpty()) {
-                        CircularProgressIndicator(color = Color.Red)
+                    val activeResolution = if (selectedResolution.isNotBlank() && selectedResolution in resolutions) {
+                        selectedResolution
                     } else {
-                        uiState.servers.forEach { server ->
-                            val details = DownloadQualityFormatter.details(server)
-                            ListItem(
-                                headlineContent = { Text(DownloadQualityFormatter.title(server)) },
-                                supportingContent = {
-                                    if (details.isNotBlank()) {
-                                        Text(details)
-                                    }
-                                },
-                                modifier = Modifier.clickable {
-                                    selectedVideoType?.let { viewModel.startDownload(server, it) }
-                                    showDownloadDialog = false
-                                }
+                        resolutions.firstOrNull() ?: ""
+                    }
+
+                    LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 8.dp)
+                    ) {
+                        items(resolutions) { res ->
+                            val isSelected = res == activeResolution
+                            FilterChip(
+                                selected = isSelected,
+                                onClick = { selectedResolution = res },
+                                label = { Text(res, fontWeight = FontWeight.Bold) },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    containerColor = Color(0xFF222225),
+                                    labelColor = Color.Gray,
+                                    selectedContainerColor = Color(0xFFE50914),
+                                    selectedLabelColor = Color.White
+                                ),
+                                border = null
                             )
                         }
                     }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    val filteredServers = uiState.servers.filter { server ->
+                        val text = "${server.name} ${server.src} ${server.video?.source.orEmpty()}".lowercase()
+                        val numeric = Regex("""(?<!\d)(2160|1440|1080|720|576|540|480|360|240)p?(?!\d)""").find(text)?.groupValues?.getOrNull(1)
+                        val res = when {
+                            numeric != null -> "${numeric}p"
+                            text.contains("4k") || text.contains("uhd") -> "2160p"
+                            text.contains("full hd") || text.contains("fhd") -> "1080p"
+                            text.contains("hd") -> "720p"
+                            text.contains("sd") -> "480p"
+                            text.contains("cam") -> "CAM"
+                            else -> "720p"
+                        }
+                        res == activeResolution
+                    }
+
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 350.dp)
+                    ) {
+                        items(filteredServers) { server ->
+                            val rawDetails = DownloadQualityFormatter.details(server)
+                            val details = rawDetails.split(" - ")
+                                .filter { it != "Unknown format" && it != "Offline support unknown" }
+                                .joinToString(" - ")
+
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 4.dp)
+                                    .clickable {
+                                        selectedVideoType?.let { viewModel.startDownload(server, it) }
+                                        showDownloadDialog = false
+                                    },
+                                colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E22)),
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(16.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Download,
+                                        contentDescription = null,
+                                        tint = Color(0xFFE50914),
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(12.dp))
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = DownloadQualityFormatter.title(server),
+                                            color = Color.White,
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 14.sp
+                                        )
+                                        if (details.isNotBlank()) {
+                                            Spacer(modifier = Modifier.height(2.dp))
+                                            Text(
+                                                text = details,
+                                                color = Color.Gray,
+                                                fontSize = 12.sp
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
-            },
-            confirmButton = {
-                TextButton(onClick = { showDownloadDialog = false }) { Text(stringResource(id = R.string.option_cancel)) }
             }
-        )
+        }
     }
 
     Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {

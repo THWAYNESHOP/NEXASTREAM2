@@ -4,6 +4,7 @@ import android.util.Log
 import com.google.gson.annotations.SerializedName
 import com.tanasi.retrofit_jsoup.converter.JsoupConverterFactory
 import com.nexastream.app.adapters.AppAdapter
+import com.nexastream.app.models.SearchFilters
 import com.nexastream.app.extractors.VixcloudExtractor
 import com.nexastream.app.models.Category
 import com.nexastream.app.models.Episode
@@ -297,7 +298,7 @@ class StreamingCommunityProvider(private val _language: String? = null) : Provid
             .distinctBy { it.name.lowercase().trim() }
     }
 
-    override suspend fun search(query: String, page: Int): List<AppAdapter.Item> {
+    override suspend fun search(query: String, page: Int, filters: SearchFilters?): List<AppAdapter.Item> {
         if (query.isEmpty()) {
             val currentVersion = ensureVersion()
             val res = try {

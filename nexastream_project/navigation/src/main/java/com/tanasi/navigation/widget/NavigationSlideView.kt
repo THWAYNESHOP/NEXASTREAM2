@@ -6,7 +6,7 @@ import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.MenuInflater
 import android.view.MenuItem
-import android.widget.FrameLayout
+import android.widget.LinearLayout
 import androidx.annotation.LayoutRes
 import androidx.appcompat.view.SupportMenuInflater
 import androidx.appcompat.view.menu.MenuBuilder
@@ -17,17 +17,22 @@ class NavigationSlideView @JvmOverloads constructor(
     context: Context,
     attrs: AttributeSet? = null,
     defStyle: Int = 0,
-) : FrameLayout(context, attrs, defStyle) {
+) : LinearLayout(context, attrs, defStyle) {
 
     val menu = NavigationSlideMenu(context)
     var headerView: NavigationSlideHeaderView? = null
-    val menuView = NavigationSlideMenuView(context).also {
-        it.navigationSlideView = this
-    }
+    private var _menuView: NavigationSlideMenuView? = null
+    val menuView: NavigationSlideMenuView
+        get() = _menuView!!
     private val presenter = NavigationSlidePresenter()
     private val menuInflater: MenuInflater = SupportMenuInflater(context)
 
     var isOpen = true
+
+    override fun setOrientation(orientation: Int) {
+        super.setOrientation(orientation)
+        _menuView?.orientation = orientation
+    }
 
     private var selectedListener: ((item: MenuItem) -> Boolean)? = null
     private var reselectedListener: ((item: MenuItem) -> Boolean)? = null
@@ -66,6 +71,10 @@ class NavigationSlideView @JvmOverloads constructor(
 
 
     init {
+        _menuView = NavigationSlideMenuView(context).also {
+            it.navigationSlideView = this
+        }
+
         val attributes = context.theme.obtainStyledAttributes(
             attrs,
             R.styleable.NavigationSlideView,
@@ -94,6 +103,11 @@ class NavigationSlideView @JvmOverloads constructor(
         menuSpacing = attributes.getDimensionPixelSize(
             R.styleable.NavigationSlideView_menuSpacing,
             DEFAULT_MENU_SPACING
+        )
+
+        orientation = attributes.getInt(
+            R.styleable.NavigationSlideView_android_orientation,
+            VERTICAL
         )
 
         inflateMenu(attributes.getResourceIdOrThrow(R.styleable.NavigationSlideView_menu))

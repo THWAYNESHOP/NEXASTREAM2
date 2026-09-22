@@ -29,7 +29,8 @@ class Converters {
 
     @TypeConverter
     fun toTvShow(value: String?): TvShow? {
-        return value?.let { TvShow(it, "") }
+        if (value.isNullOrBlank()) return null
+        return TvShow(id = value, title = "")
     }
 
 
@@ -40,7 +41,8 @@ class Converters {
 
     @TypeConverter
     fun toSeason(value: String?): Season? {
-        return value?.let { Season(it, 0) }
+        if (value.isNullOrBlank()) return null
+        return Season(id = value, number = 0)
     }
 
     @TypeConverter

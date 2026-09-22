@@ -15,7 +15,8 @@ data class SportMatch(
     val sport: String,
     var poster: String? = null,
     val date: Long? = null,
-    val sources: List<MatchSource> = emptyList()
+    val sources: List<MatchSource> = emptyList(),
+    override var isSelected: Boolean = false
 ) : AppAdapter.Item, Serializable {
     override lateinit var itemType: AppAdapter.Type
 

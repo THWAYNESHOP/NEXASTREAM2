@@ -9,6 +9,12 @@
         app:showAsAction="ifRoom" />
 
     <item
+        android:id="@+id/change_provider"
+        android:icon="@drawable/ic_provider_default_logo"
+        android:title="Change Provider"
+        app:showAsAction="ifRoom" />
+
+    <item
         android:id="@+id/settings"
         android:icon="@drawable/ic_menu_settings"
         android:title="@string/main_menu_settings"

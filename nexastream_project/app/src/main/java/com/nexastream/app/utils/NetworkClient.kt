@@ -134,8 +134,8 @@ object NetworkClient {
                 chain.proceed(requestBuilder.build())
             }
             .cookieJar(cookieJar)
-            .connectTimeout(30, TimeUnit.SECONDS)
-            .readTimeout(30, TimeUnit.SECONDS)
+            .connectTimeout(10, TimeUnit.SECONDS)
+            .readTimeout(15, TimeUnit.SECONDS)
             .dns(dns)
 
         // Modern and compatible TLS configuration

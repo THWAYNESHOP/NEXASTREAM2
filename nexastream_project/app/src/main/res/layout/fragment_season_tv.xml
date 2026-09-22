@@ -6,6 +6,18 @@
     android:layout_height="match_parent"
     tools:context=".fragments.season.SeasonTvFragment">
 
+    <ImageView
+        android:id="@+id/iv_season_background"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:scaleType="centerCrop"
+        android:alpha="0.2"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        tools:ignore="ContentDescription" />
+
     <TextView
         android:id="@+id/tv_season_title"
         android:layout_width="wrap_content"
@@ -19,8 +31,8 @@
         app:layout_constraintTop_toTopOf="parent"
         tools:text="Season #" />
 
-    <androidx.leanback.widget.HorizontalGridView
-        android:id="@+id/hgv_episodes"
+    <androidx.leanback.widget.VerticalGridView
+        android:id="@+id/vgv_episodes"
         android:layout_width="0dp"
         android:layout_height="0dp"
         android:layout_marginTop="30dp"
@@ -34,7 +46,7 @@
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@id/tv_season_title"
-        tools:listitem="@layout/item_episode_tv" />
+        tools:listitem="@layout/item_episode_tv_grid" />
 
     <include
         android:id="@+id/is_loading"

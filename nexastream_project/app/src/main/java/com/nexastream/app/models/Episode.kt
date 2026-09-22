@@ -56,6 +56,9 @@ class Episode(
     @Ignore
     override lateinit var itemType: AppAdapter.Type
 
+    @Ignore
+    override var isSelected: Boolean = false
+
     fun copy(
         id: String = this.id,
         number: Int = this.number,
@@ -91,6 +94,7 @@ class Episode(
         if (isWatched != other.isWatched) return false
         if (watchedDate != other.watchedDate) return false
         if (watchHistory != other.watchHistory) return false
+        if (isSelected != other.isSelected) return false
         if (!::itemType.isInitialized || !other::itemType.isInitialized) return false
         return itemType == other.itemType
     }
@@ -105,6 +109,7 @@ class Episode(
         result = 31 * result + isWatched.hashCode()
         result = 31 * result + (watchedDate?.hashCode() ?: 0)
         result = 31 * result + (watchHistory?.hashCode() ?: 0)
+        result = 31 * result + isSelected.hashCode()
         result = 31 * result + (if (::itemType.isInitialized) itemType.hashCode() else 0)
         return result
     }

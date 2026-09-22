@@ -34,6 +34,8 @@ class LiveGuideViewModel : ViewModel() {
         val mappingChannelId: String? = null,
         val mappingCandidates: List<XmlTvChannel> = emptyList(),
         val mappingLoading: Boolean = false,
+        val focusedProgram: EpgProgram? = null,
+        val focusedChannel: TvShow? = null,
         val loading: Boolean = true,
         val refreshing: Boolean = false,
         val error: String? = null,
@@ -155,6 +157,10 @@ class LiveGuideViewModel : ViewModel() {
         viewModelScope.launch(Dispatchers.IO) { LiveTvRepository.clearDiagnostics() }
     }
 
+    fun setFocusedProgram(program: EpgProgram?, channel: TvShow?) {
+        _state.update { it.copy(focusedProgram = program, focusedChannel = channel) }
+    }
+
     private fun loadChannels() {
         viewModelScope.launch(Dispatchers.IO) {
             runCatching { IptvOrgProvider.getGuideChannels() }
@@ -176,7 +182,7 @@ class LiveGuideViewModel : ViewModel() {
             LiveTvRepository.observePrograms(
                 channelIds = ids,
                 startMillis = now - 6 * 60 * 60 * 1000L,
-                endMillis = now + 48 * 60 * 60 * 1000L,
+                endMillis = now + 18 * 60 * 60 * 1000L, // Reduced to 18 hours window
             ).collect { programs ->
                 _state.update { it.copy(programs = programs) }
             }

@@ -72,6 +72,9 @@ class Movie(
     @Ignore
     override lateinit var itemType: AppAdapter.Type
 
+    @Ignore
+    override var isSelected: Boolean = false
+
 
     fun copy(
         id: String = this.id,
@@ -108,7 +111,9 @@ class Movie(
         cast = cast,
         recommendations = recommendations,
         isFavorite = isFavorite,
-    )
+    ).also {
+        if (::itemType.isInitialized) it.itemType = itemType
+    }
 
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
@@ -132,7 +137,7 @@ class Movie(
         if (recommendations != other.recommendations) return false
         if (isFavorite != other.isFavorite) return false
         if (released != other.released) return false
-        if (isFavorite != other.isFavorite) return false
+        if (isSelected != other.isSelected) return false
         if (favoritedAtMillis != other.favoritedAtMillis) return false
         if (isWatched != other.isWatched) return false
         if (watchedDate != other.watchedDate) return false
@@ -158,6 +163,7 @@ class Movie(
         result = 31 * result + recommendations.hashCode()
         result = 31 * result + (released?.hashCode() ?: 0)
         result = 31 * result + isFavorite.hashCode()
+        result = 31 * result + isSelected.hashCode()
         result = 31 * result + (favoritedAtMillis?.hashCode() ?: 0)
         result = 31 * result + isWatched.hashCode()
         result = 31 * result + (watchedDate?.hashCode() ?: 0)

@@ -21,6 +21,7 @@ class People(
     val deathday: Calendar? = deathday?.toCalendar()
 
     override lateinit var itemType: AppAdapter.Type
+    override var isSelected: Boolean = false
 
 
     fun copy(
@@ -41,7 +42,9 @@ class People(
         birthday,
         deathday,
         filmography,
-    )
+    ).also {
+        if (::itemType.isInitialized) it.itemType = itemType
+    }
 
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
@@ -57,6 +60,7 @@ class People(
         if (birthday != other.birthday) return false
         if (deathday != other.deathday) return false
         if (filmography != other.filmography) return false
+        if (isSelected != other.isSelected) return false
         if (!::itemType.isInitialized || !other::itemType.isInitialized) return false
         return itemType == other.itemType
     }
@@ -70,6 +74,7 @@ class People(
         result = 31 * result + (birthday?.hashCode() ?: 0)
         result = 31 * result + (deathday?.hashCode() ?: 0)
         result = 31 * result + filmography.hashCode()
+        result = 31 * result + isSelected.hashCode()
         result = 31 * result + (if (::itemType.isInitialized) itemType.hashCode() else 0)
         return result
     }

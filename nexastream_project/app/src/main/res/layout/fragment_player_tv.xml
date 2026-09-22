@@ -26,6 +26,19 @@
         app:show_timeout="2000"
         app:surface_type="surface_view" />
 
+    <androidx.media3.ui.SubtitleView
+        android:id="@+id/secondary_subtitle_view"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        android:layout_marginTop="32dp"
+        android:layout_marginStart="32dp"
+        android:layout_marginEnd="32dp"
+        android:visibility="gone" />
+
     <com.nexastream.app.fragments.player.settings.PlayerSettingsTvView
         android:id="@+id/settings"
         android:layout_width="350dp"
@@ -35,6 +48,14 @@
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintTop_toTopOf="parent"
+        tools:visibility="visible" />
+
+    <com.nexastream.app.fragments.player.settings.PlayerChannelPickerTvView
+        android:id="@+id/channel_picker"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:elevation="10dp"
+        android:visibility="gone"
         tools:visibility="visible" />
 
     <LinearLayout

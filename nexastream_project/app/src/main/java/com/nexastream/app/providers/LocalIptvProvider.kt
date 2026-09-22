@@ -4,6 +4,7 @@ import android.util.Base64
 import android.util.Log
 import com.nexastream.app.NexastreamApp
 import com.nexastream.app.adapters.AppAdapter
+import com.nexastream.app.models.SearchFilters
 import com.nexastream.app.models.*
 import java.io.BufferedReader
 import java.io.InputStreamReader
@@ -64,8 +65,7 @@ object LocalIptvProvider : IptvProvider {
             try {
                 val inputStream = NexastreamApp.instance.assets.open(fileName)
                 val reader = BufferedReader(InputStreamReader(inputStream))
-                val content = reader.readText()
-                allChannels.addAll(parseM3U(content))
+                parseM3UStream(reader, allChannels)
                 inputStream.close()
             } catch (e: Exception) {
                 Log.e(TAG, "Error reading $fileName: ${e.message}")
@@ -74,6 +74,51 @@ object LocalIptvProvider : IptvProvider {
 
         cachedChannels = allChannels
         return allChannels
+    }
+
+    private fun parseM3UStream(reader: BufferedReader, channels: MutableList<M3UChannel>) {
+        var curName = ""
+        var curLogo = ""
+        var curGroup = ""
+        var curUA: String? = null
+        var curRef: String? = null
+
+        reader.forEachLine { line ->
+            val t = line.trim()
+            if (t.startsWith("#EXTINF")) {
+                curName = t.substringAfterLast(",").trim()
+                curLogo = Regex("""tvg-logo="([^"]+)"""").find(t)?.groupValues?.get(1) ?: ""
+                curGroup = Regex("""group-title="([^"]+)"""").find(t)?.groupValues?.get(1) ?: ""
+                
+                if (t.contains("http-user-agent=")) {
+                    curUA = t.substringAfter("http-user-agent=").substringBefore(" ").removeSurrounding("\"")
+                }
+                if (t.contains("http-referrer=")) {
+                    curRef = t.substringAfter("http-referrer=").substringBefore(" ").removeSurrounding("\"")
+                }
+            } else if (t.startsWith("#EXTGRP")) {
+                curGroup = t.substringAfter(":").trim()
+            } else if (t.startsWith("#EXTVLCOPT:")) {
+                if (t.contains("http-user-agent=")) curUA = t.substringAfter("http-user-agent=").trim()
+                if (t.contains("http-referrer=")) curRef = t.substringAfter("http-referrer=").trim()
+            } else if (t.startsWith("http")) {
+                val urlParts = t.split("|")
+                val cleanUrl = urlParts[0].trim()
+                
+                if (urlParts.size > 1) {
+                    urlParts.drop(1).forEach { part ->
+                        if (part.contains("User-Agent=", ignoreCase = true)) {
+                            curUA = part.substringAfter("=").substringAfter("=").trim()
+                        }
+                    }
+                }
+
+                if (curName.isNotEmpty()) {
+                    channels.add(M3UChannel(curName, cleanUrl, curLogo, curGroup, curUA, curRef))
+                    curName = ""; curLogo = ""; curGroup = ""; curUA = null; curRef = null
+                }
+            }
+        }
     }
 
     override suspend fun getHome(): List<Category> {
@@ -129,7 +174,7 @@ object LocalIptvProvider : IptvProvider {
         }
     }
 
-    override suspend fun search(query: String, page: Int): List<AppAdapter.Item> {
+    override suspend fun search(query: String, page: Int, filters: SearchFilters?): List<AppAdapter.Item> {
         if (page > 1) return emptyList()
         val allChannels = getAllChannels()
         return allChannels.filter { it.name.contains(query, ignoreCase = true) }
@@ -180,57 +225,6 @@ object LocalIptvProvider : IptvProvider {
         }
 
         return Video(source = url, headers = headers, maintainToken = true)
-    }
-
-    private fun parseM3U(m3uRaw: String): List<M3UChannel> {
-        val channels = mutableListOf<M3UChannel>()
-        val lines = m3uRaw.lines()
-
-        var curName = ""
-        var curLogo = ""
-        var curGroup = ""
-        var curUA: String? = null
-        var curRef: String? = null
-
-        for (line in lines) {
-            val t = line.trim()
-            if (t.startsWith("#EXTINF")) {
-                curName = t.substringAfterLast(",").trim()
-                curLogo = Regex("""tvg-logo="([^"]+)"""").find(t)?.groupValues?.get(1) ?: ""
-                curGroup = Regex("""group-title="([^"]+)"""").find(t)?.groupValues?.get(1) ?: ""
-                
-                // Parse inline UA/Referer if present
-                if (t.contains("http-user-agent=")) {
-                    curUA = t.substringAfter("http-user-agent=").substringBefore(" ").removeSurrounding("\"")
-                }
-                if (t.contains("http-referrer=")) {
-                    curRef = t.substringAfter("http-referrer=").substringBefore(" ").removeSurrounding("\"")
-                }
-            } else if (t.startsWith("#EXTGRP")) {
-                curGroup = t.substringAfter(":").trim()
-            } else if (t.startsWith("#EXTVLCOPT:")) {
-                if (t.contains("http-user-agent=")) curUA = t.substringAfter("http-user-agent=").trim()
-                if (t.contains("http-referrer=")) curRef = t.substringAfter("http-referrer=").trim()
-            } else if (t.startsWith("http")) {
-                val urlParts = t.split("|")
-                val cleanUrl = urlParts[0].trim()
-                
-                // Handle |User-Agent=... or similar patterns in URL
-                if (urlParts.size > 1) {
-                    urlParts.drop(1).forEach { part ->
-                        if (part.contains("User-Agent=", ignoreCase = true)) {
-                            curUA = part.substringAfter("=").substringAfter("=").trim() // Handle double ==
-                        }
-                    }
-                }
-
-                if (curName.isNotEmpty()) {
-                    channels.add(M3UChannel(curName, cleanUrl, curLogo, curGroup, curUA, curRef))
-                    curName = ""; curLogo = ""; curGroup = ""; curUA = null; curRef = null
-                }
-            }
-        }
-        return channels
     }
 
     override suspend fun getMovies(page: Int): List<Movie> = emptyList()

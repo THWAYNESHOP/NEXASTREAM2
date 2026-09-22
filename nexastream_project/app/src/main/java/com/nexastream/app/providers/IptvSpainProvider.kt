@@ -3,6 +3,7 @@ package com.nexastream.app.providers
 import android.util.Base64
 import android.util.Log
 import com.nexastream.app.adapters.AppAdapter
+import com.nexastream.app.models.SearchFilters
 import com.nexastream.app.models.*
 import okhttp3.*
 import java.util.concurrent.TimeUnit
@@ -145,7 +146,7 @@ object IptvSpainProvider : IptvProvider {
         return categories
     }
 
-    override suspend fun search(query: String, page: Int): List<AppAdapter.Item> {
+    override suspend fun search(query: String, page: Int, filters: SearchFilters?): List<AppAdapter.Item> {
         if (page > 1) return emptyList()
         val allChannels = getAllChannels()
         val results = mutableListOf<AppAdapter.Item>()

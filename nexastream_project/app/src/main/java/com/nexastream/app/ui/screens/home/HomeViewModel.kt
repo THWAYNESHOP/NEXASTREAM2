@@ -22,6 +22,9 @@ import com.nexastream.app.models.TvShow
 import com.nexastream.app.utils.UserDataCache.toMovie
 import com.nexastream.app.utils.UserDataCache.toEpisode
 
+import dagger.hilt.android.lifecycle.HiltViewModel
+import javax.inject.Inject
+
 data class HomeUiState(
     val isLoading: Boolean = false,
     val categories: List<Category> = emptyList(),
@@ -30,7 +33,8 @@ data class HomeUiState(
     val error: String? = null
 )
 
-class HomeViewModel(
+@HiltViewModel
+class HomeViewModel @Inject constructor(
     private val homeRepository: HomeRepository
 ) : ViewModel() {
 
@@ -80,7 +84,21 @@ class HomeViewModel(
     fun loadHomeData() {
         val provider = UserPreferences.currentProvider ?: return
         viewModelScope.launch {
-            _uiState.update { it.copy(isLoading = true) }
+            val cached = homeRepository.getCachedHome(provider)
+            if (!cached.isNullOrEmpty()) {
+                val filteredCached = ParentalControlUtils.filterCategories(cached)
+                val heroMovie = filteredCached.firstOrNull()?.list?.filterIsInstance<Show>()?.firstOrNull()
+                _uiState.update {
+                    it.copy(
+                        categories = filteredCached,
+                        heroMovie = heroMovie,
+                        isLoading = false,
+                        error = null
+                    )
+                }
+            } else {
+                _uiState.update { it.copy(isLoading = true) }
+            }
             try {
                 val categories = homeRepository.getHome(provider)
                 val filteredCategories = ParentalControlUtils.filterCategories(categories)

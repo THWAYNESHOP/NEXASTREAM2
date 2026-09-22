@@ -6,357 +6,355 @@ import com.nexastream.app.models.Episode
 import com.nexastream.app.models.Genre
 import com.nexastream.app.models.Movie
 import com.nexastream.app.models.People
-import com.nexastream.app.models.SportMatch
+import com.nexastream.app.models.SearchFilters
 import com.nexastream.app.models.TvShow
 import com.nexastream.app.models.Video
+import com.nexastream.app.NexastreamApp
+import android.content.pm.PackageManager
+import com.nexastream.app.utils.safeSubList
+import com.nexastream.app.utils.TMDb3
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.awaitAll
 
 object NexaHomeProvider : Provider {
+    private const val LOGO_URL = "https://i.ibb.co/39Ld2wbt/MAGISTV.png"
+
     override val baseUrl: String = ""
     override val name: String = "HOME"
-    override val logo: String = ""
+    override val logo: String = LOGO_URL
     override val language: String = "en"
 
     private val tmdb = TmdbProvider("en")
 
     override suspend fun getHome(): List<Category> = coroutineScope {
-        val tmdbHomeDeferred = async { runCatching { tmdb.getHome() }.getOrElse { emptyList() } }
-        val liveSportsDeferred = async { runCatching { AkSportsLiveProvider.getLiveMatches() }.getOrElse { emptyList() } }
-        val cdnHomeDeferred = async { runCatching { CdnLiveTvProvider.getHome() }.getOrElse { emptyList() } }
-        val localIptvDeferred = async { runCatching { LocalIptvProvider.getHome() }.getOrElse { emptyList() } }
-        val upcomingSportsDeferred = async { runCatching { AkSportsLiveProvider.getUpcomingMatches() }.getOrElse { emptyList() } }
+        val isTv = try {
+            NexastreamApp.instance.packageManager.hasSystemFeature(PackageManager.FEATURE_LEANBACK)
+        } catch (_: Exception) { false }
         
-        // Fetch specific genres for Netflix-style categories
-        val animationDeferred = async { runCatching { tmdb.getGenre("16") }.getOrNull() }
-        val actionDeferred = async { runCatching { tmdb.getGenre("28") }.getOrNull() }
-        val comedyDeferred = async { runCatching { tmdb.getGenre("35") }.getOrNull() }
+        // 1. Core Parallel Fetching
+        val tmdbHomeDeferred = async { runCatching { tmdb.getHome() }.getOrElse { emptyList() } }
+        val cdnHomeDeferred = async { runCatching { CdnLiveTvProvider.getHome() }.getOrElse { emptyList() } }
+        val kidsContentDeferred = async { runCatching { tmdb.getKidsContent() }.getOrNull() }
+        val animeContentDeferred = async { runCatching { tmdb.getAnimeContent() }.getOrNull() }
 
+        // Shared rows
+        val latestMoviesDeferred = async { runCatching { tmdb.getLatestMovies() }.getOrNull() }
+        val allCinemaDeferred = async { runCatching { tmdb.getAllCinema() }.getOrNull() }
+        val newSeasonDeferred = async { runCatching { tmdb.getNewSeasonsAndEpisodes() }.getOrNull() }
+        val trendingTeenRomanceDeferred = async { runCatching { tmdb.getTeenRomance(isMovie = false, name = "Teen Romance") }.getOrNull() }
+
+        // 2. Specialized Category Fetching
+        val animeRowsDeferred = async { fetchAnimeRows() }
+        val kidsRowsDeferred = async { fetchKidsRows() }
+        val seriesRowsDeferred = async { fetchSeriesMegaRows() }
+        
+        val topRatedMoviesDeferred = async { runCatching { 
+            val results = TMDb3.Discover.movie(language = "en", sortBy = TMDb3.Params.SortBy.Movie.VOTE_AVERAGE_DESC, voteCount = TMDb3.Params.Range(gte = 500)).results.mapNotNull { tmdb.mapMulti(it) }
+            Category(name = "Top Rated Movies", list = results)
+        }.getOrNull() }
+        val topRatedTvDeferred = async { runCatching { 
+            val results = TMDb3.TvSeriesLists.topRated(language = "en").results.mapNotNull { tmdb.mapMulti(it) }
+            Category(name = "Top Rated TV Shows", list = results)
+        }.getOrNull() }
+
+        val actionDeferred = async { runCatching { tmdb.getGenre("28") }.getOrNull() }
+        val comedyDeferred = if (!isTv) async { runCatching { tmdb.getGenre("35") }.getOrNull() } else null
+
+        // 3. Await Results
         val tmdbHome = tmdbHomeDeferred.await()
-        val liveSports = liveSportsDeferred.await()
         val cdnHome = cdnHomeDeferred.await()
-        val localIptv = localIptvDeferred.await()
-        val upcomingSports = upcomingSportsDeferred.await()
-        val animationGenre = animationDeferred.await()
+        val kidsContent = kidsContentDeferred.await()
+        val animeContent = animeContentDeferred.await()
+        
+        val animeRows = animeRowsDeferred.await()
+        val kidsRows = kidsRowsDeferred.await()
+        val seriesRows = seriesRowsDeferred.await()
+
+        val topRatedMovies = topRatedMoviesDeferred.await()
+        val topRatedTv = topRatedTvDeferred.await()
+        
+        val latestMovies = latestMoviesDeferred.await()
+        val allCinema = allCinemaDeferred.await()
+        val newSeasonAndEpisodes = newSeasonDeferred.await()
+        val trendingTeenRomance = trendingTeenRomanceDeferred.await()
+        
         val actionGenre = actionDeferred.await()
-        val comedyGenre = comedyDeferred.await()
+        val comedyGenre = comedyDeferred?.await()
 
         val categories = mutableListOf<Category>()
 
-        // 1. Hero Banner (from TMDB Featured)
-        tmdbHome.find { it.name == Category.FEATURED }?.let {
+        // 4. Build Final List
+        
+        // FEATURED BANNER
+        tmdbHome.find { it.name == Category.FEATURED }?.let { categories.add(it) }
+
+        // LIVE CHANNELS
+        cdnHome.find { it.name == "CDN Live Channels" }?.let { cat ->
+            val sportsKeywords = listOf("Sky Sport", "Premier League", "DAZN", "ESPN", "Fox Sports", "SuperSport", "BT Sport", "BeIN")
+            val sortedList = cat.list.sortedWith(compareByDescending { item ->
+                val title = (item as? TvShow)?.title ?: ""
+                sportsKeywords.any { title.contains(it, ignoreCase = true) }
+            })
+            categories.add(cat.copy(name = "Livestream", list = sortedList))
+        }
+
+        // TRENDING / RECOMMENDED
+        tmdbHome.find { it.name == "Trending" || it.name == "Di tendenza" || it.name == "Tendencias" }?.let { 
+            categories.add(it.copy(name = "Trending Today")) 
+        }
+
+        // FEATURED RECOMMENDED ROW (Teen Romance)
+        trendingTeenRomance?.let { categories.add(it) }
+        
+        topRatedMovies?.let { categories.add(it) }
+        topRatedTv?.let { categories.add(it) }
+
+        tmdbHome.find { it.name == "Popular Movies" || it.name == "Film popolari" || it.name == "Películas populares" }?.let {
+            categories.add(it)
+        }
+        
+        tmdbHome.find { it.name == "Popular TV Shows" || it.name == "Serie TV popolari" || it.name == "Series de TV populares" }?.let {
+            categories.add(it.copy(name = "Trending Series"))
+        }
+
+        // LATEST CONTENT
+        latestMovies?.let { categories.add(it) }
+        allCinema?.let { categories.add(it) }
+        newSeasonAndEpisodes?.let { categories.add(it) }
+
+        // NETWORK ROWS
+        tmdbHome.filter { it.name.startsWith("Popular on") || it.name.startsWith("Popolari su") || it.name.startsWith("Popular en") }.forEach {
             categories.add(it)
         }
 
-        // 2. Live Sports (Real-time Events)
-        if (liveSports.isNotEmpty()) {
-            categories.add(
-                Category(
-                    name = "Live Sports",
-                    list = liveSports.map { match ->
-                        match.copy(id = AkSportsLiveProvider.playbackId(match)).apply {
-                            itemType = AppAdapter.Type.SPORT_MATCH_ITEM
-                        }
-                    }
-                ).apply { itemType = AppAdapter.Type.CATEGORY_MOBILE_ITEM }
-            )
-        }
+        // SERIES MEGA ROWS (Requested list)
+        categories.addAll(seriesRows.filterNotNull())
 
-        // 3. CDN Live TV & Global Sports
-        categories.addAll(cdnHome)
+        // BANNERS
+        kidsContent?.let { categories.add(it.copy(name = "Kids Banner", list = it.list.safeSubList(0, 5))) }
+        animeContent?.let { categories.add(it.copy(name = "Anime Banner", list = it.list.safeSubList(0, 4))) }
 
-        // 4. Local IPTV Categories (Prominent rows)
-        localIptv.find { it.name == "Live Sports" }?.let { categories.add(it) }
-        localIptv.find { it.name == "Movies & Series" }?.let { categories.add(it) }
+        // CATEGORY ROWS
+        categories.addAll(animeRows.filterNotNull())
+        categories.addAll(kidsRows.filterNotNull())
 
-        // 5. Trending (from TMDB)
-        tmdbHome.find { (it.name == "Trending") || (it.name == "Di tendenza") }?.let {
-            categories.add(it)
-        }
-
-        // 6. Static Sports Rows (Permanent Lineup)
-        val sportGroups = listOf("Sky Sports", "TNT Sports", "Match!", "Bein Sports", "US Sports", "Global TV")
-        sportGroups.forEach { group ->
-            val list = HomeIptvChannels.getTvShows(group)
-            if (list.isNotEmpty()) {
-                categories.add(
-                    Category(
-                        name = group,
-                        list = list
-                    ).apply { itemType = AppAdapter.Type.CATEGORY_MOBILE_ITEM }
-                )
-            }
-        }
-
-        // 7. Other Local IPTV Categories
-        localIptv.filter { it.name !in listOf("Live Sports", "Movies & Series") }.forEach { categories.add(it) }
-
-        // 8. Upcoming Matches
-        if (upcomingSports.isNotEmpty()) {
-             categories.add(
-                Category(
-                    name = "Upcoming Sports",
-                    list = upcomingSports.take(20).map { match ->
-                        match.copy(id = AkSportsLiveProvider.playbackId(match)).apply {
-                            itemType = AppAdapter.Type.SPORT_MATCH_ITEM
-                        }
-                    }
-                ).apply { itemType = AppAdapter.Type.CATEGORY_MOBILE_ITEM }
-            )
-        }
-
-        // 7. Movies & Series Categories
-        animationGenre?.shows?.takeIf { it.isNotEmpty() }?.let {
-            categories.add(Category(name = "Animation", list = it).apply { itemType = AppAdapter.Type.CATEGORY_MOBILE_ITEM })
-        }
         actionGenre?.shows?.takeIf { it.isNotEmpty() }?.let {
-            categories.add(Category(name = "Action & Adventure", list = it).apply { itemType = AppAdapter.Type.CATEGORY_MOBILE_ITEM })
+            categories.add(Category(name = "Action & Adventure", list = it))
         }
         comedyGenre?.shows?.takeIf { it.isNotEmpty() }?.let {
-            categories.add(Category(name = "Comedy", list = it).apply { itemType = AppAdapter.Type.CATEGORY_MOBILE_ITEM })
+            categories.add(Category(name = "Comedy", list = it))
         }
 
-        // Popular on Platforms
-        tmdbHome.find { it.name.contains("Netflix") }?.let { categories.add(it) }
-        tmdbHome.find { it.name.contains("Disney+") }?.let { categories.add(it) }
-
-        // Exclusion filter
-        val filteredCategories = categories.map { category ->
-            category.copy(
-                list = category.list.filter { item ->
-                    val title = when (item) {
-                        is Movie -> item.title
-                        is TvShow -> item.title
-                        is SportMatch -> item.title
-                        else -> ""
-                    }
-                    !title.contains("Kenyan", ignoreCase = true) && !title.contains("Setanta", ignoreCase = true)
-                }
-            ).apply { 
-                // SAFETY: Ensure itemType is initialized
-                this.itemType = try { category.itemType } catch(_: Exception) { AppAdapter.Type.CATEGORY_MOBILE_ITEM }
-                this.selectedIndex = category.selectedIndex
-                this.itemSpacing = category.itemSpacing
-            }
+        // Ensure aggregate rows are at the end
+        if (categories.none { it.name == "Anime" }) {
+            categories.add(Category(name = "Anime", list = animeRows.filterNotNull().flatMap { it.list }.distinct().safeSubList(0, 20)))
+        }
+        if (categories.none { it.name == "Kids" }) {
+            categories.add(Category(name = "Kids", list = kidsRows.filterNotNull().flatMap { it.list }.distinct().safeSubList(0, 20)))
         }
 
-        filteredCategories
+        categories
+    }
+
+    private suspend fun fetchAnimeRows(): List<Category?> = coroutineScope {
+        listOf(
+            async { runCatching { tmdb.getAnimeMovies() }.getOrNull() },
+            async { runCatching { tmdb.getJapaneseAnime() }.getOrNull() },
+            async { runCatching { tmdb.getWesternAnime() }.getOrNull() },
+            async { runCatching { tmdb.getAnimeAge7to12() }.getOrNull() },
+            async { runCatching { tmdb.getSearchContent("Dragon Ball", "Dragon Ball") }.getOrNull() },
+            async { runCatching { tmdb.getSearchContent("Naruto", "Naruto") }.getOrNull() },
+            async { runCatching { tmdb.getSearchContent("One Piece", "One Piece") }.getOrNull() }
+        ).awaitAll()
+    }
+
+    private suspend fun fetchKidsRows(): List<Category?> = coroutineScope {
+        listOf(
+            async { runCatching { tmdb.getCartoonMovies() }.getOrNull() },
+            async { runCatching { tmdb.getCartoonSeries() }.getOrNull() },
+            async { runCatching { tmdb.getKeywordContent("Baby", 10229) }.getOrNull() },
+            async { runCatching { tmdb.getKidsContent().copy(name = "Age 2-6") }.getOrNull() },
+            async { runCatching { tmdb.getStudioContent("Pixar", 3) }.getOrNull() },
+            async { runCatching { tmdb.getStudioContent("DreamWorks", 521) }.getOrNull() },
+            async { runCatching { tmdb.getStudioContent("Blue Sky Studios", 10378) }.getOrNull() },
+            async { runCatching { tmdb.getStudioContent("Illumination", 6704) }.getOrNull() },
+            async { runCatching { tmdb.getKeywordContent("Toys", 11134) }.getOrNull() },
+            async { runCatching { tmdb.getSearchContent("Kung Fu Panda", "Kung Fu Panda") }.getOrNull() },
+            async { runCatching { tmdb.getSearchContent("Cars", "Cars") }.getOrNull() },
+            async { runCatching { tmdb.getSearchContent("Frozen", "Frozen") }.getOrNull() },
+            async { runCatching { tmdb.getSearchContent("Minions", "Minions") }.getOrNull() },
+            async { runCatching { tmdb.getSearchContent("Peppa Pig", "Peppa Pig") }.getOrNull() }
+        ).awaitAll()
+    }
+
+    private suspend fun fetchSeriesMegaRows(): List<Category?> = coroutineScope {
+        listOf(
+            // Networks
+            async { runCatching { tmdb.getNetworkTv(213, "Netflix Series") }.getOrNull() },
+            async { runCatching { tmdb.getNetworkTv(1024, "Prime Video Series") }.getOrNull() },
+            async { runCatching { tmdb.getNetworkTv(2739, "Disney+ Series") }.getOrNull() },
+            async { runCatching { tmdb.getNetworkTv(49, "Max Series") }.getOrNull() },
+            async { runCatching { tmdb.getNetworkTv(4330, "Paramount+ Series") }.getOrNull() },
+            async { runCatching { tmdb.getNetworkTv(2552, "Apple TV Series") }.getOrNull() },
+            async { runCatching { tmdb.getNetworkTv(453, "Hulu Series") }.getOrNull() },
+            
+            // Genres
+            async { runCatching { tmdb.getGenreTv(10759, "Action & Adventure Series") }.getOrNull() },
+            async { runCatching { tmdb.getGenreTv(35, "Comedy Series") }.getOrNull() },
+            async { runCatching { tmdb.getGenreTv(80, "Crime Series") }.getOrNull() },
+            async { runCatching { tmdb.getTeenRomance(false, "Teen Romance Series") }.getOrNull() },
+            async { runCatching { tmdb.getGenreTv(99, "Documentary Series") }.getOrNull() },
+            async { runCatching { tmdb.getGenreTv(18, "Drama Series") }.getOrNull() },
+            async { runCatching { tmdb.getGenreTv(10751, "Family Series") }.getOrNull() },
+            async { runCatching { tmdb.getGenreTv(10765, "Sci-Fi & Fantasy Series") }.getOrNull() },
+            async { runCatching { tmdb.getGenreTv(27, "Horror Series") }.getOrNull() },
+            async { runCatching { tmdb.getGenreTv(9648, "Mystery Series") }.getOrNull() },
+            async { runCatching { tmdb.getGenreTv(10749, "Romance Series") }.getOrNull() },
+            async { runCatching { tmdb.getGenreTv(53, "Thriller Series") }.getOrNull() },
+            async { runCatching { tmdb.getGenreTv(10768, "War & Politics Series") }.getOrNull() },
+            async { runCatching { tmdb.getBiography(false, "Biography Series") }.getOrNull() },
+            async { runCatching { tmdb.getGenreTv(10764, "Reality TV") }.getOrNull() },
+            async { runCatching { tmdb.getSport(false, "Sport Series") }.getOrNull() },
+            async { runCatching { tmdb.getGenreTv(37, "Western Series") }.getOrNull() },
+            async { runCatching { tmdb.getSearchContent("Musical Series", "Musical") }.getOrNull() }
+        ).awaitAll()
     }
 
     override suspend fun getTvShow(id: String): TvShow {
-        android.util.Log.e("NexaHomeProvider", "getTvShow(id=$id)")
-        if (id.startsWith("cdn:")) {
-            return CdnLiveTvProvider.getTvShow(id)
-        }
-        if (id.startsWith("cdn_match:")) {
-            // Return a placeholder for CDN matches to avoid TMDB crash
-            return TvShow(
-                id = id, 
-                title = "Live Sports Match", 
-                providerName = "CDN Live TV", 
-                quality = "LIVE",
-                poster = "https://cdnlivetv.tv/assets/img/logo.png"
-            ).apply { itemType = AppAdapter.Type.TV_SHOW_MOBILE_ITEM }
-        }
-        if (id.startsWith("localiptv:")) {
-            return LocalIptvProvider.getTvShow(id)
-        }
-        if (AkSportsLiveProvider.ownsPlaybackId(id)) {
-            // Return a placeholder for AK Sports matches
-            return TvShow(
-                id = id, 
-                title = "Live Sports Match", 
-                providerName = "AK Sports Live", 
-                quality = "LIVE",
-                poster = "https://i.ibb.co/W1d0CxF/Logo-IPTV-All-World.jpg"
-            ).apply { itemType = AppAdapter.Type.TV_SHOW_MOBILE_ITEM }
-        }
-        // Handle static IPTV channels
-        val staticChannel = HomeIptvChannels.channels.find { it.id == id }
-        if (staticChannel != null) {
-            return TvShow(
-                id = id, 
-                title = staticChannel.name, 
-                poster = staticChannel.logo ?: "https://i.ibb.co/W1d0CxF/Logo-IPTV-All-World.jpg",
-                banner = "https://i.ibb.co/W1d0CxF/Logo-IPTV-All-World.jpg",
-                providerName = name,
-                quality = "LIVE"
-            ).apply {
-                itemType = AppAdapter.Type.TV_SHOW_MOBILE_ITEM
-            }
-        }
+        if (id.startsWith("cdn:")) return CdnLiveTvProvider.getTvShow(id)
         return tmdb.getTvShow(id)
     }
 
     override suspend fun getServers(id: String, videoType: Video.Type): List<Video.Server> {
-        if (id.startsWith("localiptv:")) {
-            return LocalIptvProvider.getServers(id, videoType)
-        }
-        if (id.startsWith("cdn:") || id.startsWith("cdn_match:")) {
-            return CdnLiveTvProvider.getServers(id, videoType)
-        }
-
-        val staticChannel = HomeIptvChannels.channels.find { it.id == id }
-        if (staticChannel != null) {
-            val servers = mutableListOf<Video.Server>()
-            
-            // Mirror logic for UK sports
-            val mirrorId = when {
-                staticChannel.id.startsWith("sky-arena") -> "skyarena"
-                staticChannel.id.startsWith("sky-action") -> "skyaction"
-                staticChannel.id.startsWith("sky-mix") -> "skymix"
-                staticChannel.id.startsWith("sky-golf") -> "skygolf"
-                staticChannel.id.startsWith("sky-cricket") -> "skycricket"
-                staticChannel.id.startsWith("sky-f1") -> "skyf1"
-                staticChannel.id.startsWith("sky-football") -> "skyfootball"
-                staticChannel.id.startsWith("sky-main-event") -> "skymainevent"
-                staticChannel.id.startsWith("sky-news") -> "skynews"
-                staticChannel.id.startsWith("sky-racing") -> "skyracing"
-                staticChannel.id.startsWith("tnt-1") -> "tnt1"
-                staticChannel.id.startsWith("tnt-2") -> "tnt2"
-                staticChannel.id.startsWith("tnt-3") -> "tnt3"
-                staticChannel.id.startsWith("tnt-4") -> "tnt4"
-                staticChannel.id.startsWith("eurosport-1") -> "euro1"
-                staticChannel.id.startsWith("eurosport-2") -> "euro2"
-                staticChannel.id.startsWith("espn") -> "espn"
-                else -> null
-            }
-            
-            if (mirrorId != null) {
-                servers.add(Video.Server(id = "https://crichd.online/embed.php?id=$mirrorId", name = "Mirror 1 (CricHD)"))
-            }
-
-            servers.add(Video.Server(id = staticChannel.url, name = "Main Server (IPTV)"))
-            return servers
-        }
-
-        return when {
-            AkSportsLiveProvider.ownsPlaybackId(id) -> AkSportsLiveProvider.getServers(id, videoType)
-            else -> tmdb.getServers(id, videoType)
-        }
+        if (id.startsWith("cdn:")) return CdnLiveTvProvider.getServers(id, videoType)
+        return tmdb.getServers(id, videoType)
     }
 
     override suspend fun getVideo(server: Video.Server): Video = withContext(Dispatchers.IO) {
-        if (server.id.startsWith("localiptv:")) {
-            return@withContext LocalIptvProvider.getVideo(server)
-        }
-        if (server.name.contains("CDN")) {
-            return@withContext CdnLiveTvProvider.getVideo(server)
-        }
-
-        if (server.id.startsWith("http://ronaldo.tvfor.pro")) {
-            val channel = HomeIptvChannels.channels.find { it.url == server.id }
-            val cleanUrl = server.id.substringBefore("|")
-            val userAgent = channel?.userAgent ?: "Lavf/56.15.102"
-            
-            try {
-                // Manually resolve redirect to get the stable IP link and capture the token properly
-                val request = okhttp3.Request.Builder()
-                    .url(cleanUrl)
-                    .header("User-Agent", userAgent)
-                    .header("Referer", "http://ronaldo.tvfor.pro/")
-                    .build()
-                
-                // Use a client that follows redirects
-                val response = com.nexastream.app.utils.NetworkClient.noRedirects.newBuilder()
-                    .followRedirects(false) // We want to see the redirect target
-                    .build()
-                    .newCall(request)
-                    .execute()
-                
-                val location = response.header("Location")
-                val cookies = response.headers("Set-Cookie")
-                response.close()
-
-                if (!location.isNullOrBlank()) {
-                    android.util.Log.e("NexaHomeProvider", "Resolved redirect: $location")
-                    android.util.Log.e("NexaHomeProvider", "Captured cookies: $cookies")
-                    
-                    val uri = android.net.Uri.parse(location)
-                    val token = uri.getQueryParameter("token")
-                    if (token != null) {
-                        com.nexastream.app.extractors.TokenManager.latestQuery = "token=$token"
-                    }
-
-                    return@withContext Video(
-                        source = location,
-                        headers = mapOf(
-                            "User-Agent" to userAgent,
-                            "Referer" to "http://ronaldo.tvfor.pro/",
-                            "Origin" to "http://ronaldo.tvfor.pro",
-                            "Accept" to "*/*",
-                            "Accept-Encoding" to "identity",
-                            "Icy-MetaData" to "1",
-                            "Connection" to "keep-alive"
-                        ),
-                        maintainToken = true
-                    )
-                }
-            } catch (e: Exception) {
-                android.util.Log.e("NexaHomeProvider", "Error resolving ronaldo redirect", e)
-            }
-
-            return@withContext Video(
-                source = cleanUrl,
-                headers = mapOf(
-                    "User-Agent" to userAgent,
-                    "Referer" to "http://ronaldo.tvfor.pro/",
-                    "Origin" to "http://ronaldo.tvfor.pro",
-                    "Accept" to "*/*",
-                    "Accept-Encoding" to "identity",
-                    "Icy-MetaData" to "1",
-                    "Connection" to "keep-alive"
-                ),
-                maintainToken = true
-            )
-        }
-
-        return@withContext when {
-            server.id.contains("crichd.online") -> {
-                if (server.id.contains(".m3u8")) {
-                    Video(source = server.id, headers = mapOf("Referer" to "https://crichd.online/"))
-                } else {
-                    com.nexastream.app.extractors.Extractor.extract(server.id, server)
-                }
-            }
-            server.id.startsWith("http://ronaldo.tvfor.pro") -> {
-                val channel = HomeIptvChannels.channels.find { it.url == server.id }
-                val cleanUrl = server.id.substringBefore("|")
-                
-                // Use a more neutral set of headers
-                val headers = mutableMapOf<String, String>()
-                headers["User-Agent"] = channel?.userAgent ?: "Lavf/56.15.102"
-                headers["Referer"] = "http://ronaldo.tvfor.pro/"
-                headers["Accept"] = "*/*"
-                headers["Connection"] = "keep-alive"
-                headers["Icy-MetaData"] = "1"
-
-                Video(
-                    source = cleanUrl,
-                    headers = headers,
-                    maintainToken = true
-                )
-            }
-            AkSportsLiveProvider.ownsServer(server) -> {
-                AkSportsLiveProvider.getVideo(server)
-            }
-            else -> {
-                tmdb.getVideo(server)
-            }
-        }
+        if (server.name.contains("CDN") || server.id.contains("cdnlivetv.tv")) return@withContext CdnLiveTvProvider.getVideo(server)
+        tmdb.getVideo(server)
     }
 
-    override suspend fun search(query: String, page: Int): List<AppAdapter.Item> = tmdb.search(query, page)
+    override suspend fun search(query: String, page: Int, filters: SearchFilters?): List<AppAdapter.Item> = tmdb.search(query, page, filters)
     override suspend fun getMovies(page: Int): List<Movie> = tmdb.getMovies(page)
     override suspend fun getTvShows(page: Int): List<TvShow> = tmdb.getTvShows(page)
     override suspend fun getMovie(id: String): Movie = tmdb.getMovie(id)
     override suspend fun getEpisodesBySeason(seasonId: String): List<Episode> = tmdb.getEpisodesBySeason(seasonId)
     override suspend fun getGenre(id: String, page: Int): Genre = when {
         id == "cdn_all_channels" -> CdnLiveTvProvider.getGenre(id, page)
+        id == "cdn_sports" -> CdnLiveTvProvider.getGenre(id, page)
+        id.startsWith("tmdb_movies_genre_") -> {
+            val cat = tmdb.getGenreMovies(id.substringAfter("tmdb_movies_genre_").toInt(), "")
+            Genre(id = id, name = cat.name, shows = cat.list)
+        }
+        id.startsWith("tmdb_tv_genre_") -> {
+            val cat = tmdb.getGenreTv(id.substringAfter("tmdb_tv_genre_").toInt(), "")
+            Genre(id = id, name = cat.name, shows = cat.list)
+        }
+        id.startsWith("tmdb_network_tv_") -> {
+            val cat = tmdb.getNetworkTv(id.substringAfter("tmdb_network_tv_").toInt(), "")
+            Genre(id = id, name = cat.name, shows = cat.list)
+        }
+        id.startsWith("tmdb_watch_provider_movies_") -> {
+            val cat = tmdb.getWatchProviderMovies(id.substringAfter("tmdb_watch_provider_movies_").toInt(), "")
+            Genre(id = id, name = cat.name, shows = cat.list)
+        }
+        id.startsWith("tmdb_studio_") -> {
+            val cat = tmdb.getStudioContent("", id.substringAfter("tmdb_studio_").toInt())
+            Genre(id = id, name = cat.name, shows = cat.list)
+        }
+        id.startsWith("tmdb_keyword_") -> {
+            val cat = tmdb.getKeywordContent("", id.substringAfter("tmdb_keyword_").toInt())
+            Genre(id = id, name = cat.name, shows = cat.list)
+        }
+        id.startsWith("search_") -> {
+            val query = id.substringAfter("search_")
+            val cat = tmdb.getSearchContent(query, query)
+            Genre(id = id, name = cat.name, shows = cat.list)
+        }
+        id == "latest_movies" -> {
+            if (page > 1) Genre(id = id, name = "Latest Movies", shows = emptyList())
+            else {
+                val cat = tmdb.getLatestMovies()
+                Genre(id = id, name = cat.name, shows = cat.list)
+            }
+        }
+        id == "all_cinema" -> {
+            if (page > 1) Genre(id = id, name = "All Cinema", shows = emptyList())
+            else {
+                val cat = tmdb.getAllCinema()
+                Genre(id = id, name = cat.name, shows = cat.list)
+            }
+        }
+        id == "new_season_tv" -> {
+            if (page > 1) Genre(id = id, name = "New Season and Episode", shows = emptyList())
+            else {
+                val cat = tmdb.getNewSeasonsAndEpisodes()
+                Genre(id = id, name = cat.name, shows = cat.list)
+            }
+        }
+        id == "teen_romance_movies" -> {
+            if (page > 1) Genre(id = id, name = "Teen Romance", shows = emptyList())
+            else {
+                val cat = tmdb.getTeenRomance(isMovie = true, name = "Teen Romance")
+                Genre(id = id, name = cat.name, shows = cat.list)
+            }
+        }
+        id == "teen_romance_series" -> {
+            if (page > 1) Genre(id = id, name = "Teen Romance", shows = emptyList())
+            else {
+                val cat = tmdb.getTeenRomance(isMovie = false, name = "Teen Romance")
+                Genre(id = id, name = cat.name, shows = cat.list)
+            }
+        }
+        id == "biography_movies" -> {
+            if (page > 1) Genre(id = id, name = "Biography", shows = emptyList())
+            else {
+                val cat = tmdb.getBiography(isMovie = true, name = "Biography")
+                Genre(id = id, name = cat.name, shows = cat.list)
+            }
+        }
+        id == "biography_series" -> {
+            if (page > 1) Genre(id = id, name = "Biography", shows = emptyList())
+            else {
+                val cat = tmdb.getBiography(isMovie = false, name = "Biography")
+                Genre(id = id, name = cat.name, shows = cat.list)
+            }
+        }
+        id == "sport_movies" -> {
+            if (page > 1) Genre(id = id, name = "Sport", shows = emptyList())
+            else {
+                val cat = tmdb.getSport(isMovie = true, name = "Sport")
+                Genre(id = id, name = cat.name, shows = cat.list)
+            }
+        }
+        id == "sport_series" -> {
+            if (page > 1) Genre(id = id, name = "Sport", shows = emptyList())
+            else {
+                val cat = tmdb.getSport(isMovie = false, name = "Sport")
+                Genre(id = id, name = cat.name, shows = cat.list)
+            }
+        }
+        id == "tmdb_movies_popular" -> {
+            val results = TMDb3.MovieLists.popular(page = page, language = "en").results.mapNotNull { tmdb.mapMulti(it) }
+            Genre(id = id, name = "Popular Movies", shows = results)
+        }
+        id == "tmdb_tv_popular" -> {
+            val results = TMDb3.TvSeriesLists.popular(page = page, language = "en").results.mapNotNull { tmdb.mapMulti(it) }
+            Genre(id = id, name = "Popular TV Shows", shows = results)
+        }
+        id == "tmdb_kids_family" -> tmdb.getKidsContent().let { Genre(id = id, name = it.name, shows = it.list) }
+        id == "tmdb_anime_universe" -> tmdb.getAnimeContent().let { Genre(id = id, name = it.name, shows = it.list) }
+        id == "tmdb_cartoon_movies" -> tmdb.getCartoonMovies().let { Genre(id = id, name = it.name, shows = it.list) }
+        id == "tmdb_cartoon_series" -> tmdb.getCartoonSeries().let { Genre(id = id, name = it.name, shows = it.list) }
+        id == "tmdb_japanese_anime" -> tmdb.getJapaneseAnime().let { Genre(id = id, name = it.name, shows = it.list) }
+        id == "tmdb_western_anime" -> tmdb.getWesternAnime().let { Genre(id = id, name = it.name, shows = it.list) }
+        id == "tmdb_anime_age_7_12" -> tmdb.getAnimeAge7to12().let { Genre(id = id, name = it.name, shows = it.list) }
+        id.startsWith("cdn_") -> CdnLiveTvProvider.getGenre(id, page)
         else -> tmdb.getGenre(id, page)
     }
-
     override suspend fun getPeople(id: String, page: Int): People = tmdb.getPeople(id, page)
 }

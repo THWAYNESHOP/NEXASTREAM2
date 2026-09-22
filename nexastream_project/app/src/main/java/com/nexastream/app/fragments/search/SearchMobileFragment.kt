@@ -81,6 +81,54 @@ class SearchMobileFragment : Fragment() {
         initializeSearch()
 
         viewLifecycleOwner.lifecycleScope.launch {
+            viewModel.filters.flowWithLifecycle(lifecycle, Lifecycle.State.STARTED).collect { filters ->
+                val isActive = !filters.isDefault()
+                binding.btnSearchFilter.imageTintList = android.content.res.ColorStateList.valueOf(
+                    if (isActive) com.nexastream.app.utils.ThemeManager.palette(UserPreferences.selectedTheme).mobileNavActive
+                    else android.graphics.Color.WHITE
+                )
+            }
+        }
+
+        viewLifecycleOwner.lifecycleScope.launch {
+            kotlinx.coroutines.flow.combine(
+                viewModel.searchHistory.flowWithLifecycle(lifecycle, Lifecycle.State.STARTED),
+                viewModel.trending.flowWithLifecycle(lifecycle, Lifecycle.State.STARTED),
+                viewModel.topRated.flowWithLifecycle(lifecycle, Lifecycle.State.STARTED),
+                viewModel.airingToday.flowWithLifecycle(lifecycle, Lifecycle.State.STARTED)
+            ) { history, trending, topRated, airingToday ->
+                if (viewModel.query.isEmpty() && viewModel.filters.value.isDefault()) {
+                    val categories = mutableListOf<Category>()
+                    if (history.isNotEmpty()) {
+                        categories.add(Category(getString(R.string.search_recent), history.map { Genre(it.query, it.query) })
+                            .apply { itemType = AppAdapter.Type.CATEGORY_MOBILE_ITEM })
+                    }
+                    if (trending.isNotEmpty()) {
+                        categories.add(Category("Trending Now", trending)
+                            .apply { itemType = AppAdapter.Type.CATEGORY_MOBILE_ITEM })
+                    }
+                    if (topRated.isNotEmpty()) {
+                        categories.add(Category("Top Rated", topRated)
+                            .apply { itemType = AppAdapter.Type.CATEGORY_MOBILE_ITEM })
+                    }
+                    if (airingToday.isNotEmpty()) {
+                        categories.add(Category("Airing Today", airingToday)
+                            .apply { itemType = AppAdapter.Type.CATEGORY_MOBILE_ITEM })
+                    }
+                    categories
+                } else emptyList()
+            }.collect { categories ->
+                if (viewModel.query.isEmpty() && viewModel.filters.value.isDefault() && categories.isNotEmpty()) {
+                    appAdapter.submitList(categories)
+                    appAdapter.onGenreClickListener = { genre ->
+                        binding.etSearch.setText(genre.name)
+                        viewModel.search(genre.name)
+                    }
+                }
+            }
+        }
+
+        viewLifecycleOwner.lifecycleScope.launch {
             viewModel.state.flowWithLifecycle(lifecycle, Lifecycle.State.STARTED).collect { state ->
                 when (state) {
                     is SearchState.Searching, is SearchState.GlobalSearching -> {
@@ -183,6 +231,10 @@ class SearchMobileFragment : Fragment() {
             requestFocus()
             visibility = if (voiceHelper.isAvailable()) View.VISIBLE else View.GONE
             setOnClickListener { if (!voiceHelper.isListening) voiceHelper.startWithPermissionCheck() }
+        }
+
+        binding.btnSearchFilter.setOnClickListener {
+            SearchFilterBottomSheet().show(childFragmentManager, "SearchFilter")
         }
 
         binding.btnSearchClear.setOnClickListener {

@@ -16,6 +16,7 @@ import com.nexastream.app.R
 import com.nexastream.app.adapters.AppAdapter
 import com.nexastream.app.database.AppDatabase
 import com.nexastream.app.databinding.FragmentGenreTvBinding
+import com.nexastream.app.models.Category
 import com.nexastream.app.models.Genre
 import com.nexastream.app.models.Movie
 import com.nexastream.app.models.TvShow
@@ -108,6 +109,11 @@ class GenreTvFragment : Fragment() {
 
     private fun initializeGenre() {
         binding.vgvGenre.apply {
+            if (args.id == "cdn_sports") {
+                setNumColumns(1)
+            } else {
+                setNumColumns(6)
+            }
             adapter = appAdapter.apply {
                 stateRestorationPolicy = RecyclerView.Adapter.StateRestorationPolicy.PREVENT_WHEN_EMPTY
             }
@@ -125,6 +131,10 @@ class GenreTvFragment : Fragment() {
             when (it) {
                 is Movie -> it.itemType = AppAdapter.Type.MOVIE_GRID_TV_ITEM
                 is TvShow -> it.itemType = AppAdapter.Type.TV_SHOW_GRID_TV_ITEM
+                is Category -> {
+                    it.itemType = AppAdapter.Type.CATEGORY_TV_ITEM
+                    it.itemSpacing = requireContext().resources.getDimension(R.dimen.genre_spacing).toInt()
+                }
             }
         })
 

@@ -11,8 +11,22 @@ data class Video(
     val type: String? = null,
     val extraBuffering: Boolean = false,
     val useServerSubtitleSetting: Boolean = false,
-    val maintainToken: Boolean = false
+    val maintainToken: Boolean = false,
+    val streams: List<Stream>? = null,
+    val signCookie: Map<String, String>? = null,
+    val linkType: String? = null
 ) : Serializable {
+
+    data class Stream(
+        val url: String,
+        val resolution: String? = null,
+        val codec: String? = null,
+        val format: StreamFormat = StreamFormat.MP4
+    ) : Serializable
+
+    enum class StreamFormat {
+        MP4, M3U8, DASH
+    }
 
     sealed class Type : Parcelable, Serializable {
         @Parcelize
@@ -56,7 +70,8 @@ data class Video(
         val label: String,
         val file: String,
         var default: Boolean = false,
-        val initialDefault: Boolean = false
+        val initialDefault: Boolean = false,
+        val language: String? = null
     ) : Serializable
 
     data class Server(

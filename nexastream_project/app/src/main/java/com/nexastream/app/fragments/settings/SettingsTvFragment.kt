@@ -20,6 +20,7 @@ import android.util.TypedValue
 import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.View
+import android.view.ViewGroup
 import android.view.inputmethod.EditorInfo
 import android.widget.EditText
 import android.widget.ImageView
@@ -36,6 +37,7 @@ import androidx.core.graphics.drawable.toDrawable
 import androidx.core.net.toUri
 import androidx.leanback.preference.LeanbackPreferenceFragmentCompat
 import androidx.lifecycle.lifecycleScope
+import androidx.navigation.fragment.findNavController
 import androidx.preference.EditTextPreference
 import androidx.preference.ListPreference
 import androidx.preference.Preference
@@ -805,6 +807,31 @@ class SettingsTvFragment : LeanbackPreferenceFragmentCompat() {
             }
         }
 
+        findPreference<Preference>("QR_LOGIN")?.setOnPreferenceClickListener {
+            findNavController().navigate(R.id.qr_login)
+            true
+        }
+
+        findPreference<ListPreference>("SELECTED_REGION")?.apply {
+            value = UserPreferences.selectedRegion
+            summary = entries.getOrNull(findIndexOfValue(value)) ?: value
+            setOnPreferenceChangeListener { preference, newValue ->
+                val newRegion = newValue as String
+                UserPreferences.selectedRegion = newRegion
+                preference.summary = entries.getOrNull(findIndexOfValue(newRegion)) ?: newRegion
+                true
+            }
+        }
+
+        findPreference<SwitchPreferenceCompat>("FAMILY_MODE")?.apply {
+            isChecked = UserPreferences.familyMode
+            setOnPreferenceChangeListener { _, newValue ->
+                UserPreferences.familyMode = newValue as Boolean
+                ProviderChangeNotifier.notifyProviderChanged()
+                true
+            }
+        }
+
         findPreference<Preference>("key_backup_export_tv")?.setOnPreferenceClickListener {
             val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
             val fileName = "nexastream_tv_backup_$timestamp.json"
@@ -946,6 +973,24 @@ class SettingsTvFragment : LeanbackPreferenceFragmentCompat() {
 
         findPreference<Preference>("key_backup_import_db_tv")?.setOnPreferenceClickListener {
             showDatabaseBackupImportOptions()
+            true
+        }
+
+        findPreference<SwitchPreference>("AUTO_START_ON_BOOT")?.apply {
+            isChecked = UserPreferences.autoStartOnBoot
+            setOnPreferenceChangeListener { _, newValue ->
+                UserPreferences.autoStartOnBoot = newValue as Boolean
+                true
+            }
+        }
+
+        findPreference<Preference>("SUPPORT_WHATSAPP")?.setOnPreferenceClickListener {
+            showWhatsAppQrDialog()
+            true
+        }
+
+        findPreference<Preference>("p_speed_test")?.setOnPreferenceClickListener {
+            findNavController().navigate(R.id.action_settings_to_speed_test)
             true
         }
     }
@@ -1936,35 +1981,13 @@ class SettingsTvFragment : LeanbackPreferenceFragmentCompat() {
         messageRes: Int,
         onSubmit: (String) -> String?,
     ) {
-        val input = EditText(requireContext()).apply {
-            inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_VARIATION_PASSWORD
-            imeOptions = EditorInfo.IME_ACTION_DONE
-            hint = getString(R.string.settings_parental_pin_hint)
-        }
-
-        val dialog = AlertDialog.Builder(requireContext())
-            .setTitle(titleRes)
-            .setMessage(messageRes)
-            .setView(input)
-            .setPositiveButton(android.R.string.ok, null)
-            .setNegativeButton(android.R.string.cancel, null)
-            .create()
-
-        dialog.setOnShowListener {
-            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
-                input.error = null
-                val errorMessage = onSubmit(input.text?.toString()?.trim().orEmpty())
-                if (errorMessage == null) {
-                    dialog.dismiss()
-                } else {
-                    input.setText("")
-                    input.error = errorMessage
-                    input.requestFocus()
-                }
-            }
-        }
-
-        dialog.show()
+        com.nexastream.app.ui.ParentalPinTvDialog(
+            context = requireContext(),
+            title = getString(titleRes),
+            message = getString(messageRes),
+            isVerificationMode = true,
+            onPinSubmitted = onSubmit
+        ).show()
     }
 
     private fun promptForPinValue(
@@ -1973,43 +1996,13 @@ class SettingsTvFragment : LeanbackPreferenceFragmentCompat() {
         allowBlank: Boolean,
         onSubmit: (String) -> String?,
     ) {
-        val input = EditText(requireContext()).apply {
-            inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_VARIATION_PASSWORD
-            imeOptions = EditorInfo.IME_ACTION_DONE
-            hint = getString(R.string.settings_parental_pin_hint)
-        }
-
-        val dialog = AlertDialog.Builder(requireContext())
-            .setTitle(titleRes)
-            .setMessage(messageRes)
-            .setView(input)
-            .setPositiveButton(android.R.string.ok, null)
-            .setNegativeButton(android.R.string.cancel, null)
-            .create()
-
-        dialog.setOnShowListener {
-            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
-                input.error = null
-                val newValue = input.text?.toString()?.trim().orEmpty()
-                if (newValue.isBlank() && !allowBlank) {
-                    input.setText("")
-                    input.error = getString(R.string.settings_parental_pin_too_short)
-                    input.requestFocus()
-                    return@setOnClickListener
-                }
-
-                val errorMessage = onSubmit(newValue)
-                if (errorMessage == null) {
-                    dialog.dismiss()
-                } else {
-                    input.setText("")
-                    input.error = errorMessage
-                    input.requestFocus()
-                }
-            }
-        }
-
-        dialog.show()
+        com.nexastream.app.ui.ParentalPinTvDialog(
+            context = requireContext(),
+            title = getString(titleRes),
+            message = getString(messageRes),
+            isVerificationMode = false,
+            onPinSubmitted = onSubmit
+        ).show()
     }
 
     private fun lockRemainingMinutes(): Int {
@@ -2076,6 +2069,44 @@ class SettingsTvFragment : LeanbackPreferenceFragmentCompat() {
             "$value s"
         }
         updateParentalControlPreferenceState()
+    }
+
+    private fun showWhatsAppQrDialog() {
+        val whatsappUrl = "https://wa.me/8613564440944"
+        val displayMetrics: DisplayMetrics = resources.displayMetrics
+        val density = displayMetrics.density
+        val dialogWidth = (displayMetrics.widthPixels * 0.5f).toInt()
+        val qrSize = (displayMetrics.heightPixels * 0.4f).toInt().coerceAtLeast((density * 200).toInt())
+
+        val container = LinearLayout(requireContext()).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER_HORIZONTAL
+            setPadding((density * 24).toInt(), (density * 16).toInt(), (density * 24).toInt(), (density * 12).toInt())
+        }
+
+        val qrView = ImageView(requireContext()).apply {
+            adjustViewBounds = true
+            scaleType = ImageView.ScaleType.FIT_CENTER
+            setImageDrawable(QrUtils.generate(whatsappUrl, qrSize).toDrawable(resources))
+        }
+
+        val instructionsView = TextView(requireContext()).apply {
+            text = "Scan with your phone to chat with Support\nWhatsApp: +86 135 6444 0944"
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 18f)
+            setTextColor(Color.WHITE)
+            gravity = Gravity.CENTER
+            setPadding(0, (density * 16).toInt(), 0, 0)
+        }
+
+        container.addView(qrView, LinearLayout.LayoutParams(qrSize, qrSize))
+        container.addView(instructionsView, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT))
+
+        AlertDialog.Builder(requireContext())
+            .setTitle("WhatsApp Support")
+            .setView(container)
+            .setPositiveButton(android.R.string.ok, null)
+            .show()
+            .window?.setLayout(dialogWidth, ViewGroup.LayoutParams.WRAP_CONTENT)
     }
 
     private fun showWebSocketBypassTestDialog() {

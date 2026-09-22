@@ -10,6 +10,7 @@ import android.net.Uri
 import android.provider.BaseColumns
 import com.nexastream.app.database.AppDatabase
 import com.nexastream.app.utils.UserPreferences
+import java.util.Calendar
 
 class TvContentProvider : ContentProvider() {
 
@@ -51,8 +52,10 @@ class TvContentProvider : ContentProvider() {
         val query = selectionArgs?.get(0)?.lowercase() ?: return null
         val matrixCursor = MatrixCursor(COLUMNS)
 
+        val context = context ?: return null
+
         try {
-            val database = AppDatabase.getInstance(context!!)
+            val database = AppDatabase.getInstance(context)
             
             val movies = database.movieDao().searchMovies(query, 10, 0)
             movies.forEach { movie ->
@@ -62,7 +65,7 @@ class TvContentProvider : ContentProvider() {
                     movie.overview,
                     movie.poster,
                     "video/mp4",
-                    movie.released?.year ?: 0,
+                    movie.released?.get(Calendar.YEAR) ?: 0,
                     (movie.runtime ?: 0) * 60 * 1000,
                     movie.id,
                     "movie"
@@ -77,7 +80,7 @@ class TvContentProvider : ContentProvider() {
                     tvShow.overview,
                     tvShow.poster,
                     "video/mp4",
-                    tvShow.released?.year ?: 0,
+                    tvShow.released?.get(Calendar.YEAR) ?: 0,
                     (tvShow.runtime ?: 0) * 60 * 1000,
                     tvShow.id,
                     "tv_show"

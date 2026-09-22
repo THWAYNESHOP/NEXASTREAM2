@@ -10,6 +10,7 @@ import com.nexastream.app.models.Genre
 import com.nexastream.app.models.Movie
 import com.nexastream.app.models.People
 import com.nexastream.app.models.Season
+import com.nexastream.app.models.SearchFilters
 import com.nexastream.app.models.TvShow
 import com.nexastream.app.models.Video
 import com.nexastream.app.providers.Provider
@@ -326,7 +327,7 @@ object MkissaProvider : Provider {
             .filter { it.list.isNotEmpty() }
     }
 
-    override suspend fun search(query: String, page: Int): List<AppAdapter.Item> {
+    override suspend fun search(query: String, page: Int, filters: SearchFilters?): List<AppAdapter.Item> {
         if (query.isBlank()) return genres
         return searchItems(mapOf("query" to query), limit = 26, page = page)
     }

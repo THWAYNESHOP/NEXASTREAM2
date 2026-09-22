@@ -15,4 +15,7 @@ sealed class Screen(val route: String) {
     object Search : Screen("search")
     object Providers : Screen("providers")
     object Downloads : Screen("downloads")
+    object Genre : Screen("genre/{id}/{name}") {
+        fun createRoute(id: String, name: String) = "genre/${URLEncoder.encode(id, "UTF-8")}/${URLEncoder.encode(name, "UTF-8")}"
+    }
 }

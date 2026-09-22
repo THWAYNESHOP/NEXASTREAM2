@@ -97,7 +97,8 @@ fun NexastreamTopBar(
                     )
                 )
             )
-            .padding(top = 32.dp, bottom = 8.dp)
+            .statusBarsPadding()
+            .padding(top = 8.dp, bottom = 8.dp)
     ) {
         Row(
             modifier = Modifier

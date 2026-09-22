@@ -8,6 +8,7 @@ import com.nexastream.app.models.Movie
 import com.nexastream.app.models.People
 import com.nexastream.app.models.TvShow
 import com.nexastream.app.models.Video
+import com.nexastream.app.models.SearchFilters
 import kotlinx.coroutines.sync.Mutex
 
 interface ProviderPortalUrl {
@@ -33,7 +34,7 @@ interface Provider {
 
     suspend fun getHome(): List<Category>
 
-    suspend fun search(query: String, page: Int = 1): List<AppAdapter.Item>
+    suspend fun search(query: String, page: Int = 1, filters: SearchFilters? = null): List<AppAdapter.Item>
 
     suspend fun getMovies(page: Int = 1): List<Movie>
 
@@ -61,6 +62,7 @@ interface Provider {
 
         val providers: Map<Provider, ProviderSupport> = mapOf(
             NexaHomeProvider to ProviderSupport(movies = true, tvShows = true),
+            ShortTvProvider to ProviderSupport(movies = false, tvShows = true),
             SflixProvider to ProviderSupport(movies = true, tvShows = true),
             StreamingCommunityProvider("it") to ProviderSupport(movies = true, tvShows = true),
             StreamingCommunityProvider("en") to ProviderSupport(movies = true, tvShows = true),

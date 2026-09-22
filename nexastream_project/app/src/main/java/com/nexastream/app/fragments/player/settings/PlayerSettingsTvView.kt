@@ -7,7 +7,11 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import androidx.core.content.ContextCompat
+import androidx.core.view.isVisible
 import androidx.recyclerview.widget.RecyclerView
+import androidx.media3.common.text.Cue
+import androidx.media3.common.util.UnstableApi
+import androidx.media3.ui.SubtitleView
 import com.nexastream.app.R
 import com.nexastream.app.databinding.ItemSettingTvBinding
 import com.nexastream.app.databinding.ViewPlayerSettingsTvBinding
@@ -16,6 +20,7 @@ import com.nexastream.app.utils.dp
 import com.nexastream.app.utils.margin
 import com.nexastream.app.utils.UserPreferences
 
+@UnstableApi
 class PlayerSettingsTvView @JvmOverloads constructor(
     context: Context,
     attrs: AttributeSet? = null,
@@ -44,6 +49,7 @@ class PlayerSettingsTvView @JvmOverloads constructor(
     private val openSubtitlesAdapter = SettingsAdapter(this, Settings.Subtitle.OpenSubtitles.list)
     private val subDLAdapter = SettingsAdapter(this, Settings.Subtitle.SubDLSubtitles.list)
     private val subtitleOffsetAdapter = SettingsAdapter(this, Settings.Subtitle.Offset.list)
+    private val bilingualAdapter = SettingsAdapter(this, Settings.Bilingual.list)
     private val speedAdapter = SettingsAdapter(this, Settings.Speed.list)
     private val extraBufferingAdapter = SettingsAdapter(this, Settings.ExtraBuffering.list)
     private val softwareDecoderAdapter = SettingsAdapter(this, Settings.SoftwareDecoder.list)
@@ -55,6 +61,71 @@ class PlayerSettingsTvView @JvmOverloads constructor(
 
     init {
         binding.rvSettings.addItemDecoration(SpacingItemDecoration(6.dp(context)))
+        setupSubtitlePreview()
+        setupListeners()
+    }
+
+    private fun setupListeners() {
+        val originalFontColorSelected = onFontColorSelected
+        onFontColorSelected = {
+            originalFontColorSelected.invoke(it)
+            updateSubtitlePreview()
+        }
+        val originalTextSizeSelected = onTextSizeSelected
+        onTextSizeSelected = {
+            originalTextSizeSelected.invoke(it)
+            updateSubtitlePreview()
+        }
+        val originalFontOpacitySelected = onFontOpacitySelected
+        onFontOpacitySelected = {
+            originalFontOpacitySelected.invoke(it)
+            updateSubtitlePreview()
+        }
+        val originalEdgeStyleSelected = onEdgeStyleSelected
+        onEdgeStyleSelected = {
+            originalEdgeStyleSelected.invoke(it)
+            updateSubtitlePreview()
+        }
+        val originalBackgroundColorSelected = onBackgroundColorSelected
+        onBackgroundColorSelected = {
+            originalBackgroundColorSelected.invoke(it)
+            updateSubtitlePreview()
+        }
+        val originalBackgroundOpacitySelected = onBackgroundOpacitySelected
+        onBackgroundOpacitySelected = {
+            originalBackgroundOpacitySelected.invoke(it)
+            updateSubtitlePreview()
+        }
+        val originalWindowColorSelected = onWindowColorSelected
+        onWindowColorSelected = {
+            originalWindowColorSelected.invoke(it)
+            updateSubtitlePreview()
+        }
+        val originalWindowOpacitySelected = onWindowOpacitySelected
+        onWindowOpacitySelected = {
+            originalWindowOpacitySelected.invoke(it)
+            updateSubtitlePreview()
+        }
+        val originalMarginSelected = onMarginSelected
+        onMarginSelected = {
+            originalMarginSelected.invoke(it)
+            updateSubtitlePreview()
+        }
+    }
+
+    private fun setupSubtitlePreview() {
+        binding.subtitlePreviewView.apply {
+            setCues(listOf(Cue.Builder().setText("Sample Subtitle Text").build()))
+            setFractionalTextSize(SubtitleView.DEFAULT_TEXT_SIZE_FRACTION * UserPreferences.captionTextSize)
+            setStyle(UserPreferences.captionStyle)
+        }
+    }
+
+    private fun updateSubtitlePreview() {
+        binding.subtitlePreviewView.apply {
+            setFractionalTextSize(SubtitleView.DEFAULT_TEXT_SIZE_FRACTION * UserPreferences.captionTextSize)
+            setStyle(UserPreferences.captionStyle)
+        }
     }
 
     fun onBackPressed(): Boolean {
@@ -63,6 +134,8 @@ class PlayerSettingsTvView @JvmOverloads constructor(
             Setting.QUALITY,
             Setting.AUDIO,
             Setting.SUBTITLES,
+            Setting.SECONDARY_SUBTITLES,
+            Setting.BILINGUAL,
             Setting.SPEED,
             Setting.EXTRA_BUFFERING,
             Setting.SOFTWARE_DECODER,
@@ -101,11 +174,28 @@ class PlayerSettingsTvView @JvmOverloads constructor(
         displaySettings(Setting.MAIN)
     }
 
-    private fun displaySettings(setting: Setting) {
+    fun displaySettings(setting: Setting) {
         currentSettings = setting
 
         if (setting == Setting.SUBTITLES) {
             onSubtitlesClicked?.invoke()
+        }
+
+        binding.flSubtitlePreviewContainer.isVisible = when (setting) {
+            Setting.CAPTION_STYLE,
+            Setting.CAPTION_STYLE_FONT_COLOR,
+            Setting.CAPTION_STYLE_TEXT_SIZE,
+            Setting.CAPTION_STYLE_FONT_OPACITY,
+            Setting.CAPTION_STYLE_EDGE_STYLE,
+            Setting.CAPTION_STYLE_BACKGROUND_COLOR,
+            Setting.CAPTION_STYLE_BACKGROUND_OPACITY,
+            Setting.CAPTION_STYLE_WINDOW_COLOR,
+            Setting.CAPTION_STYLE_WINDOW_OPACITY,
+            Setting.CAPTION_STYLE_MARGIN -> true
+            else -> false
+        }
+        if (binding.flSubtitlePreviewContainer.isVisible) {
+            updateSubtitlePreview()
         }
 
         binding.tvSettingsHeader.apply {
@@ -114,6 +204,8 @@ class PlayerSettingsTvView @JvmOverloads constructor(
                 Setting.QUALITY -> context.getString(R.string.player_settings_quality_title)
                 Setting.AUDIO -> context.getString(R.string.player_settings_audio_title)
                 Setting.SUBTITLES -> context.getString(R.string.player_settings_subtitles_title)
+                Setting.SECONDARY_SUBTITLES -> context.getString(R.string.player_settings_secondary_subtitles_label)
+                Setting.BILINGUAL -> context.getString(R.string.player_settings_bilingual_label)
                 Setting.CAPTION_STYLE -> context.getString(R.string.player_settings_caption_style_title)
                 Setting.CAPTION_STYLE_FONT_COLOR -> context.getString(R.string.player_settings_caption_style_font_color_title)
                 Setting.CAPTION_STYLE_TEXT_SIZE -> context.getString(R.string.player_settings_caption_style_text_size_title)
@@ -142,6 +234,8 @@ class PlayerSettingsTvView @JvmOverloads constructor(
             Setting.QUALITY -> qualityAdapter
             Setting.AUDIO -> audioAdapter
             Setting.SUBTITLES -> subtitlesAdapter
+            Setting.SECONDARY_SUBTITLES -> subtitlesAdapter
+            Setting.BILINGUAL -> bilingualAdapter
             Setting.CAPTION_STYLE -> captionStyleAdapter
             Setting.CAPTION_STYLE_FONT_COLOR -> fontColorAdapter
             Setting.CAPTION_STYLE_TEXT_SIZE -> textSizeAdapter
@@ -211,6 +305,8 @@ class PlayerSettingsTvView @JvmOverloads constructor(
                                 Settings.Quality -> settingsView.displaySettings(Setting.QUALITY)
                                 Settings.Audio -> settingsView.displaySettings(Setting.AUDIO)
                                 Settings.Subtitle -> settingsView.displaySettings(Setting.SUBTITLES)
+                                Settings.SecondarySubtitle -> settingsView.displaySettings(Setting.SECONDARY_SUBTITLES)
+                                Settings.Bilingual -> settingsView.displaySettings(Setting.BILINGUAL)
                                 Settings.Speed -> settingsView.displaySettings(Setting.SPEED)
                                 Settings.ExtraBuffering -> settingsView.displaySettings(Setting.EXTRA_BUFFERING)
                                 Settings.SoftwareDecoder -> settingsView.displaySettings(Setting.SOFTWARE_DECODER)
@@ -241,7 +337,11 @@ class PlayerSettingsTvView @JvmOverloads constructor(
 
                                 is Settings.Subtitle.None,
                                 is Settings.Subtitle.TextTrackInformation -> {
-                                    settingsView.onSubtitleSelected.invoke(item)
+                                    if (settingsView.currentSettings == Setting.SECONDARY_SUBTITLES) {
+                                        settingsView.onSecondarySubtitleSelected.invoke(item)
+                                    } else {
+                                        settingsView.onSubtitleSelected.invoke(item)
+                                    }
                                     settingsView.hide()
                                 }
 
@@ -373,6 +473,11 @@ class PlayerSettingsTvView @JvmOverloads constructor(
                             settingsView.hide()
                         }
 
+                        is Settings.Bilingual -> {
+                            settingsView.onBilingualSelected.invoke(item is Settings.Bilingual.On)
+                            settingsView.hide()
+                        }
+
                         is Settings.SoftwareDecoder -> {
                             settingsView.onSoftwareDecoderSelected.invoke(item)
                             settingsView.hide()
@@ -406,6 +511,12 @@ class PlayerSettingsTvView @JvmOverloads constructor(
                                     }
                                 )
                             )
+                            Settings.SecondarySubtitle -> setImageDrawable(
+                                ContextCompat.getDrawable(
+                                    context,
+                                    if (UserPreferences.secondarySubtitle != null) R.drawable.ic_player_settings_subtitle_on else R.drawable.ic_player_settings_subtitle_off
+                                )
+                            )
                             Settings.Speed -> setImageDrawable(
                                 ContextCompat.getDrawable(
                                     context,
@@ -417,6 +528,13 @@ class PlayerSettingsTvView @JvmOverloads constructor(
                                 ContextCompat.getDrawable(
                                     context,
                                     R.drawable.ic_player_settings_extra_buffer
+                                )
+                            )
+
+                            Settings.Bilingual -> setImageDrawable(
+                                ContextCompat.getDrawable(
+                                    context,
+                                    R.drawable.ic_player_settings_subtitle_on
                                 )
                             )
 
@@ -479,6 +597,8 @@ class PlayerSettingsTvView @JvmOverloads constructor(
                         Settings.Quality -> context.getString(R.string.player_settings_quality_label)
                         Settings.Audio -> context.getString(R.string.player_settings_audio_label)
                         Settings.Subtitle -> context.getString(R.string.player_settings_subtitles_label)
+                        Settings.SecondarySubtitle -> context.getString(R.string.player_settings_secondary_subtitles_label)
+                        Settings.Bilingual -> context.getString(R.string.player_settings_bilingual_label)
                         Settings.Speed -> context.getString(R.string.player_settings_speed_label)
                         Settings.ExtraBuffering -> context.getString(R.string.player_settings_extra_buffer_server_label)
                         Settings.SoftwareDecoder -> context.getString(R.string.player_settings_software_decoder_label)
@@ -557,6 +677,8 @@ class PlayerSettingsTvView @JvmOverloads constructor(
 
                     is Settings.Speed -> context.getString(item.stringId)
 
+                    is Settings.Bilingual -> context.getString(item.stringId)
+
                     is Settings.ExtraBuffering -> context.getString(item.stringId)
 
                     is Settings.SoftwareDecoder -> context.getString(item.stringId)
@@ -588,6 +710,8 @@ class PlayerSettingsTvView @JvmOverloads constructor(
                             is Settings.Subtitle.TextTrackInformation -> selected.label
                             else -> context.getString(R.string.player_settings_subtitles_off)
                         }
+                        Settings.SecondarySubtitle -> UserPreferences.secondarySubtitle ?: context.getString(R.string.player_settings_subtitles_off)
+                        Settings.Bilingual -> context.getString(Settings.Bilingual.selected.stringId)
                         Settings.Speed -> context.getString(Settings.Speed.selected.stringId)
                         Settings.ExtraBuffering -> context.getString(Settings.ExtraBuffering.selected.stringId)
                         Settings.Server -> Settings.Server.selected?.name ?: ""
@@ -644,11 +768,19 @@ class PlayerSettingsTvView @JvmOverloads constructor(
 
                     is Settings.Subtitle -> when (item) {
                         is Settings.Subtitle.None -> when {
-                            item.isSelected -> View.VISIBLE
+                            if (settingsView.currentSettings == Setting.SECONDARY_SUBTITLES) {
+                                UserPreferences.secondarySubtitle == null
+                            } else {
+                                item.isSelected
+                            } -> View.VISIBLE
                             else -> View.GONE
                         }
                         is Settings.Subtitle.TextTrackInformation -> when {
-                            item.isSelected -> View.VISIBLE
+                            if (settingsView.currentSettings == Setting.SECONDARY_SUBTITLES) {
+                                UserPreferences.secondarySubtitle == (item.language ?: item.label).substringBefore(" ")
+                            } else {
+                                item.isSelected
+                            } -> View.VISIBLE
                             else -> View.GONE
                         }
                         else -> View.GONE
@@ -704,6 +836,11 @@ class PlayerSettingsTvView @JvmOverloads constructor(
                         else -> View.GONE
                     }
 
+                    is Settings.Bilingual -> when {
+                        item.isSelected -> View.VISIBLE
+                        else -> View.GONE
+                    }
+
                     is Settings.ExtraBuffering -> when {
                         item.isSelected -> View.VISIBLE
                         else -> View.GONE
@@ -730,6 +867,8 @@ class PlayerSettingsTvView @JvmOverloads constructor(
                             Settings.Quality,
                             Settings.Audio,
                             Settings.Subtitle,
+                            Settings.SecondarySubtitle,
+                            Settings.Bilingual,
                             Settings.Speed,
                             Settings.ExtraBuffering,
                             Settings.SoftwareDecoder,

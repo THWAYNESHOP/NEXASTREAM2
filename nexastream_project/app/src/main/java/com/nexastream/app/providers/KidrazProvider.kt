@@ -1,5 +1,6 @@
 package com.nexastream.app.providers
 
+import com.nexastream.app.models.SearchFilters
 import com.tanasi.retrofit_jsoup.converter.JsoupConverterFactory
 import com.nexastream.app.adapters.AppAdapter
 import com.nexastream.app.extractors.Extractor
@@ -173,7 +174,7 @@ object KidrazProvider : Provider, ProviderPortalUrl, ProviderConfigUrl {
 
         categories
     }
-    override suspend fun search(query: String, page: Int): List<AppAdapter.Item> = coroutineScope {
+    override suspend fun search(query: String, page: Int, filters: SearchFilters?): List<AppAdapter.Item> = coroutineScope {
         initializeService()
 
         if (query.isEmpty()) {

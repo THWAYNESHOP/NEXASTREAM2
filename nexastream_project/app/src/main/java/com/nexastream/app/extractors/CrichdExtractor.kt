@@ -2,7 +2,6 @@ package com.nexastream.app.extractors
 
 import com.nexastream.app.models.Video
 import com.nexastream.app.utils.JsUnpacker
-import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.jsoup.Jsoup
 import kotlinx.coroutines.Dispatchers
@@ -13,7 +12,10 @@ class CrichdExtractor : Extractor() {
     override val mainUrl: String = "https://crichd.online"
     override val aliasUrls: List<String> = listOf("https://cdn.crichd.com", "https://crichd.tv", "https://crichd.vip")
 
-    private val client = OkHttpClient()
+    private val client = com.nexastream.app.utils.NetworkClient.compatibleTrustAll.newBuilder()
+        .connectTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
+        .readTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
+        .build()
 
     override suspend fun extract(link: String): Video = withContext(Dispatchers.IO) {
         val request = Request.Builder()

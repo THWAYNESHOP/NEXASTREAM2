@@ -6,6 +6,7 @@ import android.os.Build
 import android.os.Environment
 import android.os.StatFs
 import android.util.Log
+import android.widget.Toast
 import androidx.media3.common.MimeTypes
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.offline.Download
@@ -352,10 +353,13 @@ class DownloadManager @Inject constructor(
         headers: Map<String, String>? = null,
         mimeType: String? = null
     ) {
+        Log.i("AAA", "startDownload called: id=$id, title=$title, url=$url")
         scope.launch {
             if (!hasEnoughDiskSpace()) {
                 Log.e("DownloadManager", "Not enough disk space to start download")
-                // Ideally we should show a Toast or update UI, but for now we just log and return
+                kotlinx.coroutines.withContext(Dispatchers.Main) {
+                    Toast.makeText(context, "Not enough disk space to start download", Toast.LENGTH_LONG).show()
+                }
                 return@launch
             }
 
@@ -374,6 +378,7 @@ class DownloadManager @Inject constructor(
             )
             try {
                 getDatabase().downloadDao().insert(downloadModel)
+                Log.i("AAA", "Successfully inserted download in DB for id: $id")
                 HeaderInterceptingDataSource.invalidateHeaderCache()
             } catch (e: Exception) {
                 Log.e("AAA", "Error inserting download in DB: ${e.message}")

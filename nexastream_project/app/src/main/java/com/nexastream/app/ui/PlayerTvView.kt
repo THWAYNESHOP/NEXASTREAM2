@@ -30,6 +30,19 @@ class PlayerTvView @JvmOverloads constructor(
 
     private var zoomToast: Toast? = null
 
+    fun interface ControllerVisibilityListener {
+        fun onVisibilityChanged(visibility: Int)
+    }
+
+    private var visibilityListener: ControllerVisibilityListener? = null
+
+    fun setControllerVisibilityListener(listener: ControllerVisibilityListener?) {
+        this.visibilityListener = listener
+        setControllerVisibilityListener(PlayerView.ControllerVisibilityListener { visibility ->
+            listener?.onVisibilityChanged(visibility)
+        })
+    }
+
     fun enterManualZoomMode() {
         player?.pause()
         isManualZoomEnabled = true
@@ -111,6 +124,7 @@ class PlayerTvView @JvmOverloads constructor(
 
         return when (event.keyCode) {
             KeyEvent.KEYCODE_DPAD_LEFT -> {
+                if (player.isCurrentMediaItemLive) return super.dispatchKeyEvent(event)
                 if (event.action == KeyEvent.ACTION_DOWN) {
                     player.seekTo(player.currentPosition - 10_000)
                 }
@@ -118,6 +132,7 @@ class PlayerTvView @JvmOverloads constructor(
             }
 
             KeyEvent.KEYCODE_DPAD_RIGHT -> {
+                if (player.isCurrentMediaItemLive) return super.dispatchKeyEvent(event)
                 if (event.action == KeyEvent.ACTION_DOWN) {
                     player.seekTo(player.currentPosition + 10_000)
                 }

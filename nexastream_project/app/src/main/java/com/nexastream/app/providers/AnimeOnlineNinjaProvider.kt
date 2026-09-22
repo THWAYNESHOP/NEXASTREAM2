@@ -5,6 +5,7 @@ import android.util.Log
 import android.webkit.CookieManager
 import com.nexastream.app.NexastreamApp
 import com.nexastream.app.adapters.AppAdapter
+import com.nexastream.app.models.SearchFilters
 import com.nexastream.app.extractors.Extractor
 import com.nexastream.app.models.Category
 import com.nexastream.app.models.Episode
@@ -213,7 +214,7 @@ object AnimeOnlineNinjaProvider : Provider {
         return parseHomeCategories(document)
     }
 
-    override suspend fun search(query: String, page: Int): List<AppAdapter.Item> {
+    override suspend fun search(query: String, page: Int, filters: SearchFilters?): List<AppAdapter.Item> {
         if (query.isBlank()) {
             return listOf(
                 Genre("anime-castellano", "Audio castellano"),

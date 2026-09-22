@@ -40,10 +40,12 @@ import com.nexastream.app.databinding.ItemCategorySwiperMobileBinding
 import com.nexastream.app.databinding.ItemCategoryTvBinding
 import com.nexastream.app.databinding.ItemEpisodeContinueWatchingMobileBinding
 import com.nexastream.app.databinding.ItemEpisodeContinueWatchingTvBinding
+import com.nexastream.app.databinding.ItemEpisodeTvGridBinding
 import com.nexastream.app.databinding.ItemEpisodeMobileBinding
 import com.nexastream.app.databinding.ItemEpisodeTvBinding
 import com.nexastream.app.databinding.ItemGenreGridMobileBinding
 import com.nexastream.app.databinding.ItemGenreGridTvBinding
+import com.nexastream.app.databinding.ItemLivestreamMobileBinding
 import com.nexastream.app.databinding.ItemLoadingBinding
 import com.nexastream.app.databinding.ItemMovieGridMobileBinding
 import com.nexastream.app.databinding.ItemMovieGridTvBinding
@@ -91,9 +93,16 @@ class AppAdapter(
     var onSeasonClickListener: ((Season) -> Unit)? = null
     var onProviderClickListener: ((Provider) -> Unit)? = null
     var onViewAllClickListener: ((Category) -> Unit)? = null
+    
+    var isEditMode: Boolean = false
+        set(value) {
+            field = value
+            notifyDataSetChanged()
+        }
     // ---------------------------------
     interface Item {
         var itemType: Type
+        var isSelected: Boolean
     }
 
     enum class Type {
@@ -105,6 +114,7 @@ class AppAdapter(
 
         EPISODE_MOBILE_ITEM,
         EPISODE_TV_ITEM,
+        EPISODE_TV_GRID_ITEM,
         EPISODE_CONTINUE_WATCHING_MOBILE_ITEM,
         EPISODE_CONTINUE_WATCHING_TV_ITEM,
 
@@ -116,6 +126,8 @@ class AppAdapter(
         HEADER,
 
         LOADING_ITEM,
+
+        LIVESTREAM_MOBILE_ITEM,
 
         MOVIE_MOBILE_ITEM,
         MOVIE_TV_ITEM,
@@ -174,8 +186,8 @@ class AppAdapter(
     private var onLoadMoreListener: (() -> Unit)? = null
     private var footer: Footer<ViewBinding>? = null
 
-    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RecyclerView.ViewHolder =
-        when (Type.entries[viewType]) {
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RecyclerView.ViewHolder {
+        val holder = when (Type.entries[viewType]) {
             Type.CATEGORY_MOBILE_ITEM -> CategoryViewHolder(
                 ItemCategoryMobileBinding.inflate(
                     LayoutInflater.from(parent.context),
@@ -215,6 +227,13 @@ class AppAdapter(
             )
             Type.EPISODE_TV_ITEM -> EpisodeViewHolder(
                 ItemEpisodeTvBinding.inflate(
+                    LayoutInflater.from(parent.context),
+                    parent,
+                    false,
+                )
+            )
+            Type.EPISODE_TV_GRID_ITEM -> EpisodeViewHolder(
+                ItemEpisodeTvGridBinding.inflate(
                     LayoutInflater.from(parent.context),
                     parent,
                     false,
@@ -260,6 +279,14 @@ class AppAdapter(
 
             Type.LOADING_ITEM -> LoadingViewHolder(
                 ItemLoadingBinding.inflate(
+                    LayoutInflater.from(parent.context),
+                    parent,
+                    false,
+                )
+            )
+
+            Type.LIVESTREAM_MOBILE_ITEM -> TvShowViewHolder(
+                ItemLivestreamMobileBinding.inflate(
                     LayoutInflater.from(parent.context),
                     parent,
                     false,
@@ -546,6 +573,20 @@ class AppAdapter(
             )
         }
 
+        var p = parent.parent
+        while (p != null) {
+            if (p is androidx.viewpager2.widget.ViewPager2) {
+                holder.itemView.layoutParams = RecyclerView.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT
+                )
+                break
+            }
+            p = p.parent
+        }
+        return holder
+    }
+
     override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
         if (position >= itemCount - 5 && !isLoading) {
             onLoadMoreListener?.invoke()
@@ -630,7 +671,11 @@ class AppAdapter(
 
         val adjustedPosition = header?.let { position - 1 } ?: position
         if (adjustedPosition in items.indices) {
-            return items[adjustedPosition].itemType.ordinal
+            return try {
+                items[adjustedPosition].itemType.ordinal
+            } catch (e: Exception) {
+                Type.LOADING_ITEM.ordinal
+            }
         }
 
         val loadMorePosition = itemCount - 1 - (if (footer != null) 1 else 0)
@@ -663,8 +708,10 @@ class AppAdapter(
     }
 
     fun onSaveInstanceState(recyclerView: RecyclerView) {
-        for (position in items.indices) {
-            val holder = recyclerView.findViewHolderForAdapterPosition(position) ?: continue
+        val offset = header?.let { 1 } ?: 0
+        for (i in items.indices) {
+            val adapterPosition = i + offset
+            val holder = recyclerView.findViewHolderForAdapterPosition(adapterPosition) ?: continue
 
             val state = when (holder) {
                 is CategoryViewHolder -> holder.childRecyclerView?.layoutManager?.onSaveInstanceState()
@@ -674,94 +721,102 @@ class AppAdapter(
             }
 
             if (state != null) {
-                states[position] = state
+                states[adapterPosition] = state
             } else {
-                states.remove(position)
+                states.remove(adapterPosition)
             }
         }
     }
 
 
     fun submitList(list: List<Item>) {
-        val oldItems = items.toList()
-        val newItemCount = list.size
+        isLoading = false
+        // If we have a lot of items or are in a potentially sensitive state, 
+        // using a post ensures we aren't mid-layout.
+        val updateBlock = {
+            val oldItems = items.toList()
+            val newItemCount = list.size
 
-        if (oldItems.isNotEmpty() &&
-            oldItems.size <= newItemCount &&
-            oldItems == list.subList(0, oldItems.size)
-        ) {
-            val appendedItems = list.subList(oldItems.size, newItemCount)
-            if (appendedItems.isEmpty()) {
-                return
+            if (oldItems.isNotEmpty() &&
+                oldItems.size <= newItemCount &&
+                oldItems == list.subList(0, oldItems.size)
+            ) {
+                val appendedItems = list.subList(oldItems.size, newItemCount)
+                if (appendedItems.isNotEmpty()) {
+                    val appendedIdentityState = appendedItems.buildIdentityState(itemIdentityCounts)
+
+                    items.addAll(appendedItems)
+                    itemIdentities = itemIdentities + appendedIdentityState.identities
+                    itemIdentityCounts = appendedIdentityState.counts
+                    itemStableIds = itemStableIds + appendedIdentityState.stableIds
+
+                    notifyItemRangeInserted(
+                        oldItems.size + (header?.let { 1 } ?: 0),
+                        appendedItems.size
+                    )
+                }
+            } else {
+                val oldIdentities = itemIdentities
+                val newIdentityState = list.buildIdentityState()
+                val newIdentities = newIdentityState.identities
+
+                val result = DiffUtil.calculateDiff(object : DiffUtil.Callback() {
+                    override fun getOldListSize() = items.size
+                    override fun getNewListSize() = list.size
+                    override fun areItemsTheSame(oldItemPosition: Int, newItemPosition: Int): Boolean {
+                        val oldItem = oldItems[oldItemPosition]
+                        val newItem = list[newItemPosition]
+                        return oldIdentities.getOrNull(oldItemPosition) == newIdentities.getOrNull(newItemPosition) &&
+                                oldItem::class == newItem::class
+                    }
+                    override fun areContentsTheSame(oldItemPosition: Int, newItemPosition: Int): Boolean {
+                        val oldItem = oldItems[oldItemPosition]
+                        val newItem = list[newItemPosition]
+                        return oldItem == newItem
+                    }
+                })
+
+                val newStates = mutableMapOf<Int, android.os.Parcelable?>()
+                val headerOffset = header?.let { 1 } ?: 0
+                for (newItemPosition in list.indices) {
+                    val oldItemPosition = result.convertNewPositionToOld(newItemPosition)
+                    if (oldItemPosition != -1) {
+                        states[oldItemPosition + headerOffset]?.let { newStates[newItemPosition + headerOffset] = it }
+                    }
+                }
+
+                states.clear()
+                states.putAll(newStates)
+
+                items.clear()
+                items.addAll(list)
+                itemIdentities = newIdentities
+                itemIdentityCounts = newIdentityState.counts
+                itemStableIds = newIdentityState.stableIds
+                
+                result.dispatchUpdatesTo(object : androidx.recyclerview.widget.ListUpdateCallback {
+                    override fun onInserted(position: Int, count: Int) {
+                        notifyItemRangeInserted(position + headerOffset, count)
+                    }
+                    override fun onRemoved(position: Int, count: Int) {
+                        notifyItemRangeRemoved(position + headerOffset, count)
+                    }
+                    override fun onMoved(fromPosition: Int, toPosition: Int) {
+                        notifyItemMoved(fromPosition + headerOffset, toPosition + headerOffset)
+                    }
+                    override fun onChanged(position: Int, count: Int, payload: Any?) {
+                        notifyItemRangeChanged(position + headerOffset, count, payload)
+                    }
+                })
             }
-
-            val appendedIdentityState = appendedItems.buildIdentityState(itemIdentityCounts)
-
-            items.addAll(appendedItems)
-            itemIdentities = itemIdentities + appendedIdentityState.identities
-            itemIdentityCounts = appendedIdentityState.counts
-            itemStableIds = itemStableIds + appendedIdentityState.stableIds
-
-            notifyItemRangeInserted(
-                oldItems.size + (header?.let { 1 } ?: 0),
-                appendedItems.size
-            )
-            return
         }
 
-        val oldIdentities = itemIdentities
-        val newIdentityState = list.buildIdentityState()
-        val newIdentities = newIdentityState.identities
-
-        val result = DiffUtil.calculateDiff(object : DiffUtil.Callback() {
-            override fun getOldListSize() = items.size
-
-            override fun getNewListSize() = list.size
-
-            override fun areItemsTheSame(oldItemPosition: Int, newItemPosition: Int): Boolean {
-                val oldItem = oldItems[oldItemPosition]
-                val newItem = list[newItemPosition]
-                return oldIdentities.getOrNull(oldItemPosition) == newIdentities.getOrNull(newItemPosition) &&
-                        oldItem::class == newItem::class
-            }
-
-            override fun areContentsTheSame(oldItemPosition: Int, newItemPosition: Int): Boolean {
-                val oldItem = oldItems[oldItemPosition]
-                val newItem = list[newItemPosition]
-                return oldItem == newItem
-            }
-        })
-
-        val newStates = mutableMapOf<Int, Parcelable?>()
-        if (items.size < list.size) {
-            for (newItemPosition in list.indices.reversed()) {
-                val oldItemPosition = result.convertNewPositionToOld(newItemPosition)
-                    .takeIf { it != -1 } ?: continue
-
-                states[oldItemPosition]?.let { newStates[newItemPosition] = it }
-            }
-        } else if (items.size > list.size) {
-            for (oldItemPosition in items.indices) {
-                val newItemPosition = result.convertOldPositionToNew(oldItemPosition)
-                    .takeIf { it != -1 } ?: continue
-
-                states[oldItemPosition]?.let { newStates[newItemPosition] = it }
-            }
+        // Execute immediately if possible, or post to main thread
+        if (android.os.Looper.myLooper() == android.os.Looper.getMainLooper()) {
+            updateBlock()
         } else {
-            for (index in list.indices) {
-                states[index]?.let { newStates[index] = it }
-            }
+            android.os.Handler(android.os.Looper.getMainLooper()).post { updateBlock() }
         }
-
-        states.clear()
-        states.putAll(newStates)
-
-        items.clear()
-        items.addAll(list)
-        itemIdentities = newIdentities
-        itemIdentityCounts = newIdentityState.counts
-        itemStableIds = newIdentityState.stableIds
-        result.dispatchUpdatesTo(this)
     }
 
 
@@ -769,19 +824,29 @@ class AppAdapter(
         binding: (parent: ViewGroup) -> T,
         bind: ((binding: T) -> Unit)? = null,
     ) {
+        val hadHeader = this.header != null
         @Suppress("UNCHECKED_CAST")
         this.header = Header(
             binding = binding,
             bind = bind as ((ViewBinding) -> Unit)?,
         )
+        if (hadHeader) {
+            notifyItemChanged(0)
+        } else {
+            notifyItemInserted(0)
+        }
     }
 
     fun setOnLoadMoreListener(onLoadMoreListener: (() -> Unit)?) {
-        if (this.onLoadMoreListener != null && onLoadMoreListener == null) {
-            this.onLoadMoreListener = null
-            notifyItemRemoved(items.size)
-        } else {
-            this.onLoadMoreListener = onLoadMoreListener
+        val hadListener = this.onLoadMoreListener != null
+        val hasListener = onLoadMoreListener != null
+        this.onLoadMoreListener = onLoadMoreListener
+
+        val position = items.size + (header?.let { 1 } ?: 0)
+        if (hadListener && !hasListener) {
+            notifyItemRemoved(position)
+        } else if (!hadListener && hasListener) {
+            notifyItemInserted(position)
         }
     }
 
@@ -789,11 +854,17 @@ class AppAdapter(
         binding: (parent: ViewGroup) -> T,
         bind: ((binding: T) -> Unit)? = null,
     ) {
+        val hadFooter = this.footer != null
         @Suppress("UNCHECKED_CAST")
         this.footer = Footer(
             binding = binding,
             bind = bind as ((ViewBinding) -> Unit)?,
         )
+        if (hadFooter) {
+            notifyItemChanged(itemCount - 1)
+        } else {
+            notifyItemInserted(itemCount - 1)
+        }
     }
 
 
@@ -840,7 +911,8 @@ class AppAdapter(
 
         forEachIndexed { index, item ->
             val baseKey = item.baseIdentityKey()
-            val key = "${item.itemType.ordinal}:$baseKey"
+            val typeOrdinal = try { item.itemType.ordinal } catch (e: Exception) { -1 }
+            val key = "$typeOrdinal:$baseKey"
             val occurrenceIndex = occurrenceCounts.getOrDefault(key, 0)
             occurrenceCounts[key] = occurrenceIndex + 1
 
@@ -867,6 +939,7 @@ class AppAdapter(
         is Provider -> "provider:${name}"
         is Season -> "season:${id}"
         is TvShow -> "tvshow:${id}"
-        else -> "item:${itemType.name}"
+        is SportMatch -> "sportmatch:${id}"
+        else -> "item:${this::class.java.simpleName}"
     }
 }

@@ -142,8 +142,8 @@ class PlayerViewModel(
             }
             
             // LOG POTENZIATO: Mostra tutti i server disponibili per il player
-            Log.i("StreamFlixES", "[SERVERS LIST] -> Provider: ${UserPreferences.currentProvider!!.name}")
-            Log.i("StreamFlixES", "[SERVERS LIST] -> Found ${finalServers.size} servers: ${finalServers.joinToString { it.name }}")
+            Log.i("NexaStream", "[SERVERS LIST] -> Provider: ${UserPreferences.currentProvider!!.name}")
+            Log.i("NexaStream", "[SERVERS LIST] -> Found ${finalServers.size} servers: ${finalServers.joinToString { it.name }}")
 
             Log.d("PlayerViewModel", "Ricerca server completata: ${finalServers.size} server trovati")
             _state.emit(State.SuccessLoadingServers(finalServers))

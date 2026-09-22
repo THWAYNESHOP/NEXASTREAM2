@@ -4,6 +4,7 @@ import android.util.Log
 import androidx.core.net.toUri
 import com.nexastream.app.NexastreamApp
 import com.nexastream.app.adapters.AppAdapter
+import com.nexastream.app.models.SearchFilters
 import com.nexastream.app.extractors.Extractor
 import com.nexastream.app.models.*
 import com.nexastream.app.providers.Provider
@@ -175,7 +176,7 @@ object PoseidonHD2Provider : Provider {
         return categories
     }
 
-    override suspend fun search(query: String, page: Int): List<AppAdapter.Item> {
+    override suspend fun search(query: String, page: Int, filters: SearchFilters?): List<AppAdapter.Item> {
         if (query.isEmpty()) {
             return listOf(
                 Genre("accion", "Acción"),

@@ -6,6 +6,7 @@ import android.content.Context
 import android.util.Base64
 import android.util.Log
 import com.nexastream.app.adapters.AppAdapter
+import com.nexastream.app.models.SearchFilters
 import com.nexastream.app.database.SerienStreamDatabase
 import com.nexastream.app.database.dao.TvShowDao
 import com.nexastream.app.extractors.Extractor
@@ -215,7 +216,7 @@ object SerienStreamProvider : Provider {
         return categories
     }
 
-    override suspend fun search(query: String, page: Int): List<AppAdapter.Item> {
+    override suspend fun search(query: String, page: Int, filters: SearchFilters?): List<AppAdapter.Item> {
         if (query.isEmpty()) {
             val document = getService().getSeriesListWithCategories()
             return document

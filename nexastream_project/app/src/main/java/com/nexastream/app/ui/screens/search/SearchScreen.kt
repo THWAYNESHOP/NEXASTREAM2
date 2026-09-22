@@ -15,9 +15,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.hilt.navigation.compose.hiltViewModel
+import com.nexastream.app.models.Genre
 import com.nexastream.app.models.Show
 import com.nexastream.app.ui.components.MoviePoster
 
@@ -25,7 +27,8 @@ import com.nexastream.app.ui.components.MoviePoster
 @Composable
 fun SearchScreen(
     onMovieClick: (String) -> Unit,
-    viewModel: SearchViewModel = viewModel()
+    onGenreClick: (String, String) -> Unit,
+    viewModel: SearchViewModel = hiltViewModel()
 ) {
     var query by remember { mutableStateOf("") }
     val uiState by viewModel.uiState.collectAsState()
@@ -34,6 +37,7 @@ fun SearchScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(Color.Black)
+            .statusBarsPadding()
             .padding(top = 16.dp)
     ) {
         TextField(
@@ -80,12 +84,53 @@ fun SearchScreen(
             verticalArrangement = Arrangement.spacedBy(8.dp),
             modifier = Modifier.fillMaxSize()
         ) {
-            items(uiState.results) { show ->
-                MoviePoster(
-                    posterUrl = show.poster,
-                    onClick = { onMovieClick(show.id) }
-                )
+            items(uiState.results) { item ->
+                when (item) {
+                    is Show -> {
+                        MoviePoster(
+                            posterUrl = item.poster,
+                            onClick = { onMovieClick(item.id) }
+                        )
+                    }
+                    is Genre -> {
+                        GenreCard(
+                            genre = item,
+                            onClick = { onGenreClick(item.id, item.name) }
+                        )
+                    }
+                }
             }
+        }
+    }
+}
+
+@Composable
+fun GenreCard(
+    genre: Genre,
+    onClick: () -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .aspectRatio(1f)
+            .clickable(onClick = onClick),
+        colors = CardDefaults.cardColors(
+            containerColor = Color.DarkGray.copy(alpha = 0.5f)
+        ),
+        shape = RoundedCornerShape(8.dp)
+    ) {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = genre.name,
+                color = Color.White,
+                fontWeight = FontWeight.Bold,
+                fontSize = 14.sp,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(8.dp)
+            )
         }
     }
 }

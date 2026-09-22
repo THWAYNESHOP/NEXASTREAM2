@@ -55,6 +55,25 @@
     <string name="search_recent">Recent Searches</string>
     <string name="search_empty_query">Please enter a search query</string>
     <string name="searching">Searching...</string>
+    <string name="search_filters">Search Filters</string>
+    <string name="search_filters_media_type">Media Type</string>
+    <string name="search_filters_media_type_all">All</string>
+    <string name="search_filters_media_type_movies">Movies</string>
+    <string name="search_filters_media_type_tv_shows">TV Shows</string>
+    <string name="search_filters_sort_by">Sort By</string>
+    <string name="search_filters_sort_popularity_desc">Most Popular</string>
+    <string name="search_filters_sort_popularity_asc">Least Popular</string>
+    <string name="search_filters_sort_rating_desc">Highest Rated</string>
+    <string name="search_filters_sort_rating_asc">Lowest Rated</string>
+    <string name="search_filters_sort_date_desc">Newest First</string>
+    <string name="search_filters_sort_date_asc">Oldest First</string>
+    <string name="search_filters_year">Release Year</string>
+    <string name="search_filters_rating">Minimum Rating</string>
+    <string name="search_filters_genres">Genres</string>
+    <string name="search_filters_apply">Apply Filters</string>
+    <string name="search_filters_reset">Reset</string>
+    <string name="search_filters_any_year">Any Year</string>
+    <string name="search_filters_rating_value">%1$.1f+</string>
     <string name="search_error">Error</string>
     <string name="result">Result</string>
     <string name="results">Results</string>
@@ -145,6 +164,8 @@
     <string name="player_settings_audio_label">Audio</string>
     <string name="player_settings_subtitles_title">Subtitles/closed captions</string>
     <string name="player_settings_subtitles_label">Captions</string>
+    <string name="player_settings_secondary_subtitles_label">Secondary Captions</string>
+    <string name="player_settings_bilingual_label">Bilingual Subtitles</string>
     <string name="player_settings_subtitles_off">Off</string>
     <string name="player_settings_caption_style_title">Caption style</string>
     <string name="player_settings_caption_style_label">Caption style</string>
@@ -549,6 +570,21 @@
     <string name="settings_trakt_status_connected">Connected as %s</string>
     <string name="settings_trakt_status_disconnected">Not connected</string>
     <string name="settings_trakt_device_code_message">Go to %1$s and enter the code: %2$s</string>
+
+    <string name="qr_login_title">Login with QR Code</string>
+    <string name="qr_login_instructions">Scan this code with NexaStream Mobile app to log in.</string>
+    <string name="qr_login_waiting">Waiting for connection...</string>
+    <string name="qr_login_success">Login successful!</string>
+    <string name="settings_qr_login">Login via QR</string>
+    <string name="settings_qr_login_summary">Pair with mobile app to log in on TV</string>
+    <string name="settings_region_title">Content Region</string>
+    <string name="settings_region_summary">Customize trending content for your region</string>
+    <string name="edit_mode">Edit Mode</string>
+    <string name="delete_selected">Delete Selected</string>
+    <string name="clear_all">Clear All</string>
+
+    <string name="family_mode">Family Mode</string>
+    <string name="family_mode_tips">Hide mature content from all providers</string>
 
     <string name="settings_category_profiles">Profiles</string>
     <string name="settings_profile_title">Current Profile</string>
