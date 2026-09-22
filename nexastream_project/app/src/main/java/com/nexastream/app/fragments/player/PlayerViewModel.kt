@@ -277,6 +277,66 @@ class PlayerViewModel(
         }
     }
 
+    fun autoDownloadSubtitles(videoType: Video.Type) = viewModelScope.launch(Dispatchers.IO) {
+        if (!UserPreferences.autoDownloadSubtitles) return@launch
+        
+        val langCode = UserPreferences.currentProvider?.language?.substringBefore("-") ?: "en"
+        val subLanguageId = when (langCode) {
+            "it" -> "ita"
+            "es" -> "spa"
+            "en" -> "eng"
+            "fr" -> "fre"
+            "de" -> "ger"
+            else -> langCode
+        }
+
+        try {
+            // Try OpenSubtitles first
+            val openSubtitles = when (videoType) {
+                is Video.Type.Episode -> {
+                    OpenSubtitles.search(
+                        query = videoType.tvShow.title,
+                        season = videoType.season.number,
+                        episode = videoType.number,
+                        subLanguageId = subLanguageId
+                    )
+                }
+                is Video.Type.Movie -> {
+                    OpenSubtitles.search(query = videoType.title, subLanguageId = subLanguageId)
+                }
+            }.sortedByDescending { it.subDownloadsCnt?.toIntOrNull() ?: 0 }
+
+            if (openSubtitles.isNotEmpty()) {
+                downloadSubtitle(openSubtitles.first())
+                return@launch
+            }
+
+            // Fallback to SubDL if OpenSubtitles has no results
+            val subDlSubtitles = when (videoType) {
+                is Video.Type.Episode -> {
+                    SubDL.search(
+                        filmName = videoType.tvShow.title,
+                        seasonNumber = videoType.season.number,
+                        episodeNumber = videoType.number,
+                        type = "tv"
+                    )
+                }
+                is Video.Type.Movie -> {
+                    SubDL.search(filmName = videoType.title, type = "movie")
+                }
+            }.filter { 
+                it.lang?.contains(langCode, ignoreCase = true) == true || 
+                it.language?.contains(langCode, ignoreCase = true) == true 
+            }
+
+            if (subDlSubtitles.isNotEmpty()) {
+                downloadSubDLSubtitle(subDlSubtitles.first())
+            }
+        } catch (e: Exception) {
+            Log.e("PlayerViewModel", "Auto-download subtitles failed", e)
+        }
+    }
+
     sealed class State {
         data object LoadingServers : State()
         data class SuccessLoadingServers(val servers: List<Video.Server>) : State()

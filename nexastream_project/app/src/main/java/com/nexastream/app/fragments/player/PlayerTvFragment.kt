@@ -107,10 +107,10 @@ import dagger.hilt.components.SingletonComponent
 import kotlinx.coroutines.launch
 import okhttp3.OkHttpClient
 import okhttp3.internal.userAgent
+import android.util.Base64
 import java.util.Calendar
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
-import java.util.Base64
 import java.io.File
 import java.io.FileOutputStream
 import androidx.core.content.FileProvider
@@ -1282,7 +1282,7 @@ class PlayerTvFragment : Fragment() {
             val parts = uri.split(",")
             if (parts.size == 2 && parts[0].contains(";base64")) {
                 val base64Data = parts[1]
-                val decodedBytes = Base64.getDecoder().decode(base64Data)
+                val decodedBytes = Base64.decode(base64Data, Base64.DEFAULT)
                 String(decodedBytes, Charsets.UTF_8)
             } else {
                 null
@@ -1295,6 +1295,13 @@ class PlayerTvFragment : Fragment() {
     private fun extractUrlFromPlaylist(playlist: String): String? {
         return try {
             val lines = playlist.lines().map { it.trim() }
+
+            // If it's a master manifest, don't extract a single URL.
+            // We want to keep all quality and audio track information.
+            if (lines.any { it.contains("#EXT-X-STREAM-INF") || it.contains("#EXT-X-MEDIA") }) {
+                return null
+            }
+
             lines.firstOrNull { it.startsWith("http") }
                 ?: lines.firstNotNullOfOrNull { line ->
                     val regex = """URI=["'](http[^"']+)["']""".toRegex()
@@ -1317,6 +1324,10 @@ class PlayerTvFragment : Fragment() {
         reportedReadyServerId = null
         updatePlayerHeader()
         updateCastAvailability(video)
+
+        if (UserPreferences.autoDownloadSubtitles && !isPlayingOfflineDownload) {
+            viewModel.autoDownloadSubtitles(args.videoType)
+        }
         val extraBuffering = PlayerSettingsView.Settings.ExtraBuffering.isEnabled
         val softwareDecoder = PlayerSettingsView.Settings.SoftwareDecoder.isEnabled
         val needsReinit =
@@ -1341,9 +1352,30 @@ class PlayerTvFragment : Fragment() {
                 "User-Agent" to userAgent,
             ) + (video.headers ?: emptyMap())
         )
+
+        // Handle data: URIs (base64-encoded playlists) by decoding them to temporary files
+        val videoUri = if (video.source.startsWith("data:application/vnd.apple.mpegurl;base64,")) {
+            val playlistContent = decodeBase64Uri(video.source)
+            val extractedUrl = if (playlistContent != null) extractUrlFromPlaylist(playlistContent) else null
+
+            if (extractedUrl != null) {
+                extractedUrl.toUri()
+            } else {
+                try {
+                    val file = File(requireContext().cacheDir, "stream.m3u8")
+                    FileOutputStream(file).use { it.write(playlistContent?.toByteArray() ?: ByteArray(0)) }
+                    FileProvider.getUriForFile(requireContext(), "${requireContext().packageName}.provider", file)
+                } catch (ignored: Exception) {
+                    video.source.toUri()
+                }
+            }
+        } else {
+            video.source.toUri()
+        }
+
         player.setMediaItem(
             MediaItem.Builder()
-                .setUri(video.source.toUri())
+                .setUri(videoUri)
                 .setMimeType(video.type)
                 .setSubtitleConfigurations(video.subtitles.map { subtitle ->
                     MediaItem.SubtitleConfiguration.Builder(subtitle.file.toUri())

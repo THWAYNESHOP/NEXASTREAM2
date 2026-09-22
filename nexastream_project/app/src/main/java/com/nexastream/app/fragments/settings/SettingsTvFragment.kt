@@ -584,6 +584,14 @@ class SettingsTvFragment : LeanbackPreferenceFragmentCompat() {
             }
         }
 
+        findPreference<SwitchPreference>("AUTO_DOWNLOAD_SUBTITLES")?.apply {
+            isChecked = UserPreferences.autoDownloadSubtitles
+            setOnPreferenceChangeListener { _, newValue ->
+                UserPreferences.autoDownloadSubtitles = newValue as Boolean
+                true
+            }
+        }
+
         findPreference<SwitchPreference>("UPDATE_CHECK_ENABLED")?.apply {
             isChecked = UserPreferences.updateCheckEnabled
             setOnPreferenceChangeListener { _, newValue ->

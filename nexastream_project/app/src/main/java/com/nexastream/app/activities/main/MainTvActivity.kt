@@ -45,7 +45,7 @@ class MainTvActivity : FragmentActivity() {
 
     private val viewModel by viewModels<MainViewModel>()
 
-    private lateinit var updateAppDialog: UpdateAppTvDialog
+    private var updateAppDialog: UpdateAppTvDialog? = null
     private var navController: NavController? = null
 
     override fun attachBaseContext(newBase: android.content.Context) {
@@ -148,10 +148,18 @@ class MainTvActivity : FragmentActivity() {
             viewModel.state.flowWithLifecycle(lifecycle, Lifecycle.State.STARTED).collect { state ->
                 when (state) {
                     is MainViewModel.State.SuccessCheckingUpdate -> {
-                        // Handled by HomeTvFragment banner for a more integrated TV experience
+                        if (state.isForceUpdate) {
+                            showUpdateDialog(state)
+                        }
                     }
+                    MainViewModel.State.DownloadingUpdate -> updateAppDialog?.isLoading = true
                     is MainViewModel.State.SuccessDownloadingUpdate -> {
                         viewModel.installUpdate(this@MainTvActivity, state.apk)
+                        dismissUpdateDialog()
+                    }
+                    MainViewModel.State.InstallingUpdate -> updateAppDialog?.isLoading = true
+                    is MainViewModel.State.FailedUpdate -> {
+                        updateAppDialog?.isLoading = false
                     }
                     else -> {}
                 }
@@ -181,6 +189,31 @@ class MainTvActivity : FragmentActivity() {
     override fun onResume() {
         super.onResume()
         viewModel.checkUpdate()
+    }
+
+    private fun showUpdateDialog(state: MainViewModel.State.SuccessCheckingUpdate) {
+        if (isFinishing || isDestroyed) return
+
+        dismissUpdateDialog()
+        updateAppDialog = UpdateAppTvDialog(this, state.newReleases, state.isForceUpdate).also { dialog ->
+            dialog.setOnUpdateClickListener {
+                if (!dialog.isLoading) {
+                    viewModel.downloadUpdate(this@MainTvActivity, state.asset)
+                }
+            }
+            dialog.show()
+        }
+    }
+
+    private fun dismissUpdateDialog() {
+        updateAppDialog?.takeIf { it.isShowing }?.dismiss()
+        updateAppDialog = null
+    }
+
+    override fun onDestroy() {
+        dismissUpdateDialog()
+        _binding = null
+        super.onDestroy()
     }
 
     override fun onNewIntent(intent: Intent) {

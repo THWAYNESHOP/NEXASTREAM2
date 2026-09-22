@@ -160,6 +160,17 @@ class VixSrcExtractor : Extractor() {
                     Log.i("NexaStream", "[VixSrc] --- Processing START (Lang: $langCode) ---")
 
                     val lines = playlistContent.lines()
+                    
+                    val hasMatchingAudio = lines.any { line ->
+                        line.startsWith("#EXT-X-MEDIA:TYPE=AUDIO") && (
+                            line.contains("LANGUAGE=\"$langCode\"", ignoreCase = true) || 
+                            line.contains("NAME=\"$langCode\"", ignoreCase = true) ||
+                            (langCode == "it" && (line.contains("Italian", true) || line.contains("ita", true))) ||
+                            (langCode == "es" && (line.contains("Spanish", true) || line.contains("Español", true) || line.contains("Castellano", true) || line.contains("spa", true) || line.contains("esp", true))) ||
+                            (langCode == "en" && (line.contains("English", true) || line.contains("eng", true)))
+                        )
+                    }
+
                     val finalLines = mutableListOf<String>()
                     val uriRegex = """URI=["']([^"']+)["']""".toRegex()
 
@@ -181,19 +192,21 @@ class VixSrcExtractor : Extractor() {
                         }
 
                         if (patchedLine.startsWith("#EXT-X-MEDIA:TYPE=AUDIO")) {
-                            patchedLine = patchedLine.replace(Regex("DEFAULT=YES", RegexOption.IGNORE_CASE), "DEFAULT=NO")
-                                                     .replace(Regex("AUTOSELECT=YES", RegexOption.IGNORE_CASE), "AUTOSELECT=NO")
-                            
                             val isTargetAudio = patchedLine.contains("LANGUAGE=\"$langCode\"", ignoreCase = true) || 
                                                 patchedLine.contains("NAME=\"$langCode\"", ignoreCase = true) ||
                                                 (langCode == "it" && (patchedLine.contains("Italian", true) || patchedLine.contains("ita", true))) ||
-                                                (langCode == "es" && (patchedLine.contains("Spanish", true) || patchedLine.contains("Español", true) || patchedLine.contains("Castellano", true) || patchedLine.contains("spa", true))) ||
+                                                (langCode == "es" && (patchedLine.contains("Spanish", true) || patchedLine.contains("Español", true) || patchedLine.contains("Castellano", true) || patchedLine.contains("spa", true) || patchedLine.contains("esp", true))) ||
                                                 (langCode == "en" && (patchedLine.contains("English", true) || patchedLine.contains("eng", true)))
                             
-                            if (isTargetAudio) {
-                                patchedLine = patchedLine.replace("DEFAULT=NO", "DEFAULT=YES")
-                                                         .replace("AUTOSELECT=NO", "AUTOSELECT=YES")
-                                Log.i("NexaStream", "[AUDIO] -> SET DEFAULT: $langCode")
+                            if (hasMatchingAudio) {
+                                patchedLine = patchedLine.replace(Regex("DEFAULT=YES", RegexOption.IGNORE_CASE), "DEFAULT=NO")
+                                                         .replace(Regex("AUTOSELECT=YES", RegexOption.IGNORE_CASE), "AUTOSELECT=NO")
+                                
+                                if (isTargetAudio) {
+                                    patchedLine = patchedLine.replace(Regex("DEFAULT=NO", RegexOption.IGNORE_CASE), "DEFAULT=YES")
+                                                             .replace(Regex("AUTOSELECT=NO", RegexOption.IGNORE_CASE), "AUTOSELECT=YES")
+                                    Log.i("NexaStream", "[AUDIO] -> SET DEFAULT: $langCode")
+                                }
                             }
                             finalLines.add(patchedLine)
                         } else if (patchedLine.startsWith("#EXT-X-MEDIA:TYPE=SUBTITLES")) {
@@ -208,7 +221,7 @@ class VixSrcExtractor : Extractor() {
                             val isForced = trackName.contains("forced", ignoreCase = true) || trackLang.contains("forced", ignoreCase = true) || patchedLine.contains("FORCED=YES", ignoreCase = true)
                             val isRightLanguage = trackLang.contains(langCode, ignoreCase = true) || 
                                                   trackName.contains(langCode, ignoreCase = true) ||
-                                                  (langCode == "es" && (trackName.contains("Spanish", true) || trackName.contains("Español", true) || trackName.contains("Castellano", true) || trackLang.contains("spa", true))) ||
+                                                  (langCode == "es" && (trackName.contains("Spanish", true) || trackName.contains("Español", true) || trackName.contains("Castellano", true) || trackLang.contains("spa", true) || trackLang.contains("esp", true))) ||
                                                   (langCode == "it" && (trackName.contains("Italian", true) || trackLang.contains("ita", true))) ||
                                                   (langCode == "en" && (trackName.contains("English", true) || trackLang.contains("eng", true)))
 

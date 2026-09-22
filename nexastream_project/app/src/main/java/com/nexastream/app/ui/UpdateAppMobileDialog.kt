@@ -13,6 +13,7 @@ import com.nexastream.app.utils.GitHub
 class UpdateAppMobileDialog(
     context: Context,
     newReleases: List<GitHub.Release>,
+    isForceUpdate: Boolean = false,
 ) : Dialog(context) {
 
     private val binding = DialogUpdateAppMobileBinding.inflate(LayoutInflater.from(context))
@@ -29,6 +30,16 @@ class UpdateAppMobileDialog(
     init {
         setContentView(binding.root)
 
+        if (isForceUpdate) {
+            binding.btnUpdateCancel.visibility = View.GONE
+            setCancelable(false)
+            setCanceledOnTouchOutside(false)
+        } else {
+            binding.btnUpdateCancel.setOnClickListener {
+                hide()
+            }
+        }
+
         binding.tvUpdateCurrentVersion.text = BuildConfig.VERSION_NAME
 
         binding.tvUpdateNewVersion.text = newReleases.first().tagName.substringAfter("v")
@@ -39,10 +50,6 @@ class UpdateAppMobileDialog(
                 "- $2"
             )
         }.joinToString("\n")
-
-        binding.btnUpdateCancel.setOnClickListener {
-            hide()
-        }
 
 
         window?.setLayout(

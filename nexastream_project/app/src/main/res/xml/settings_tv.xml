@@ -105,6 +105,12 @@
                 android:dialogMessage="@string/settings_autoplay_buffer_dialog_message"
                 android:defaultValue="3"
                 android:inputType="number" />
+
+            <SwitchPreference
+                android:key="AUTO_DOWNLOAD_SUBTITLES"
+                android:title="@string/settings_auto_download_subtitles_title"
+                android:summary="@string/settings_auto_download_subtitles_summary"
+                android:defaultValue="true" />
         </PreferenceCategory>
 
         <PreferenceCategory

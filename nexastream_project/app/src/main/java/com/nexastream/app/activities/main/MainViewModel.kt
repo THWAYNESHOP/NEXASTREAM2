@@ -22,7 +22,11 @@ class MainViewModel : ViewModel() {
 
     sealed class State {
         data object CheckingUpdate : State()
-        data class SuccessCheckingUpdate(val newReleases: List<GitHub.Release>, val asset: GitHub.Release.Asset) : State()
+        data class SuccessCheckingUpdate(
+            val newReleases: List<GitHub.Release>,
+            val asset: GitHub.Release.Asset,
+            val isForceUpdate: Boolean = false
+        ) : State()
 
         data object DownloadingUpdate : State()
         data class SuccessDownloadingUpdate(val apk: File) : State()
@@ -37,8 +41,9 @@ class MainViewModel : ViewModel() {
         if (!UserPreferences.updateCheckEnabled) return@launch
         
         // Throttling: Check only once every hour to avoid GitHub rate limits (HTTP 403)
+        // Bypass throttling in debug builds so testing updates is instant
         val now = System.currentTimeMillis()
-        if (now - UserPreferences.lastUpdateCheckMillis < 60 * 60 * 1000) {
+        if (!BuildConfig.DEBUG && (now - UserPreferences.lastUpdateCheckMillis < 60 * 60 * 1000)) {
             Log.d("MainViewModel", "checkUpdate skip: last check was less than 1 hour ago")
             return@launch
         }
@@ -51,7 +56,11 @@ class MainViewModel : ViewModel() {
             if (newReleases.isEmpty()) return@launch
 
             val asset = newReleases.first().assets
-                .filter { it.contentType == "application/vnd.android.package-archive" }
+                .filter { 
+                    it.contentType == "application/vnd.android.package-archive" || 
+                    it.contentType == "application/octet-stream" || 
+                    it.name.endsWith(".apk") 
+                }
                 .find {
                     when (BuildConfig.APP_LAYOUT) {
                         "mobile" -> it.name.endsWith("-mobile.apk")
@@ -61,7 +70,14 @@ class MainViewModel : ViewModel() {
                 }
                 ?: throw Exception("Can't find update APK")
 
-            _state.emit(State.SuccessCheckingUpdate(newReleases, asset))
+            val isForceUpdate = newReleases.any { release ->
+                val textToSearch = listOfNotNull(release.tagName, release.name, release.body)
+                    .joinToString(" ")
+                    .lowercase()
+                textToSearch.contains("[force]") || textToSearch.contains("[critical]")
+            }
+
+            _state.emit(State.SuccessCheckingUpdate(newReleases, asset, isForceUpdate))
         } catch (e: Exception) {
             Log.e("MainViewModel", "checkUpdate failed (likely rate limit): ${e.message}")
             // Fail silently for background check to avoid annoying 403 Toasts

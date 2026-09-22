@@ -5,6 +5,7 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Toast
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -13,6 +14,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.PlayCircle
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -50,14 +52,12 @@ class DownloadQualityBottomSheet : BottomSheetDialogFragment() {
             requireContext().applicationContext,
             DownloadManagerEntryPoint::class.java
         )
-        @androidx.media3.common.util.UnstableApi
         entryPoint.downloadManager()
     }
 
     @dagger.hilt.EntryPoint
     @dagger.hilt.InstallIn(dagger.hilt.components.SingletonComponent::class)
     interface DownloadManagerEntryPoint {
-        @androidx.media3.common.util.UnstableApi
         fun downloadManager(): DownloadManager
     }
 
@@ -68,7 +68,6 @@ class DownloadQualityBottomSheet : BottomSheetDialogFragment() {
         private const val ARG_MEDIA_POSTER = "arg_media_poster"
         private const val ARG_VIDEO_TYPE = "arg_video_type"
 
-        @androidx.media3.common.util.UnstableApi
         fun newInstance(
             servers: List<Video.Server>,
             mediaId: String,
@@ -88,10 +87,10 @@ class DownloadQualityBottomSheet : BottomSheetDialogFragment() {
         }
     }
 
+    @Suppress("UNCHECKED_CAST", "DEPRECATION")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         arguments?.let {
-            @Suppress("DEPRECATION", "UNCHECKED_CAST")
             servers = try {
                 if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
                     it.getSerializable(ARG_SERVERS, java.util.ArrayList::class.java) as? List<Video.Server>
@@ -104,7 +103,6 @@ class DownloadQualityBottomSheet : BottomSheetDialogFragment() {
             mediaId = it.getString(ARG_MEDIA_ID, "")
             mediaTitle = it.getString(ARG_MEDIA_TITLE, "")
             mediaPoster = it.getString(ARG_MEDIA_POSTER)
-            @Suppress("DEPRECATION")
             videoType = try {
                 if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
                     it.getSerializable(ARG_VIDEO_TYPE, Video.Type::class.java)
@@ -126,21 +124,26 @@ class DownloadQualityBottomSheet : BottomSheetDialogFragment() {
             setContent {
                 val provider = remember { UserPreferences.currentProvider }
                 var updatedServers by remember { mutableStateOf(servers) }
+                val extractionStatus = remember { mutableStateMapOf<String, String>() }
 
                 LaunchedEffect(servers) {
                     if (provider != null) {
                         servers.forEach { server ->
                             if (server.video == null) {
                                 launch(Dispatchers.IO) {
+                                    extractionStatus[server.id] = "loading"
                                     try {
                                         val video = provider.getVideo(server)
                                         server.video = video
-                                        // Trigger recomposition by copying the list
                                         updatedServers = updatedServers.map { if (it.id == server.id) it.copy().apply { this.video = video } else it }
+                                        extractionStatus[server.id] = "done"
                                     } catch (e: Exception) {
+                                        extractionStatus[server.id] = "failed"
                                         android.util.Log.e("DownloadBS", "Background fetch failed for ${server.name}: ${e.message}")
                                     }
                                 }
+                            } else {
+                                extractionStatus[server.id] = "done"
                             }
                         }
                     }
@@ -201,14 +204,25 @@ class DownloadQualityBottomSheet : BottomSheetDialogFragment() {
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(horizontal = 20.dp)
-                            .padding(top = 16.dp, bottom = 24.dp)
+                            .padding(top = 10.dp, bottom = 24.dp)
                     ) {
+                        // Drag Handle
+                        Box(
+                            modifier = Modifier
+                                .width(40.dp)
+                                .height(4.dp)
+                                .background(Color.DarkGray, RoundedCornerShape(2.dp))
+                                .align(Alignment.CenterHorizontally)
+                        )
+
+                        Spacer(modifier = Modifier.height(16.dp))
+
                         Text(
                             text = "Select Download Quality",
                             color = Color.White,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 18.sp,
-                            modifier = Modifier.padding(bottom = 12.dp)
+                            fontWeight = FontWeight.ExtraBold,
+                            fontSize = 20.sp,
+                            modifier = Modifier.padding(bottom = 8.dp)
                         )
 
                         if (resolutions.isNotEmpty()) {
@@ -231,19 +245,19 @@ class DownloadQualityBottomSheet : BottomSheetDialogFragment() {
                                             selectedContainerColor = Color(0xFFE50914),
                                             selectedLabelColor = Color.White
                                         ),
-                                        border = null
+                                        border = null,
+                                        shape = RoundedCornerShape(12.dp)
                                     )
                                 }
                             }
                         }
 
-                        Spacer(modifier = Modifier.height(8.dp))
+                        Spacer(modifier = Modifier.height(12.dp))
 
                         val filteredServers = remember(activeResolution, updatedServers) {
                             updatedServers.filter { activeResolution in getSupportedResolutions(it) }
                         }
 
-                        @androidx.media3.common.util.UnstableApi
                         fun handleServerClick(server: Video.Server) {
                             startExtractionAndDownload(server, activeResolution)
                             dismiss()
@@ -254,54 +268,96 @@ class DownloadQualityBottomSheet : BottomSheetDialogFragment() {
                                 text = "No options available for this quality",
                                 color = Color.Gray,
                                 fontSize = 14.sp,
-                                modifier = Modifier.padding(vertical = 16.dp)
+                                modifier = Modifier.padding(vertical = 32.dp).align(Alignment.CenterHorizontally)
                             )
                         }
 
                         LazyColumn(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .heightIn(min = 100.dp, max = 450.dp)
+                                .heightIn(max = 450.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
                             items(filteredServers) { server ->
+                                val status = extractionStatus[server.id] ?: "loading"
+                                val isDone = status == "done"
+                                val isFailed = status == "failed"
+                                
                                 val rawDetails = DownloadQualityFormatter.details(server)
-                                val details = rawDetails.split(" - ")
-                                    .filter { it != "Unknown format" && it != "Offline support unknown" }
-                                    .joinToString(" - ")
+                                val details = if (isFailed) "Failed to extract link" 
+                                             else if (!isDone) "Fetching link details..."
+                                             else rawDetails
+
+                                val isRecommended = isDone && (details.contains("Mbps") || details.contains("GB"))
 
                                 Card(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .padding(vertical = 4.dp)
-                                        .clickable {
+                                        .clickable(enabled = isDone) {
                                             handleServerClick(server)
                                         },
-                                    colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E22)),
-                                    shape = RoundedCornerShape(8.dp)
+                                    colors = CardDefaults.cardColors(
+                                        containerColor = Color(0xFF1E1E22),
+                                        disabledContainerColor = Color(0xFF1E1E22).copy(alpha = 0.5f)
+                                    ),
+                                    shape = RoundedCornerShape(12.dp),
+                                    border = if (isRecommended) androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE50914).copy(alpha = 0.5f)) else null
                                 ) {
                                     Row(
                                         modifier = Modifier.padding(16.dp),
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
-                                        Icon(
-                                            imageVector = Icons.Default.Download,
-                                            contentDescription = null,
-                                            tint = Color(0xFFE50914),
-                                            modifier = Modifier.size(20.dp)
-                                        )
-                                        Spacer(modifier = Modifier.width(12.dp))
+                                        Box(
+                                            modifier = Modifier
+                                                .size(40.dp)
+                                                .background(Color(0xFF2A2A2E), RoundedCornerShape(8.dp)),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            if (status == "loading") {
+                                                CircularProgressIndicator(
+                                                    modifier = Modifier.size(20.dp),
+                                                    strokeWidth = 2.dp,
+                                                    color = Color(0xFFE50914)
+                                                )
+                                            } else {
+                                                Icon(
+                                                    imageVector = if (details.contains("MP4")) Icons.Default.Download else Icons.Default.PlayCircle,
+                                                    contentDescription = null,
+                                                    tint = if (isRecommended) Color(0xFFE50914) else if (isFailed) Color.DarkGray else Color.LightGray,
+                                                    modifier = Modifier.size(24.dp)
+                                                )
+                                            }
+                                        }
+
+                                        Spacer(modifier = Modifier.width(16.dp))
+
                                         Column(modifier = Modifier.weight(1f)) {
-                                            Text(
-                                                text = DownloadQualityFormatter.title(server),
-                                                color = Color.White,
-                                                fontWeight = FontWeight.Bold,
-                                                fontSize = 14.sp
-                                            )
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Text(
+                                                    text = DownloadQualityFormatter.title(server),
+                                                    color = if (isFailed) Color.Gray else Color.White,
+                                                    fontWeight = FontWeight.Bold,
+                                                    fontSize = 15.sp
+                                                )
+                                                if (isRecommended) {
+                                                    Spacer(modifier = Modifier.width(8.dp))
+                                                    AssistChip(
+                                                        onClick = {},
+                                                        label = { Text("Recommended", fontSize = 10.sp) },
+                                                        colors = AssistChipDefaults.assistChipColors(
+                                                            containerColor = Color(0xFFE50914).copy(alpha = 0.1f),
+                                                            labelColor = Color(0xFFE50914)
+                                                        ),
+                                                        border = null,
+                                                        shape = RoundedCornerShape(4.dp),
+                                                        modifier = Modifier.height(20.dp)
+                                                    )
+                                                }
+                                            }
                                             if (details.isNotBlank()) {
-                                                Spacer(modifier = Modifier.height(2.dp))
                                                 Text(
                                                     text = details,
-                                                    color = Color.Gray,
+                                                    color = if (isFailed) Color(0xFFE50914).copy(alpha = 0.7f) else Color.Gray,
                                                     fontSize = 12.sp
                                                 )
                                             }
@@ -316,7 +372,6 @@ class DownloadQualityBottomSheet : BottomSheetDialogFragment() {
         }
     }
 
-    @androidx.media3.common.util.UnstableApi
     private fun startExtractionAndDownload(server: Video.Server, selectedQuality: String) {
         val provider = UserPreferences.currentProvider ?: return
         val appContext = requireContext().applicationContext

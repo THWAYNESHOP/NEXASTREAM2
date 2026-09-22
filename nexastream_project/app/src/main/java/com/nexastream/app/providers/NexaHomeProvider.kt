@@ -50,6 +50,7 @@ object NexaHomeProvider : Provider {
         val animeRowsDeferred = async { fetchAnimeRows() }
         val kidsRowsDeferred = async { fetchKidsRows() }
         val seriesRowsDeferred = async { fetchSeriesMegaRows() }
+        val movieRowsDeferred = async { fetchMovieMegaRows() }
         
         val topRatedMoviesDeferred = async { runCatching { 
             val results = TMDb3.Discover.movie(language = "en", sortBy = TMDb3.Params.SortBy.Movie.VOTE_AVERAGE_DESC, voteCount = TMDb3.Params.Range(gte = 500)).results.mapNotNull { tmdb.mapMulti(it) }
@@ -72,6 +73,7 @@ object NexaHomeProvider : Provider {
         val animeRows = animeRowsDeferred.await()
         val kidsRows = kidsRowsDeferred.await()
         val seriesRows = seriesRowsDeferred.await()
+        val movieRows = movieRowsDeferred.await()
 
         val topRatedMovies = topRatedMoviesDeferred.await()
         val topRatedTv = topRatedTvDeferred.await()
@@ -132,6 +134,9 @@ object NexaHomeProvider : Provider {
 
         // SERIES MEGA ROWS (Requested list)
         categories.addAll(seriesRows.filterNotNull())
+
+        // MOVIE MEGA ROWS (Requested list)
+        categories.addAll(movieRows.filterNotNull())
 
         // BANNERS
         kidsContent?.let { categories.add(it.copy(name = "Kids Banner", list = it.list.safeSubList(0, 5))) }
@@ -220,6 +225,36 @@ object NexaHomeProvider : Provider {
             async { runCatching { tmdb.getSport(false, "Sport Series") }.getOrNull() },
             async { runCatching { tmdb.getGenreTv(37, "Western Series") }.getOrNull() },
             async { runCatching { tmdb.getSearchContent("Musical Series", "Musical") }.getOrNull() }
+        ).awaitAll()
+    }
+
+    private suspend fun fetchMovieMegaRows(): List<Category?> = coroutineScope {
+        listOf(
+            async { runCatching { Category(name = "All Movies", list = tmdb.getMovies(1)) }.getOrNull() },
+            async { runCatching { tmdb.getLatestMovies() }.getOrNull() },
+            async { runCatching { tmdb.getAllCinema().copy(name = "At Cinema") }.getOrNull() },
+            async { runCatching { tmdb.getWatchProviderMovies(8, "Netflix Movies") }.getOrNull() },
+            async { runCatching { tmdb.getWatchProviderMovies(337, "Disney+ Movies") }.getOrNull() },
+            async { runCatching { tmdb.getWatchProviderMovies(531, "Paramount+ Movies") }.getOrNull() },
+            async { runCatching { tmdb.getGenreMovies(28, "Action Movies") }.getOrNull() },
+            async { runCatching { tmdb.getGenreMovies(80, "Crime Movies") }.getOrNull() },
+            async { runCatching { tmdb.getGenreMovies(18, "Drama Movies") }.getOrNull() },
+            async { runCatching { tmdb.getGenreMovies(12, "Adventure Movies") }.getOrNull() },
+            async { runCatching { tmdb.getGenreMovies(35, "Comedy Movies") }.getOrNull() },
+            async { runCatching { tmdb.getGenreMovies(53, "Thriller Movies") }.getOrNull() },
+            async { runCatching { tmdb.getGenreMovies(10749, "Romance Movies") }.getOrNull() },
+            async { runCatching { tmdb.getGenreMovies(878, "Sci-Fi Movies") }.getOrNull() },
+            async { runCatching { tmdb.getGenreMovies(99, "Documentary Movies") }.getOrNull() },
+            async { runCatching { tmdb.getGenreMovies(27, "Horror Movies") }.getOrNull() },
+            async { runCatching { tmdb.getGenreMovies(14, "Fantasy Movies") }.getOrNull() },
+            async { runCatching { tmdb.getGenreMovies(10751, "Family Movies") }.getOrNull() },
+            async { runCatching { tmdb.getGenreMovies(36, "History Movies") }.getOrNull() },
+            async { runCatching { tmdb.getGenreMovies(9648, "Mystery Movies") }.getOrNull() },
+            async { runCatching { tmdb.getGenreMovies(10752, "War Movies") }.getOrNull() },
+            async { runCatching { tmdb.getBiography(true, "Biography Movies") }.getOrNull() },
+            async { runCatching { tmdb.getSport(true, "Sport Movies") }.getOrNull() },
+            async { runCatching { tmdb.getGenreMovies(10402, "Musical Movies") }.getOrNull() },
+            async { runCatching { tmdb.getGenreMovies(37, "Western Movies") }.getOrNull() }
         ).awaitAll()
     }
 

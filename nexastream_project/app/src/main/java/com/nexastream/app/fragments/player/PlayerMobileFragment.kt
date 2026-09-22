@@ -87,7 +87,7 @@ import androidx.core.net.toUri
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.media3.datasource.okhttp.OkHttpDataSource
 import com.nexastream.app.fragments.player.settings.PlayerSettingsView
-import java.util.Base64 
+import android.util.Base64
 import java.io.File
 import java.io.FileOutputStream
 import android.webkit.CookieManager
@@ -1090,7 +1090,7 @@ class PlayerMobileFragment : Fragment() {
             val parts = uri.split(",")
             if (parts.size == 2 && parts[0].contains(";base64")) {
                 val base64Data = parts[1]
-                val decodedBytes = Base64.getDecoder().decode(base64Data)
+                val decodedBytes = Base64.decode(base64Data, Base64.DEFAULT)
                 String(decodedBytes, Charsets.UTF_8)
             } else {
                 null
@@ -1103,6 +1103,13 @@ class PlayerMobileFragment : Fragment() {
     private fun extractUrlFromPlaylist(playlist: String): String? {
         return try {
             val lines = playlist.lines().map { it.trim() }
+
+            // If it's a master manifest, don't extract a single URL.
+            // We want to keep all quality and audio track information.
+            if (lines.any { it.contains("#EXT-X-STREAM-INF") || it.contains("#EXT-X-MEDIA") }) {
+                return null
+            }
+
             lines.firstOrNull { it.startsWith("http") }
                 ?: lines.firstNotNullOfOrNull { line ->
                     val regex = """URI=["'](http[^"']+)["']""".toRegex()
@@ -1142,6 +1149,10 @@ class PlayerMobileFragment : Fragment() {
 
         updatePlayerHeader()
         updateCastAvailability(video)
+
+        if (UserPreferences.autoDownloadSubtitles && !isPlayingOfflineDownload) {
+            viewModel.autoDownloadSubtitles(args.videoType)
+        }
 
         val extraBuffering = PlayerSettingsView.Settings.ExtraBuffering.isEnabled
 

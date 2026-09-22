@@ -13,6 +13,7 @@ import com.nexastream.app.utils.GitHub
 class UpdateAppTvDialog(
     context: Context,
     newReleases: List<GitHub.Release>,
+    isForceUpdate: Boolean = false,
 ) : Dialog(context) {
 
     private val binding = DialogUpdateAppTvBinding.inflate(LayoutInflater.from(context))
@@ -29,6 +30,16 @@ class UpdateAppTvDialog(
     init {
         setContentView(binding.root)
 
+        if (isForceUpdate) {
+            binding.btnUpdateCancel.visibility = View.GONE
+            setCancelable(false)
+            setCanceledOnTouchOutside(false)
+        } else {
+            binding.btnUpdateCancel.setOnClickListener {
+                hide()
+            }
+        }
+
         binding.tvUpdateCurrentVersion.text = BuildConfig.VERSION_NAME
 
         binding.tvUpdateNewVersion.text = newReleases.first().tagName.substringAfter("v")
@@ -40,19 +51,14 @@ class UpdateAppTvDialog(
             )
         }.joinToString("\n")
 
-        binding.btnUpdateCancel.setOnClickListener {
-            hide()
-        }
-
+        // Ensure update button gets default focus for convenient TV remote control usage
         binding.btnUpdate.requestFocus()
 
-
         window?.setLayout(
-            (context.resources.displayMetrics.widthPixels * 0.55).toInt(),
+            context.resources.displayMetrics.widthPixels,
             WindowManager.LayoutParams.WRAP_CONTENT
         )
     }
-
 
     fun setOnUpdateClickListener(listener: (view: View) -> Unit) {
         binding.btnUpdate.setOnClickListener(listener)

@@ -103,6 +103,13 @@
                 android:defaultValue="3"
                 android:inputType="number"
                 app:iconSpaceReserved="false" />
+
+            <SwitchPreference
+                android:key="AUTO_DOWNLOAD_SUBTITLES"
+                android:title="@string/settings_auto_download_subtitles_title"
+                android:summary="@string/settings_auto_download_subtitles_summary"
+                android:defaultValue="true"
+                app:iconSpaceReserved="false" />
         </PreferenceCategory>
 
         <PreferenceCategory

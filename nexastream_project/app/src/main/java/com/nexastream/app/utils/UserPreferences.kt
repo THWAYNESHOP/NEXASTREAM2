@@ -290,6 +290,12 @@ object UserPreferences {
             Key.SUBDL_API_KEY.setString(value)
         }
 
+    var autoDownloadSubtitles: Boolean
+        get() = Key.AUTO_DOWNLOAD_SUBTITLES.getBoolean() ?: true
+        set(value) {
+            Key.AUTO_DOWNLOAD_SUBTITLES.setBoolean(value)
+        }
+
     var bypassWsAdvertisedHost: String
         get() = Key.BYPASS_WS_ADVERTISED_HOST.getString() ?: ""
         set(value) {
@@ -630,6 +636,7 @@ object UserPreferences {
         IMMERSIVE_MODE,
         TMDB_API_KEY,
         SUBDL_API_KEY,
+        AUTO_DOWNLOAD_SUBTITLES,
         FORCE_EXTRA_BUFFERING,
         AUTOPLAY_BUFFER,
         SERVER_AUTO_SUBTITLES_DISABLED,

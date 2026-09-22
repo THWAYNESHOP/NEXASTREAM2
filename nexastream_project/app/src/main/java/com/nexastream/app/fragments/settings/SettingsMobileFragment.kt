@@ -556,6 +556,14 @@ class SettingsMobileFragment : PreferenceFragmentCompat() {
             }
         }
 
+        findPreference<SwitchPreference>("AUTO_DOWNLOAD_SUBTITLES")?.apply {
+            isChecked = UserPreferences.autoDownloadSubtitles
+            setOnPreferenceChangeListener { _, newValue ->
+                UserPreferences.autoDownloadSubtitles = newValue as Boolean
+                true
+            }
+        }
+
         val HasConfigProvider = UserPreferences.currentProvider is ProviderConfigUrl
         findPreference<PreferenceCategory>("pc_provider_settings")?.apply {
             isVisible = HasConfigProvider

@@ -315,7 +315,7 @@ class MainMobileActivity : AppCompatActivity() {
         if (isFinishing || isDestroyed) return
 
         dismissUpdateDialog()
-        updateAppDialog = UpdateAppMobileDialog(this, state.newReleases).also { dialog ->
+        updateAppDialog = UpdateAppMobileDialog(this, state.newReleases, state.isForceUpdate).also { dialog ->
             dialog.setOnUpdateClickListener {
                 if (!dialog.isLoading) {
                     viewModel.downloadUpdate(this@MainMobileActivity, state.asset)

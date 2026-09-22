@@ -58,7 +58,14 @@ class HomeRepository(
         }
 
         val categories = provider.getHome()
-        HomeCacheStore.write(context, provider, categories)
+        if (categories.isEmpty()) {
+            val cached = HomeCacheStore.read(context, provider)
+            if (!cached.isNullOrEmpty()) {
+                return cached
+            }
+        } else {
+            HomeCacheStore.write(context, provider, categories)
+        }
         return categories
     }
 
