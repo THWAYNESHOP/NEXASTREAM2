@@ -78,11 +78,8 @@ class HomeTvFragment : Fragment() {
         viewLifecycleOwner.lifecycleScope.launch {
             ProviderChangeNotifier.providerChangeFlow
                 .flowWithLifecycle(lifecycle, Lifecycle.State.STARTED)
-                .collect { viewModel.getHome() }
+                .collect { viewModel.getHome(force = true) }
         }
-
-        // Initial load
-        viewModel.getHome()
 
         setupUpdateBanner()
 

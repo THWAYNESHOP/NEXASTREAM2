@@ -216,7 +216,7 @@ class HomeViewModel @Inject constructor(
                 val provider = UserPreferences.currentProvider ?: return@collect
                 currentProvider = provider
                 observeUserData(provider)
-                getHome()
+                getHome(force = true)
             }
         }
         getHome()
@@ -232,8 +232,12 @@ class HomeViewModel @Inject constructor(
         }
     }
 
-    fun getHome() = viewModelScope.launch(Dispatchers.IO) {
+    fun getHome(force: Boolean = false) = viewModelScope.launch(Dispatchers.IO) {
         val provider = currentProvider ?: return@launch
+        
+        if (!force && _state.value is State.SuccessLoading) {
+            return@launch
+        }
         
         val cached = repository.getCachedHome(provider)
         if (!cached.isNullOrEmpty()) {

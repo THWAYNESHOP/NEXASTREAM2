@@ -88,13 +88,10 @@ class HomeMobileFragment : Fragment() {
             ProviderChangeNotifier.providerChangeFlow
                 .flowWithLifecycle(lifecycle, Lifecycle.State.STARTED)
                 .collect { 
-                    viewModel.getHome()
+                    viewModel.getHome(force = true)
                     updateProviderLogo()
                 }
         }
-
-        // Initial load
-        viewModel.getHome()
 
         viewLifecycleOwner.lifecycleScope.launch {
             viewModel.state.flowWithLifecycle(lifecycle, Lifecycle.State.STARTED).collect { state ->
