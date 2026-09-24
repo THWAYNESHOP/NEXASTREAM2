@@ -111,39 +111,7 @@ class SearchViewModel @Inject constructor(
                     }
                 }
 
-                if (query.isNotEmpty() && enrichedResults.any { it is Movie || it is TvShow || it is People }) {
-                    val categorized = mutableListOf<AppAdapter.Item>()
-                    
-                    val movies = enrichedResults.filterIsInstance<Movie>().onEach { 
-                        it.itemType = AppAdapter.Type.MOVIE_TV_ITEM 
-                    }
-                    if (movies.isNotEmpty()) {
-                        categorized.add(Category(name = "Movies", list = movies).apply { itemType = AppAdapter.Type.CATEGORY_TV_ITEM })
-                    }
-                    
-                    val series = enrichedResults.filterIsInstance<TvShow>().onEach { 
-                        it.itemType = AppAdapter.Type.TV_SHOW_TV_ITEM 
-                    }
-                    if (series.isNotEmpty()) {
-                        categorized.add(Category(name = "TV Shows", list = series).apply { itemType = AppAdapter.Type.CATEGORY_TV_ITEM })
-                    }
-                    
-                    val people = enrichedResults.filterIsInstance<People>().onEach { 
-                        it.itemType = AppAdapter.Type.PEOPLE_TV_ITEM 
-                    }
-                    if (people.isNotEmpty()) {
-                        categorized.add(Category(name = "People", list = people).apply { itemType = AppAdapter.Type.CATEGORY_TV_ITEM })
-                    }
-
-                    val others = enrichedResults.filter { it !is Movie && it !is TvShow && it !is People }
-                    if (others.isNotEmpty()) {
-                         categorized.add(Category(name = "Other", list = others).apply { itemType = AppAdapter.Type.CATEGORY_TV_ITEM })
-                    }
-
-                    SearchState.SuccessSearching(results = categorized, hasMore = state.hasMore)
-                } else {
-                    SearchState.SuccessSearching(results = enrichedResults, hasMore = state.hasMore)
-                }
+                SearchState.SuccessSearching(results = enrichedResults, hasMore = state.hasMore)
             }
             else -> state
         }
@@ -287,22 +255,74 @@ class SearchViewModel @Inject constructor(
     }
 
     private fun performSearch(query: String) = viewModelScope.launch(Dispatchers.IO) {
+        if (query.isBlank() && _filters.value.isDefault()) {
+            this@SearchViewModel.query = ""
+            page = 1
+            _state.emit(SearchState.SuccessSearching(emptyList(), false))
+            return@launch
+        }
+
         if (this@SearchViewModel.query == query && query.isNotEmpty()) return@launch
         
         this@SearchViewModel.query = query
         _state.emit(SearchState.Searching)
         try {
             if (query.isNotEmpty()) {
-                database.searchHistoryDao().insert(SearchHistory(query))
+                val provider = UserPreferences.currentProvider ?: run {
+                    _state.emit(SearchState.SuccessSearching(emptyList(), false))
+                    return@launch
+                }
+                val results = ParentalControlUtils.filterItems(
+                    provider.search(query, filters = _filters.value)
+                )
+                val topMatch = results.firstOrNull { it is Movie || it is TvShow }
+                val poster = when (topMatch) {
+                    is Movie -> topMatch.poster
+                    is TvShow -> topMatch.poster
+                    else -> null
+                }
+                val mediaId = when (topMatch) {
+                    is Movie -> topMatch.id
+                    is TvShow -> topMatch.id
+                    else -> null
+                }
+                val mediaType = when (topMatch) {
+                    is Movie -> "movie"
+                    is TvShow -> "tv"
+                    else -> null
+                }
+                database.searchHistoryDao().insert(
+                    SearchHistory(
+                        query = query,
+                        poster = poster,
+                        mediaId = mediaId,
+                        mediaType = mediaType,
+                        timestamp = System.currentTimeMillis()
+                    )
+                )
+                page = 1
+                _state.emit(SearchState.SuccessSearching(results, results.isNotEmpty()))
+            } else {
+                page = 1
+                _state.emit(SearchState.SuccessSearching(emptyList(), false))
             }
-            val results = ParentalControlUtils.filterItems(
-                UserPreferences.currentProvider!!.search(query, filters = _filters.value)
-            )
-            page = 1
-            _state.emit(SearchState.SuccessSearching(results, results.isNotEmpty()))
         } catch (e: Exception) {
             Log.e("SearchViewModel", "search: ", e)
             _state.emit(SearchState.FailedSearching(e))
+        }
+    }
+
+    fun saveSearchHistory(query: String, poster: String? = null, mediaId: String? = null, mediaType: String? = null) = viewModelScope.launch(Dispatchers.IO) {
+        if (query.isNotBlank()) {
+            database.searchHistoryDao().insert(
+                SearchHistory(
+                    query = query,
+                    poster = poster,
+                    mediaId = mediaId,
+                    mediaType = mediaType,
+                    timestamp = System.currentTimeMillis()
+                )
+            )
         }
     }
 
@@ -340,6 +360,10 @@ class SearchViewModel @Inject constructor(
     }
 
     fun searchGlobal(query: String, currentLanguage: String) = viewModelScope.launch(Dispatchers.IO) {
+        if (query.isBlank()) {
+            _state.emit(SearchState.SuccessGlobalSearching(emptyList()))
+            return@launch
+        }
         _state.emit(SearchState.GlobalSearching)
         val isCurrentProviderIptv = UserPreferences.currentProvider is IptvProvider
         val targetProviders = Provider.providers.keys

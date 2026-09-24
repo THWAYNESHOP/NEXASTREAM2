@@ -16,7 +16,6 @@ import com.nexastream.app.models.Video
 import com.nexastream.app.providers.Provider
 import com.nexastream.app.providers.ProviderConfigUrl
 import com.nexastream.app.providers.ProviderPortalUrl
-import com.nexastream.app.providers.FrenchAnimeProvider
 import com.nexastream.app.utils.NetworkClient
 import com.nexastream.app.utils.UserPreferences
 import kotlinx.coroutines.sync.Mutex

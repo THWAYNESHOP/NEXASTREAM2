@@ -20,9 +20,9 @@ import androidx.core.view.WindowCompat
 private val DarkColorScheme = darkColorScheme(
     primary = NetflixRed,
     secondary = NetflixLightGrey,
-    tertiary = NetflixDarkGrey,
+    tertiary = Black,
     background = Black,
-    surface = NetflixDarkGrey,
+    surface = Black,
     onPrimary = White,
     onSecondary = White,
     onTertiary = White,
@@ -33,7 +33,7 @@ private val DarkColorScheme = darkColorScheme(
 @Composable
 fun Nexastream2Theme(
     darkTheme: Boolean = isSystemInDarkTheme(),
-    dynamicColor: Boolean = true,
+    dynamicColor: Boolean = false,
     content: @Composable () -> Unit
 ) {
     val context = LocalContext.current

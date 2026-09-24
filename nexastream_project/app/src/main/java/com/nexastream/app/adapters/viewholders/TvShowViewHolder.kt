@@ -282,7 +282,7 @@ class TvShowViewHolder(
         imageView.scaleType = if (isIptvProvider()) ImageView.ScaleType.FIT_CENTER else ImageView.ScaleType.CENTER_CROP
         imageView.loadTvShowPoster(tvShow) {
             fallback(R.drawable.glide_fallback_cover)
-            transition(DrawableTransitionOptions.withCrossFade())
+            dontAnimate()
         }
     }
 
@@ -297,10 +297,13 @@ class TvShowViewHolder(
             true
         }
         
+        binding.ivLivestreamPoster.scaleType = ImageView.ScaleType.FIT_CENTER
+        binding.ivLivestreamPoster.setPadding(16, 16, 16, 16)
+
         Glide.with(context)
             .load(tvShow.poster ?: tvShow.banner)
-            .placeholder(R.drawable.bg_poster_gradient)
-            .error(R.drawable.bg_poster_gradient)
+            .placeholder(R.drawable.bg_livestream_card)
+            .error(R.drawable.bg_livestream_card)
             .transition(DrawableTransitionOptions.withCrossFade())
             .into(binding.ivLivestreamPoster)
 
@@ -336,7 +339,15 @@ class TvShowViewHolder(
             }
             isVisible = watchHistory != null
         }
-        binding.tvTvShowLastEpisode.text = if (isIptvProvider()) "LIVE" else tvShow.seasons.lastOrNull()?.episodes?.lastOrNull()?.let { "E${it.number}" } ?: tvShow.released?.format("yyyy") ?: context.getString(R.string.tv_show_item_type)
+        val mobileEpisodeBadge = when {
+            isIptvProvider() -> "LIVE"
+            tvShow.seasons.lastOrNull()?.episodes?.lastOrNull() != null -> "E${tvShow.seasons.lastOrNull()!!.episodes.last()!!.number}"
+            else -> null
+        }
+        binding.tvTvShowLastEpisode.apply {
+            text = mobileEpisodeBadge.orEmpty()
+            isVisible = !mobileEpisodeBadge.isNullOrEmpty()
+        }
         binding.tvTvShowTitle.text = tvShow.title
     }
 
@@ -429,7 +440,15 @@ class TvShowViewHolder(
             }
             isVisible = watchHistory != null
         }
-        binding.tvTvShowLastEpisode.text = if (isIptvProvider()) "LIVE" else tvShow.seasons.lastOrNull()?.episodes?.lastOrNull()?.let { "E${it.number}" } ?: tvShow.released?.format("yyyy") ?: context.getString(R.string.tv_show_item_type)
+        val gridEpisodeBadge = when {
+            isIptvProvider() -> "LIVE"
+            tvShow.seasons.lastOrNull()?.episodes?.lastOrNull() != null -> "E${tvShow.seasons.lastOrNull()!!.episodes.last()!!.number}"
+            else -> null
+        }
+        binding.tvTvShowLastEpisode.apply {
+            text = gridEpisodeBadge.orEmpty()
+            isVisible = !gridEpisodeBadge.isNullOrEmpty()
+        }
         binding.tvTvShowTitle.text = tvShow.title
     }
 

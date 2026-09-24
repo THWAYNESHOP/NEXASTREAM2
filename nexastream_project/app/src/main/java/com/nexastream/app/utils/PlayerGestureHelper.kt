@@ -1,6 +1,8 @@
 package com.nexastream.app.utils
 
+import android.app.Activity
 import android.content.Context
+import android.content.ContextWrapper
 import android.media.AudioManager
 import android.provider.Settings
 import android.view.GestureDetector
@@ -15,11 +17,13 @@ import com.nexastream.app.ui.PlayerMobileView
 import com.nexastream.app.ui.PlayerTvView
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import androidx.media3.common.util.UnstableApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.abs
 
+@UnstableApi
 class PlayerGestureHelper(
     private val context: Context, 
     private val playerView: PlayerView,
@@ -40,7 +44,17 @@ class PlayerGestureHelper(
     private var isScrolling = false
     private var isScaling = false
     private var currentVolumeFloat = 0f
+    private var currentBrightnessFloat = -1f
     private var maxVolume = 0
+
+    private fun findActivity(ctx: Context): Activity? {
+        var currentCtx: Context? = ctx
+        while (currentCtx is ContextWrapper) {
+            if (currentCtx is Activity) return currentCtx
+            currentCtx = currentCtx.baseContext
+        }
+        return null
+    }
 
     init {
         maxVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
@@ -73,6 +87,19 @@ class PlayerGestureHelper(
             override fun onDown(e: MotionEvent): Boolean {
                 isScrolling = false
                 currentVolumeFloat = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC).toFloat()
+
+                val window = findActivity(context)?.window
+                if (window != null) {
+                    var b = window.attributes.screenBrightness
+                    if (b < 0f) {
+                        b = try {
+                            Settings.System.getInt(context.contentResolver, Settings.System.SCREEN_BRIGHTNESS) / 255f
+                        } catch (_: Exception) {
+                            0.5f
+                        }
+                    }
+                    currentBrightnessFloat = b.coerceIn(0.01f, 1.0f)
+                }
                 return true 
             }
 
@@ -143,26 +170,28 @@ class PlayerGestureHelper(
         brightnessLayout.visibility = View.VISIBLE
         volumeLayout.visibility = View.GONE
 
-        val window = (context as? android.app.Activity)?.window ?: return
+        val activity = findActivity(context) ?: return
+        val window = activity.window
         val layoutParams = window.attributes
         
-        var currentBrightness = layoutParams.screenBrightness
-        if (currentBrightness < 0) {
-            currentBrightness = try {
-                Settings.System.getInt(context.contentResolver, Settings.System.SCREEN_BRIGHTNESS) / 255f
-            } catch (e: Settings.SettingNotFoundException) {
-                0.5f
+        if (currentBrightnessFloat < 0f) {
+            var b = layoutParams.screenBrightness
+            if (b < 0f) {
+                b = try {
+                    Settings.System.getInt(context.contentResolver, Settings.System.SCREEN_BRIGHTNESS) / 255f
+                } catch (_: Exception) {
+                    0.5f
+                }
             }
+            currentBrightnessFloat = b.coerceIn(0.01f, 1.0f)
         }
 
-        var newBrightness = currentBrightness + (delta / sensitivity)
-        if (newBrightness < 0f) newBrightness = 0f
-        if (newBrightness > 1f) newBrightness = 1f
+        currentBrightnessFloat = (currentBrightnessFloat + (delta / sensitivity)).coerceIn(0.01f, 1.0f)
 
-        layoutParams.screenBrightness = newBrightness
+        layoutParams.screenBrightness = currentBrightnessFloat
         window.attributes = layoutParams
         
-        val progress = (newBrightness * 100).toInt()
+        val progress = (currentBrightnessFloat * 100).toInt()
         brightnessBar.progress = progress
         brightnessText.text = "$progress%"
     }

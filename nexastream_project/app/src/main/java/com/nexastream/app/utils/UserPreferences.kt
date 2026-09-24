@@ -1,4 +1,8 @@
+@file:OptIn(androidx.media3.common.util.UnstableApi::class)
+
 package com.nexastream.app.utils
+
+import androidx.annotation.OptIn
 
 import android.content.Context
 import android.content.SharedPreferences
@@ -58,19 +62,33 @@ object UserPreferences {
 
             val jsonString = Key.PROVIDER_CACHE.getString() ?: "{}"
             providerCache = runCatching { JSONObject(jsonString) }.getOrDefault(JSONObject())
+            
+            // Force home provider as default provider every time app opens
+            Key.CURRENT_PROVIDER.setString(NexaHomeProvider.name)
+            cachedProvider = NexaHomeProvider
         }
     }
 
+    @Volatile
+    private var cachedProvider: Provider? = null
 
     var currentProvider: Provider?
         get() {
-            val providerName = Key.CURRENT_PROVIDER.getString() ?: return NexaHomeProvider
-            if (providerName.startsWith("TMDb (") && providerName.endsWith(")")) {
-                val lang = providerName.substringAfter("TMDb (").substringBefore(")")
-                return TmdbProvider(lang)
+            cachedProvider?.let { return it }
+            val providerName = Key.CURRENT_PROVIDER.getString() ?: run {
+                cachedProvider = NexaHomeProvider
+                return NexaHomeProvider
             }
-            if (providerName == "HOME") return NexaHomeProvider
-            return Provider.providers.keys.find { it.name == providerName }
+            val resolved = when {
+                providerName.startsWith("TMDb (") && providerName.endsWith(")") -> {
+                    val lang = providerName.substringAfter("TMDb (").substringBefore(")")
+                    TmdbProvider(lang)
+                }
+                providerName == "HOME" -> NexaHomeProvider
+                else -> Provider.providers.keys.find { it.name == providerName } ?: NexaHomeProvider
+            }
+            cachedProvider = resolved
+            return resolved
         }
         set(value) {
             setCurrentProvider(value, notify = true)
@@ -78,7 +96,7 @@ object UserPreferences {
 
     fun setCurrentProvider(value: Provider?, notify: Boolean) {
         if (value?.name == currentProvider?.name) return
-
+        cachedProvider = value
         Key.CURRENT_PROVIDER.setString(value?.name)
         runCatching {
             ArtworkRepairScheduler.schedule(NexastreamApp.instance, value)

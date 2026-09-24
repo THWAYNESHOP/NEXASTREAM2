@@ -1372,7 +1372,7 @@ class TmdbProvider(override val language: String) : Provider {
                 }
 
                 coroutineScope {
-                    val providers = listOf(CuevanaEuProvider, CineCalidadProvider, PoseidonHD2Provider)
+                    val providers = listOf(PoseidonHD2Provider)
                     val deferred = providers.map { provider ->
                         async {
                             try {

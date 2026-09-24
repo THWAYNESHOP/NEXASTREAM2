@@ -22,6 +22,7 @@ import com.nexastream.app.databinding.FragmentSearchMobileBinding
 import com.nexastream.app.models.Category
 import com.nexastream.app.models.Genre
 import com.nexastream.app.models.Movie
+import com.nexastream.app.models.People
 import com.nexastream.app.models.TvShow
 import com.nexastream.app.ui.SpacingItemDecoration
 import com.nexastream.app.utils.CacheUtils
@@ -100,20 +101,53 @@ class SearchMobileFragment : Fragment() {
                 if (viewModel.query.isEmpty() && viewModel.filters.value.isDefault()) {
                     val categories = mutableListOf<Category>()
                     if (history.isNotEmpty()) {
-                        categories.add(Category(getString(R.string.search_recent), history.map { Genre(it.query, it.query) })
+                        val recentItems = history.map { searchHist ->
+                            if (!searchHist.poster.isNullOrEmpty()) {
+                                if (searchHist.mediaType == "tv") {
+                                    TvShow(
+                                        id = searchHist.mediaId ?: searchHist.query,
+                                        title = searchHist.query,
+                                        poster = searchHist.poster
+                                    ).apply { itemType = AppAdapter.Type.TV_SHOW_MOBILE_ITEM }
+                                } else {
+                                    Movie(
+                                        id = searchHist.mediaId ?: searchHist.query,
+                                        title = searchHist.query,
+                                        poster = searchHist.poster
+                                    ).apply { itemType = AppAdapter.Type.MOVIE_MOBILE_ITEM }
+                                }
+                            } else {
+                                Genre(searchHist.query, searchHist.query).apply {
+                                    itemType = AppAdapter.Type.GENRE_GRID_MOBILE_ITEM
+                                }
+                            }
+                        }
+                        categories.add(Category(getString(R.string.search_recent), recentItems)
                             .apply { itemType = AppAdapter.Type.CATEGORY_MOBILE_ITEM })
                     }
                     if (trending.isNotEmpty()) {
-                        categories.add(Category("Trending Now", trending)
-                            .apply { itemType = AppAdapter.Type.CATEGORY_MOBILE_ITEM })
+                        categories.add(Category("Trending Now", trending.onEach {
+                            when (it) {
+                                is Movie -> it.itemType = AppAdapter.Type.MOVIE_MOBILE_ITEM
+                                is TvShow -> it.itemType = AppAdapter.Type.TV_SHOW_MOBILE_ITEM
+                            }
+                        }).apply { itemType = AppAdapter.Type.CATEGORY_MOBILE_ITEM })
                     }
                     if (topRated.isNotEmpty()) {
-                        categories.add(Category("Top Rated", topRated)
-                            .apply { itemType = AppAdapter.Type.CATEGORY_MOBILE_ITEM })
+                        categories.add(Category("Top Rated", topRated.onEach {
+                            when (it) {
+                                is Movie -> it.itemType = AppAdapter.Type.MOVIE_MOBILE_ITEM
+                                is TvShow -> it.itemType = AppAdapter.Type.TV_SHOW_MOBILE_ITEM
+                            }
+                        }).apply { itemType = AppAdapter.Type.CATEGORY_MOBILE_ITEM })
                     }
                     if (airingToday.isNotEmpty()) {
-                        categories.add(Category("Airing Today", airingToday)
-                            .apply { itemType = AppAdapter.Type.CATEGORY_MOBILE_ITEM })
+                        categories.add(Category("Airing Today", airingToday.onEach {
+                            when (it) {
+                                is Movie -> it.itemType = AppAdapter.Type.MOVIE_MOBILE_ITEM
+                                is TvShow -> it.itemType = AppAdapter.Type.TV_SHOW_MOBILE_ITEM
+                            }
+                        }).apply { itemType = AppAdapter.Type.CATEGORY_MOBILE_ITEM })
                     }
                     categories
                 } else emptyList()
@@ -258,6 +292,7 @@ class SearchMobileFragment : Fragment() {
                 is Genre -> it.itemType = AppAdapter.Type.GENRE_GRID_MOBILE_ITEM
                 is Movie -> it.itemType = AppAdapter.Type.MOVIE_GRID_MOBILE_ITEM
                 is TvShow -> it.itemType = AppAdapter.Type.TV_SHOW_GRID_MOBILE_ITEM
+                is People -> it.itemType = AppAdapter.Type.PEOPLE_MOBILE_ITEM
             }
         })
         if (hasMore && viewModel.query != "") {

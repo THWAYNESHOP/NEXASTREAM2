@@ -16,7 +16,6 @@ import com.nexastream.app.models.Movie
 import com.nexastream.app.models.People
 import com.nexastream.app.models.SportMatch
 import com.nexastream.app.models.TvShow
-import com.nexastream.app.providers.AkSportsLiveProvider
 import com.nexastream.app.providers.Provider
 import com.nexastream.app.utils.TMDb3.original
 // 
@@ -192,18 +191,7 @@ object ArtworkRepair {
         context: Context,
         match: SportMatch,
     ): SportMatch? {
-        return runCatching {
-            val provider = UserPreferences.currentProvider
-            if (provider is AkSportsLiveProvider) {
-                val live = provider.getLiveMatches()
-                val upcoming = provider.getUpcomingMatches()
-                (live + upcoming).find { it.id == match.id }
-            } else {
-                null
-            }
-        }.onFailure { error ->
-            Log.w(TAG, "Unable to refresh sport match for ${match.title}", error)
-        }.getOrNull()
+        return null
     }
 
     private suspend fun prepareProvider(context: Context, provider: Provider) {

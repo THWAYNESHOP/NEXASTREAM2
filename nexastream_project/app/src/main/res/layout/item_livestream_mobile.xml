@@ -11,9 +11,9 @@
         android:id="@+id/cv_livestream_poster"
         android:layout_width="220dp"
         android:layout_height="124dp"
-        app:cardBackgroundColor="@android:color/transparent"
-        app:cardCornerRadius="8dp"
-        app:cardElevation="0dp"
+        app:cardBackgroundColor="#1A1A1A"
+        app:cardCornerRadius="12dp"
+        app:cardElevation="2dp"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent">
 
@@ -21,7 +21,8 @@
             android:id="@+id/iv_livestream_poster"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:scaleType="centerCrop"
+            android:scaleType="fitCenter"
+            android:padding="16dp"
             android:importantForAccessibility="no" />
 
         <View
@@ -35,15 +36,16 @@
             android:layout_height="wrap_content"
             android:layout_gravity="top|start"
             android:layout_margin="8dp"
-            android:background="#E50914"
-            android:paddingStart="6dp"
-            android:paddingTop="2dp"
-            android:paddingEnd="6dp"
-            android:paddingBottom="2dp"
-            android:text="LIVE"
+            android:background="@drawable/bg_live_badge"
+            android:paddingStart="8dp"
+            android:paddingTop="3dp"
+            android:paddingEnd="8dp"
+            android:paddingBottom="3dp"
+            android:text="• LIVE"
             android:textColor="#FFFFFF"
             android:textSize="10sp"
-            android:textStyle="bold" />
+            android:textStyle="bold"
+            android:letterSpacing="0.05" />
 
     </androidx.cardview.widget.CardView>
 
@@ -55,7 +57,8 @@
         android:ellipsize="end"
         android:lines="1"
         android:textColor="#FFFFFF"
-        android:textSize="14sp"
+        android:textSize="13sp"
+        android:textStyle="bold"
         app:layout_constraintEnd_toEndOf="@id/cv_livestream_poster"
         app:layout_constraintStart_toStartOf="@id/cv_livestream_poster"
         app:layout_constraintTop_toBottomOf="@id/cv_livestream_poster"

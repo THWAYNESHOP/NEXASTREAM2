@@ -10,7 +10,6 @@ import com.nexastream.app.models.TvShow
 import com.nexastream.app.models.WatchItem
 import com.nexastream.app.providers.Provider
 import com.nexastream.app.adapters.AppAdapter
-import com.nexastream.app.providers.AnimeOnlineNinjaProvider
 import com.nexastream.app.utils.HomeCacheStore
 import com.nexastream.app.utils.UserDataCache
 import com.nexastream.app.utils.UserDataCache.toCached
@@ -53,10 +52,6 @@ class HomeRepository(
     }
 
     suspend fun getHome(provider: Provider): List<Category> {
-        if (provider is AnimeOnlineNinjaProvider) {
-            HomeCacheStore.clear(context, provider)
-        }
-
         val categories = provider.getHome()
         if (categories.isEmpty()) {
             val cached = HomeCacheStore.read(context, provider)

@@ -336,7 +336,7 @@ class MovieViewHolder(
 
         binding.ivMoviePoster.loadMoviePoster(movie) {
             centerCrop()
-            transition(DrawableTransitionOptions.withCrossFade())
+            dontAnimate()
         }
 
         binding.tvMovieQuality.apply {
@@ -347,8 +347,7 @@ class MovieViewHolder(
             }
         }
 
-        binding.tvMovieReleasedYear.text = movie.released?.format("yyyy")
-            ?: context.getString(R.string.movie_item_type)
+        binding.tvMovieReleasedYear.visibility = View.GONE
 
         binding.pbMovieProgress.apply {
             val watchHistory = movie.watchHistory
@@ -440,7 +439,7 @@ class MovieViewHolder(
         binding.ivMoviePoster.loadMoviePoster(movie) {
             fallback(R.drawable.glide_fallback_cover)
             centerCrop()
-            transition(DrawableTransitionOptions.withCrossFade())
+            dontAnimate()
         }
         binding.pbMovieProgress.apply {
             val watchHistory = movie.watchHistory
@@ -487,7 +486,7 @@ class MovieViewHolder(
 
         binding.ivMoviePoster.loadMoviePoster(movie) {
             centerCrop()
-            transition(DrawableTransitionOptions.withCrossFade())
+            dontAnimate()
         }
 
         binding.tvMovieQuality.apply {
@@ -498,8 +497,7 @@ class MovieViewHolder(
             }
         }
 
-        binding.tvMovieReleasedYear.text = movie.released?.format("yyyy")
-            ?: context.getString(R.string.movie_item_type)
+        binding.tvMovieReleasedYear.visibility = View.GONE
 
         binding.pbMovieProgress.apply {
             val watchHistory = movie.watchHistory
@@ -554,7 +552,7 @@ class MovieViewHolder(
         binding.ivMoviePoster.loadMoviePoster(movie) {
             fallback(R.drawable.glide_fallback_cover)
             centerCrop()
-            transition(DrawableTransitionOptions.withCrossFade())
+            dontAnimate()
         }
         binding.pbMovieProgress.apply {
             val watchHistory = movie.watchHistory

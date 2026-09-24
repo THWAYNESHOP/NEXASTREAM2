@@ -57,7 +57,6 @@ import com.nexastream.app.database.dao.EpisodeDao
 import com.nexastream.app.database.dao.MovieDao
 import com.nexastream.app.database.dao.SeasonDao
 import com.nexastream.app.database.dao.TvShowDao
-import com.nexastream.app.providers.AnimeOnlineNinjaProvider
 import com.nexastream.app.providers.FrenchStreamProvider
 import com.nexastream.app.providers.MStreamProvider
 import com.nexastream.app.providers.Provider
@@ -1626,44 +1625,24 @@ class SettingsTvFragment : LeanbackPreferenceFragmentCompat() {
         val isStreamingCommunity = UserPreferences.currentProvider is StreamingCommunityProvider
         // val isSerienStream = UserPreferences.currentProvider is SerienStreamProvider
         val isMoflix = UserPreferences.currentProvider is MStreamProvider
-        val isCuevana = UserPreferences.currentProvider?.name == "Cuevana 3"
+        val isCuevana = false
         val isPoseidon = UserPreferences.currentProvider?.name == "Poseidonhd2"
-        val isAnimeOnlineNinja = UserPreferences.currentProvider is AnimeOnlineNinjaProvider
+        val isAnimeOnlineNinja = false
         val hasConfigProvider = UserPreferences.currentProvider is ProviderConfigUrl
-        val hasSpecificOptions = isStreamingCommunity || isCuevana || isPoseidon || isAnimeOnlineNinja
+        val hasSpecificOptions = isStreamingCommunity || isPoseidon
 
         findPreference<PreferenceCategory>("pc_streamingcommunity_settings")?.isVisible = isStreamingCommunity
         findPreference<PreferenceCategory>("pc_serienstream_settings")?.isVisible = false // isSerienStream
         findPreference<PreferenceCategory>("pc_moflix_settings")?.isVisible = isMoflix
-        findPreference<PreferenceCategory>("pc_cuevana_settings")?.isVisible = isCuevana
+        findPreference<PreferenceCategory>("pc_cuevana_settings")?.isVisible = false
         findPreference<PreferenceCategory>("pc_poseidon_settings")?.isVisible = isPoseidon
-        findPreference<PreferenceCategory>("pc_animeonlineninja_settings")?.isVisible = isAnimeOnlineNinja
+        findPreference<PreferenceCategory>("pc_animeonlineninja_settings")?.isVisible = false
         findPreference<PreferenceCategory>("pc_provider_empty_state")?.isVisible = !hasConfigProvider && !hasSpecificOptions
     }
 
     private fun bindAnimeOnlineNinjaPreferredServer() {
         val preference = findPreference<ListPreference>("provider_animeonlineninja_preferred_server") ?: return
-        val currentValue = UserPreferences.getProviderCache(
-            AnimeOnlineNinjaProvider,
-            UserPreferences.PROVIDER_PREFERRED_SERVER
-        )
-        preference.value = currentValue
-        preference.summary = preference.entries
-            ?.getOrNull(preference.findIndexOfValue(currentValue))
-            ?: getString(R.string.settings_provider_animeonlineninja_preferred_server_summary)
-        preference.setOnPreferenceChangeListener { pref, newValue ->
-            val value = (newValue as String).trim()
-            UserPreferences.setProviderCache(
-                AnimeOnlineNinjaProvider,
-                UserPreferences.PROVIDER_PREFERRED_SERVER,
-                value
-            )
-            if (pref is ListPreference) {
-                pref.summary = pref.entries?.getOrNull(pref.findIndexOfValue(value))
-                    ?: getString(R.string.settings_provider_animeonlineninja_preferred_server_summary)
-            }
-            true
-        }
+        preference.isVisible = false
     }
 
     private fun setupParentalControlPreferences() {

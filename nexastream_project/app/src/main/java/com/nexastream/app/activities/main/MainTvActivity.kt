@@ -27,8 +27,6 @@ import com.nexastream.app.fragments.player.PlayerTvFragment
 import com.nexastream.app.ui.UpdateAppTvDialog
 import com.nexastream.app.providers.IptvProvider
 import com.nexastream.app.providers.Provider
-import com.nexastream.app.providers.AnimeOnlineNinjaProvider
-import com.nexastream.app.providers.Cine24hProvider
 import com.nexastream.app.providers.FilmyOnlineCcProvider
 import com.nexastream.app.utils.AppLanguageManager
 import com.nexastream.app.utils.ThemeManager
@@ -56,8 +54,6 @@ class MainTvActivity : FragmentActivity() {
         setTheme(ThemeManager.tvThemeRes(UserPreferences.selectedTheme))
         super.onCreate(savedInstanceState)
         
-        AnimeOnlineNinjaProvider.init(this)
-        Cine24hProvider.init(this)
         FilmyOnlineCcProvider.init(this)
         
         _binding = ActivityMainTvBinding.inflate(layoutInflater)

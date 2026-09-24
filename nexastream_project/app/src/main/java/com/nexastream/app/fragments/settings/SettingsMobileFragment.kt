@@ -35,7 +35,6 @@ import com.nexastream.app.activities.tools.QrScannerActivity
 import com.nexastream.app.backup.BackupRestoreManager
 import com.nexastream.app.backup.ProviderBackupContext
 import com.nexastream.app.database.AppDatabase
-import com.nexastream.app.providers.AnimeOnlineNinjaProvider
 import com.nexastream.app.providers.FrenchStreamProvider
 import com.nexastream.app.providers.Provider
 import com.nexastream.app.providers.ProviderConfigUrl
@@ -891,46 +890,26 @@ class SettingsMobileFragment : PreferenceFragmentCompat() {
         val isStreamingCommunity = UserPreferences.currentProvider is StreamingCommunityProvider
         // val isSerienStream = UserPreferences.currentProvider is SerienStreamProvider
         val isMoflix = UserPreferences.currentProvider is MStreamProvider
-        val isCuevana = UserPreferences.currentProvider?.name == "Cuevana 3"
+        val isCuevana = false
         val isPoseidon = UserPreferences.currentProvider?.name == "Poseidonhd2"
         val isSflix = UserPreferences.currentProvider?.name == "SFlix"
-        val isAnimeOnlineNinja = UserPreferences.currentProvider is AnimeOnlineNinjaProvider
+        val isAnimeOnlineNinja = false
         val hasConfigProvider = UserPreferences.currentProvider is ProviderConfigUrl
-        val hasSpecificOptions = isStreamingCommunity || isCuevana || isPoseidon || isAnimeOnlineNinja || isSflix
+        val hasSpecificOptions = isStreamingCommunity || isPoseidon || isSflix
 
         findPreference<PreferenceCategory>("pc_streamingcommunity_settings")?.isVisible = isStreamingCommunity
         findPreference<PreferenceCategory>("pc_serienstream_settings")?.isVisible = false // isSerienStream
         findPreference<PreferenceCategory>("pc_moflix_settings")?.isVisible = isMoflix
-        findPreference<PreferenceCategory>("pc_cuevana_settings")?.isVisible = isCuevana
+        findPreference<PreferenceCategory>("pc_cuevana_settings")?.isVisible = false
         findPreference<PreferenceCategory>("pc_poseidon_settings")?.isVisible = isPoseidon
         findPreference<PreferenceCategory>("pc_sflix_settings")?.isVisible = isSflix
-        findPreference<PreferenceCategory>("pc_animeonlineninja_settings")?.isVisible = isAnimeOnlineNinja
+        findPreference<PreferenceCategory>("pc_animeonlineninja_settings")?.isVisible = false
         findPreference<PreferenceCategory>("pc_provider_empty_state")?.isVisible = !hasConfigProvider && !hasSpecificOptions
     }
 
     private fun bindAnimeOnlineNinjaPreferredServer() {
         val preference = findPreference<ListPreference>("provider_animeonlineninja_preferred_server") ?: return
-        val currentValue = UserPreferences.getProviderCache(
-            AnimeOnlineNinjaProvider,
-            UserPreferences.PROVIDER_PREFERRED_SERVER
-        )
-        preference.value = currentValue
-        preference.summary = preference.entries
-            ?.getOrNull(preference.findIndexOfValue(currentValue))
-            ?: getString(R.string.settings_provider_animeonlineninja_preferred_server_summary)
-        preference.setOnPreferenceChangeListener { pref, newValue ->
-            val value = (newValue as String).trim()
-            UserPreferences.setProviderCache(
-                AnimeOnlineNinjaProvider,
-                UserPreferences.PROVIDER_PREFERRED_SERVER,
-                value
-            )
-            if (pref is ListPreference) {
-                pref.summary = pref.entries?.getOrNull(pref.findIndexOfValue(value))
-                    ?: getString(R.string.settings_provider_animeonlineninja_preferred_server_summary)
-            }
-            true
-        }
+        preference.isVisible = false
     }
 
     private fun setupParentalControlPreferences() {

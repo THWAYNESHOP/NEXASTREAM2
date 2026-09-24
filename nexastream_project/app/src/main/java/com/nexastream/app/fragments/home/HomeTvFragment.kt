@@ -34,7 +34,7 @@ import com.nexastream.app.utils.CacheUtils
 import com.nexastream.app.utils.LoggingUtils
 import com.nexastream.app.utils.ProviderChangeNotifier
 import com.nexastream.app.utils.UserPreferences
-import com.nexastream.app.utils.viewModelsFactory
+import com.nexastream.app.utils.activityViewModelsFactory
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -47,10 +47,10 @@ class HomeTvFragment : Fragment() {
     private var _binding: FragmentHomeTvBinding? = null
     private val binding get() = _binding!!
 
-    private val viewModel by viewModelsFactory {
+    private val viewModel by activityViewModelsFactory {
         HomeViewModel(
-            AppDatabase.getInstance(requireContext()),
-            HomeRepository(requireContext(), AppDatabase.getInstance(requireContext()))
+            AppDatabase.getInstance(requireActivity()),
+            HomeRepository(requireActivity(), AppDatabase.getInstance(requireActivity()))
         )
     }
     private val mainViewModel: MainViewModel by activityViewModels()
@@ -379,9 +379,9 @@ class HomeTvFragment : Fragment() {
                                         "Amazon" -> 10
                                         else -> 0
                                     }
-                                    if (providerId != 0) "tmdb_watch_provider_movies_$providerId" to name else "" to name
+                                    if (providerId != 0) "tmdb_watch_provider_movies_$providerId" to name else name to name
                                 }
-                                else -> "" to name
+                                else -> name to name
                             }
                         }
                     }

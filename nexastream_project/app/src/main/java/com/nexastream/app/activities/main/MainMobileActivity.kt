@@ -30,8 +30,6 @@ import com.nexastream.app.activities.tools.BypassWebViewActivity
 import com.nexastream.app.databinding.ActivityMainMobileBinding
 import com.nexastream.app.fragments.home.HomeMobileFragment
 import com.nexastream.app.fragments.player.PlayerMobileFragment
-import com.nexastream.app.providers.AnimeOnlineNinjaProvider
-import com.nexastream.app.providers.Cine24hProvider
 import com.nexastream.app.providers.FilmyOnlineCcProvider
 import com.nexastream.app.providers.IptvProvider
 import com.nexastream.app.providers.Provider
@@ -113,8 +111,6 @@ class MainMobileActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
 
 
-        AnimeOnlineNinjaProvider.init(this)
-        Cine24hProvider.init(this)
         FilmyOnlineCcProvider.init(this)
 
         WindowCompat.setDecorFitsSystemWindows(window, false)
@@ -179,11 +175,11 @@ class MainMobileActivity : AppCompatActivity() {
         navController.addOnDestinationChangedListener { _, destination, _ ->
             updateNavigationVisibility(destination.id)
             updateBottomNavigationVisibility(destination.id)
-            binding.ablMain.visibility = if (isTopLevelProviderDestination(destination.id) && destination.id != R.id.home) View.VISIBLE else View.GONE
+            binding.ablMain.visibility = if (isTopLevelProviderDestination(destination.id) && destination.id != R.id.home && destination.id != R.id.search) View.VISIBLE else View.GONE
             updateToolbarLogo()
 
             val params = binding.navMainFragment.layoutParams as androidx.constraintlayout.widget.ConstraintLayout.LayoutParams
-            if (destination.id == R.id.home) {
+            if (destination.id == R.id.home || destination.id == R.id.search) {
                 binding.ablMain.setBackgroundColor(android.graphics.Color.TRANSPARENT)
                 binding.toolbarMain.setBackgroundColor(android.graphics.Color.TRANSPARENT)
                 binding.ablMain.elevation = 0f

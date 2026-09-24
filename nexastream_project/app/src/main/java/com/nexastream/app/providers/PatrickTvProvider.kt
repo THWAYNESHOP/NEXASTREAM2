@@ -17,14 +17,14 @@ import com.nexastream.app.utils.ChannelLogoRepository
 import java.io.BufferedReader
 import java.io.InputStreamReader
 
-object LocalIptvProvider : IptvProvider {
+object PatrickTvProvider : IptvProvider {
 
-    override val name = "IPTV DIMAN"
+    override val name = "PatrickTV"
     override val baseUrl = ""
     override val logo = "https://i.ibb.co/W1d0CxF/Logo-IPTV-All-World.jpg"
     override val language = "en"
 
-    private const val TAG = "LocalIptvProvider"
+    private const val TAG = "PatrickTvProvider"
 
     private var cachedChannels: List<M3UChannel>? = null
 
@@ -50,6 +50,13 @@ object LocalIptvProvider : IptvProvider {
         "ufc" to "https://upload.wikimedia.org/wikipedia/commons/thumb/0/0d/UFC_logo.svg/1200px-UFC_logo.svg.png"
     )
 
+    private fun normalizeName(rawName: String): String {
+        return rawName
+            .replace(Regex("""^[,\s]+|[,\s]+$"""), "")
+            .replace(Regex("""\s+"""), " ")
+            .trim()
+    }
+
     private suspend fun resolveLogoUrl(channelName: String, m3uLogo: String?): String {
         if (!m3uLogo.isNullOrBlank()) return m3uLogo
 
@@ -63,23 +70,23 @@ object LocalIptvProvider : IptvProvider {
 
     private fun createId(channel: M3UChannel): String {
         val rawId = "${channel.url}|${channel.name}|${channel.logo ?: ""}|${channel.userAgent ?: ""}|${channel.referer ?: ""}"
-        return "localiptv:" + Base64.encodeToString(rawId.toByteArray(), Base64.NO_WRAP)
+        return "patricktv:" + Base64.encodeToString(rawId.toByteArray(), Base64.NO_WRAP)
     }
 
     fun decodeId(id: String): Triple<String, String, String> {
         return try {
-            val raw = String(Base64.decode(id.removePrefix("localiptv:"), Base64.DEFAULT))
+            val raw = String(Base64.decode(id.removePrefix("patricktv:"), Base64.DEFAULT))
             val parts = raw.split("|")
-            val cleanUrl = parts[0].removePrefix("localiptv:").trim()
+            val cleanUrl = parts[0].removePrefix("patricktv:").trim()
             Triple(cleanUrl, parts.getOrNull(1) ?: "", parts.getOrNull(2) ?: "")
         } catch (e: Exception) {
-            Triple(id.removePrefix("localiptv:"), "Unknown Channel", "")
+            Triple(id.removePrefix("patricktv:"), "Unknown Channel", "")
         }
     }
 
     private fun getMetadataFromId(id: String): Map<String, String?> {
         return try {
-            val raw = String(Base64.decode(id.removePrefix("localiptv:"), Base64.DEFAULT))
+            val raw = String(Base64.decode(id.removePrefix("patricktv:"), Base64.DEFAULT))
             val parts = raw.split("|")
             mapOf(
                 "ua" to parts.getOrNull(3).takeIf { it?.isNotEmpty() == true },
@@ -91,22 +98,25 @@ object LocalIptvProvider : IptvProvider {
     private fun getAllChannels(): List<M3UChannel> {
         if (cachedChannels != null) return cachedChannels!!
 
-        val allChannels = mutableListOf<M3UChannel>()
-        val files = listOf("iptv_diman.m3u", "initial-playlist.m3u", "sports-playlist.m3u")
+        val rawChannels = mutableListOf<M3UChannel>()
+        val fileName = "patricktv.m3u"
 
-        files.forEach { fileName ->
-            try {
-                val inputStream = NexastreamApp.instance.assets.open(fileName)
-                val reader = BufferedReader(InputStreamReader(inputStream))
-                parseM3UStream(reader, allChannels)
-                inputStream.close()
-            } catch (e: Exception) {
-                Log.e(TAG, "Error reading $fileName: ${e.message}")
-            }
+        try {
+            val inputStream = NexastreamApp.instance.assets.open(fileName)
+            val reader = BufferedReader(InputStreamReader(inputStream))
+            parseM3UStream(reader, rawChannels)
+            inputStream.close()
+        } catch (e: Exception) {
+            Log.e(TAG, "Error reading $fileName: ${e.message}")
         }
 
-        cachedChannels = allChannels
-        return allChannels
+        // Strict deduplication: first by URL, then by normalized channel name
+        val deduplicated = rawChannels
+            .distinctBy { it.url }
+            .distinctBy { normalizeName(it.name).lowercase() }
+
+        cachedChannels = deduplicated
+        return deduplicated
     }
 
     private fun parseM3UStream(reader: BufferedReader, channels: MutableList<M3UChannel>) {
@@ -119,7 +129,8 @@ object LocalIptvProvider : IptvProvider {
         reader.forEachLine { line ->
             val t = line.trim()
             if (t.startsWith("#EXTINF")) {
-                curName = t.substringAfterLast(",").trim()
+                val parsedName = t.substringAfterLast(",").trim()
+                curName = normalizeName(parsedName)
                 curLogo = Regex("""tvg-logo="([^"]+)"""").find(t)?.groupValues?.get(1) ?: ""
                 curGroup = Regex("""group-title="([^"]+)"""").find(t)?.groupValues?.get(1) ?: ""
 
@@ -141,12 +152,12 @@ object LocalIptvProvider : IptvProvider {
                 if (urlParts.size > 1) {
                     urlParts.drop(1).forEach { part ->
                         if (part.contains("User-Agent=", ignoreCase = true)) {
-                            curUA = part.substringAfter("=").substringAfter("=").trim()
+                            curUA = part.substringAfterLast("=").trim()
                         }
                     }
                 }
 
-                if (curName.isNotEmpty()) {
+                if (curName.isNotEmpty() && cleanUrl.isNotEmpty()) {
                     channels.add(M3UChannel(curName, cleanUrl, curLogo, curGroup, curUA, curRef))
                     curName = ""; curLogo = ""; curGroup = ""; curUA = null; curRef = null
                 }
@@ -157,11 +168,11 @@ object LocalIptvProvider : IptvProvider {
     override suspend fun getHome(): List<Category> {
         val channels = getAllChannels()
 
-        val sportsKeywords = listOf("sport", "espn", "fox", "sky", "bein", "nba", "nfl", "nhl", "mlb", "football", "cricket", "tennis", "basketball", "racing", "матч", "боец", "футбол")
-        val movieKeywords = listOf("movie", "film", "cinema", "hbo", "star", "showtime", "кино", "сериал", "премьера", "хит")
+        val sportsKeywords = listOf("sport", "espn", "fox", "sky", "bein", "nba", "nfl", "nhl", "mlb", "football", "cricket", "tennis", "basketball", "racing", "матч", "боец", "футбол", "спорт", "arena", "euro", "dazn", "formula", "f1", "motor", "golf", "setanta", "diema", "maxsport", "кхл", "boxing", "ufc", "mma")
         val newsKeywords = listOf("news", "cnn", "bbc", "fox news", "msnbc", "al jazeera", "новости", "известия", "рбк", "вести")
-        val kidsKeywords = listOf("kids", "cartoon", "disney", "nickelodeon", "nick jr", "детский", "мульт", "карусель")
-        val musicKeywords = listOf("music", "mtv", "vh1", "spotify", "apple music", "музыка", "bridge", "shanson")
+        val movieKeywords = listOf("movie", "film", "cinema", "hbo", "star", "showtime", "кино", "сериал", "премьера", "хит", "action")
+        val kidsKeywords = listOf("kids", "cartoon", "disney", "nickelodeon", "nick jr", "детский", "мульт", "карусель", "duck")
+        val musicKeywords = listOf("music", "mtv", "vh1", "spotify", "apple music", "музыка", "bridge", "shanson", "stingray", "retro")
 
         val categorized = mutableMapOf<String, MutableList<M3UChannel>>(
             "Live Sports" to mutableListOf(),
@@ -190,18 +201,20 @@ object LocalIptvProvider : IptvProvider {
             if (list.isEmpty()) return@mapNotNull null
             Category(
                 name = groupName,
-                list = list.distinctBy { it.name }.take(40).map { channel ->
-                    val posterUrl = resolveLogoUrl(channel.name, channel.logo)
-                    TvShow(
-                        id = createId(channel.copy(logo = posterUrl)),
-                        title = channel.name,
-                        poster = posterUrl,
-                        banner = posterUrl,
-                        providerName = "IPTV"
-                    ).apply {
-                        itemType = AppAdapter.Type.TV_SHOW_MOBILE_ITEM
+                list = list
+                    .distinctBy { normalizeName(it.name).lowercase() }
+                    .map { channel ->
+                        val posterUrl = resolveLogoUrl(channel.name, channel.logo)
+                        TvShow(
+                            id = createId(channel.copy(logo = posterUrl)),
+                            title = channel.name,
+                            poster = posterUrl,
+                            banner = posterUrl,
+                            providerName = "PatrickTV"
+                        ).apply {
+                            itemType = AppAdapter.Type.TV_SHOW_MOBILE_ITEM
+                        }
                     }
-                }
             ).apply {
                 itemType = AppAdapter.Type.CATEGORY_MOBILE_ITEM
             }
@@ -212,11 +225,16 @@ object LocalIptvProvider : IptvProvider {
         if (page > 1) return emptyList()
         val allChannels = getAllChannels()
         return allChannels.filter { it.name.contains(query, ignoreCase = true) }
-            .distinctBy { it.name }
+            .distinctBy { normalizeName(it.name).lowercase() }
             .take(60)
             .map { channel ->
                 val posterUrl = resolveLogoUrl(channel.name, channel.logo)
-                TvShow(id = createId(channel.copy(logo = posterUrl)), title = channel.name, poster = posterUrl, providerName = "IPTV")
+                TvShow(
+                    id = createId(channel.copy(logo = posterUrl)),
+                    title = channel.name,
+                    poster = posterUrl,
+                    providerName = "PatrickTV"
+                )
             }
     }
 
@@ -228,9 +246,9 @@ object LocalIptvProvider : IptvProvider {
             title = name,
             poster = posterUrl,
             banner = posterUrl,
-            overview = "Local IPTV Stream: $name",
+            overview = "PatrickTV Stream: $name",
             seasons = listOf(Season(id = id, number = 1, title = "Live Stream")),
-            providerName = "IPTV"
+            providerName = "PatrickTV"
         )
     }
 
@@ -250,9 +268,8 @@ object LocalIptvProvider : IptvProvider {
         meta["ua"]?.let { headers["User-Agent"] = it }
         meta["referer"]?.let { headers["Referer"] = it }
 
-        // Default UA for ronaldo.tvfor.pro if not specified
         if (url.contains("ronaldo.tvfor.pro")) {
-            if (!headers.containsKey("User-Agent")) {
+            if (!headers.containsKey("User-Agent") || headers["User-Agent"]?.startsWith("http") == true) {
                 headers["User-Agent"] = "Lavf/56.15.102"
             }
             if (!headers.containsKey("Referer")) {
@@ -272,11 +289,11 @@ object LocalIptvProvider : IptvProvider {
         val allChannels = getAllChannels()
         val normalizedId = id.trim().lowercase()
 
-        val sportsKeywords = listOf("sport", "espn", "fox", "sky", "bein", "nba", "nfl", "nhl", "mlb", "football", "cricket", "tennis", "basketball", "racing", "матч", "боец", "футбол")
-        val newsKeywords = listOf("news", "cnn", "bbc", "fox news", "msnbc", "al jazeera", "новости", "известия", "рбк", "вести")
-        val movieKeywords = listOf("movie", "film", "cinema", "hbo", "star", "showtime", "кино", "сериал", "премьера", "хит")
-        val kidsKeywords = listOf("kids", "cartoon", "disney", "nickelodeon", "nick jr", "детский", "мульт", "карусель")
-        val musicKeywords = listOf("music", "mtv", "vh1", "spotify", "apple music", "музыка", "bridge", "shanson")
+        val sportsKeywords = listOf("sport", "espn", "fox", "sky", "bein", "nba", "nfl", "nhl", "mlb", "football", "cricket", "tennis", "basketball", "racing", "матч", "боец", "футбол", "спорт", "arena", "euro", "dazn", "formula", "f1", "motor", "golf", "setanta", "diema", "maxsport", "кхл", "boxing", "ufc", "mma")
+        val newsKeywords = listOf("news", "cnn", "bbc", "fox news", "msnbc", "al jazeera", "новости", "известия", "рбк", "вести", "business")
+        val movieKeywords = listOf("movie", "film", "cinema", "hbo", "star", "showtime", "кино", "сериал", "премьера", "хит", "action")
+        val kidsKeywords = listOf("kids", "cartoon", "disney", "nickelodeon", "nick jr", "детский", "мульт", "карусель", "duck", "family", "animation")
+        val musicKeywords = listOf("music", "mtv", "vh1", "spotify", "apple music", "музыка", "bridge", "shanson", "stingray", "retro")
 
         val matchedChannels = when {
             normalizedId == "live sports" -> allChannels.filter { ch ->
@@ -289,12 +306,12 @@ object LocalIptvProvider : IptvProvider {
                 val groupLower = ch.group?.lowercase() ?: ""
                 movieKeywords.any { nameLower.contains(it) || groupLower.contains(it) }
             }
-            normalizedId.contains("news") -> allChannels.filter { ch ->
+            normalizedId.contains("news") || normalizedId.contains("business") -> allChannels.filter { ch ->
                 val nameLower = ch.name.lowercase()
                 val groupLower = ch.group?.lowercase() ?: ""
                 newsKeywords.any { nameLower.contains(it) || groupLower.contains(it) }
             }
-            normalizedId.contains("kids") -> allChannels.filter { ch ->
+            normalizedId.contains("kids") || normalizedId.contains("cartoon") -> allChannels.filter { ch ->
                 val nameLower = ch.name.lowercase()
                 val groupLower = ch.group?.lowercase() ?: ""
                 kidsKeywords.any { nameLower.contains(it) || groupLower.contains(it) }
@@ -310,12 +327,15 @@ object LocalIptvProvider : IptvProvider {
                     normalizedId.contains(ch.group?.lowercase() ?: "___")
                 }
                 if (byGroup.isNotEmpty()) byGroup
-                else allChannels.filter { ch -> ch.name.lowercase().contains(normalizedId) }.ifEmpty { allChannels }
+                else allChannels.filter { ch ->
+                    ch.name.lowercase().contains(normalizedId) ||
+                    sportsKeywords.any { normalizedId.contains(it) && ch.name.lowercase().contains(it) }
+                }.ifEmpty { allChannels }
             }
         }
 
         val shows = matchedChannels
-            .distinctBy { it.name.trim().lowercase() }
+            .distinctBy { normalizeName(it.name).lowercase() }
             .map { channel ->
                 val posterUrl = resolveLogoUrl(channel.name, channel.logo)
                 TvShow(
@@ -323,7 +343,7 @@ object LocalIptvProvider : IptvProvider {
                     title = channel.name,
                     poster = posterUrl,
                     banner = posterUrl,
-                    providerName = "IPTV"
+                    providerName = "PatrickTV"
                 )
             }
 

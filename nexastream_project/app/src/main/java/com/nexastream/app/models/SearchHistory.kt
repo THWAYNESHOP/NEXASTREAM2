@@ -7,5 +7,8 @@ import androidx.room.PrimaryKey
 data class SearchHistory(
     @PrimaryKey
     val query: String,
+    val poster: String? = null,
+    val mediaId: String? = null,
+    val mediaType: String? = null,
     val timestamp: Long = System.currentTimeMillis()
 )

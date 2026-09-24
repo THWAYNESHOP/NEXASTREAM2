@@ -76,20 +76,20 @@ object ThemeManager {
 
     fun palette(theme: String): Palette = when (theme) {
         NETFLIX_NOIR -> Palette(
-            mobileNavBackground = color("#141414"),
+            mobileNavBackground = color("#000000"),
             mobileNavActive = color("#E50914"),
             mobileNavInactive = color("#808080"),
-            systemBar = color("#141414"),
-            tvNavBackground = color("#141414"),
+            systemBar = color("#000000"),
+            tvNavBackground = color("#000000"),
             tvHeaderPrimary = color("#FFFFFF"),
             tvHeaderSecondary = color("#B3B3B3"),
         )
         NERO_AMOLED_OLED -> Palette(
             mobileNavBackground = color("#000000"),
-            mobileNavActive = color("#FFFFFF"),
+            mobileNavActive = color("#E50914"),
             mobileNavInactive = color("#7A7A7A"),
             systemBar = color("#000000"),
-            tvNavBackground = color("#050505"),
+            tvNavBackground = color("#000000"),
             tvHeaderPrimary = color("#FFFFFF"),
             tvHeaderSecondary = color("#BDBDBD"),
         )
@@ -166,11 +166,11 @@ object ThemeManager {
             tvHeaderSecondary = color("#CFB7DA"),
         )
         else -> Palette(
-            mobileNavBackground = color("#141414"),
+            mobileNavBackground = color("#000000"),
             mobileNavActive = color("#E50914"),
             mobileNavInactive = color("#808080"),
-            systemBar = color("#141414"),
-            tvNavBackground = color("#141414"),
+            systemBar = color("#000000"),
+            tvNavBackground = color("#000000"),
             tvHeaderPrimary = color("#FFFFFF"),
             tvHeaderSecondary = color("#B3B3B3"),
         )

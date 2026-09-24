@@ -106,6 +106,9 @@ class CategoryViewHolder(
         }
 
         binding.rvCategory.apply {
+            setRecycledViewPool(AppAdapter.sharedViewPool)
+            setHasFixedSize(true)
+            setItemViewCacheSize(6)
             val categoryAdapter = (adapter as? AppAdapter) ?: AppAdapter().also { adapter = it }
             categoryAdapter.apply {
                 this.onMovieClickListener = onMovieClick
@@ -137,6 +140,9 @@ class CategoryViewHolder(
         val parentAdapter = binding.root.parent?.let { (it as? RecyclerView)?.adapter as? AppAdapter }
 
         binding.hgvCategory.apply {
+            setRecycledViewPool(AppAdapter.sharedViewPool)
+            setHasFixedSize(true)
+            setItemViewCacheSize(6)
             setRowHeight(ViewGroup.LayoutParams.WRAP_CONTENT)
 
             val categoryAdapter = (adapter as? AppAdapter) ?: AppAdapter().also { adapter = it }

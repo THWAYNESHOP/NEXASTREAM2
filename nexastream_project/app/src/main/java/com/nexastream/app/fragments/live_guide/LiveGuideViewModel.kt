@@ -13,6 +13,7 @@ import com.nexastream.app.models.LiveRecording
 import com.nexastream.app.models.ProgramReminder
 import com.nexastream.app.models.TvShow
 import com.nexastream.app.models.XmlTvChannel
+import com.nexastream.app.providers.CdnLiveTvProvider
 import com.nexastream.app.providers.IptvOrgProvider
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -163,13 +164,30 @@ class LiveGuideViewModel : ViewModel() {
 
     private fun loadChannels() {
         viewModelScope.launch(Dispatchers.IO) {
+            _state.update { it.copy(loading = true) }
+
+            val fastChannels = mutableListOf<TvShow>()
+            runCatching {
+                val cdn = CdnLiveTvProvider.getHome().flatMap { it.list }.mapNotNull { it as? TvShow }
+                fastChannels.addAll(cdn)
+            }
+
+            if (fastChannels.isNotEmpty()) {
+                val distinctFast = fastChannels.distinctBy { it.id }
+                _state.update { it.copy(channels = distinctFast, loading = false, error = null) }
+                observePrograms(distinctFast)
+            }
+
             runCatching { IptvOrgProvider.getGuideChannels() }
-                .onSuccess { channels ->
-                    _state.update { it.copy(channels = channels, loading = false, error = null) }
-                    observePrograms(channels)
+                .onSuccess { iptvOrgChannels ->
+                    val combined = (fastChannels + iptvOrgChannels).distinctBy { it.id }
+                    _state.update { it.copy(channels = combined, loading = false, error = null) }
+                    observePrograms(combined)
                 }
                 .onFailure { error ->
-                    _state.update { it.copy(loading = false, error = error.message ?: "Unable to load channels") }
+                    if (fastChannels.isEmpty()) {
+                        _state.update { it.copy(loading = false, error = error.message ?: "Unable to load channels") }
+                    }
                 }
         }
     }

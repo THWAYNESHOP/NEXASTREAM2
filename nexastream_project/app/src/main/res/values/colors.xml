@@ -9,7 +9,7 @@
     <color name="netflix_dark_grey">#141414</color>
 
     <!-- Colore di sfondo dinamico per TV -->
-    <color name="app_background">#181818</color>
+    <color name="app_background">#000000</color>
 
     <array name="genres">
         <item>#E13300</item>

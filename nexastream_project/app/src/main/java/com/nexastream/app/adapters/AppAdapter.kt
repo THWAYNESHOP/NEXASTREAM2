@@ -729,53 +729,77 @@ class AppAdapter(
     }
 
 
+    companion object {
+        val sharedViewPool = RecyclerView.RecycledViewPool().apply {
+            setMaxRecycledViews(Type.MOVIE_MOBILE_ITEM.ordinal, 25)
+            setMaxRecycledViews(Type.MOVIE_TV_ITEM.ordinal, 25)
+            setMaxRecycledViews(Type.TV_SHOW_MOBILE_ITEM.ordinal, 25)
+            setMaxRecycledViews(Type.TV_SHOW_TV_ITEM.ordinal, 25)
+            setMaxRecycledViews(Type.EPISODE_MOBILE_ITEM.ordinal, 20)
+            setMaxRecycledViews(Type.EPISODE_TV_ITEM.ordinal, 20)
+            setMaxRecycledViews(Type.SPORT_MATCH_ITEM.ordinal, 15)
+        }
+        private val diffExecutor = java.util.concurrent.Executors.newSingleThreadExecutor()
+    }
+
     fun submitList(list: List<Item>) {
         isLoading = false
-        // If we have a lot of items or are in a potentially sensitive state, 
-        // using a post ensures we aren't mid-layout.
-        val updateBlock = {
-            val oldItems = items.toList()
-            val newItemCount = list.size
+        if (items == list) return
 
-            if (oldItems.isNotEmpty() &&
-                oldItems.size <= newItemCount &&
-                oldItems == list.subList(0, oldItems.size)
-            ) {
-                val appendedItems = list.subList(oldItems.size, newItemCount)
-                if (appendedItems.isNotEmpty()) {
-                    val appendedIdentityState = appendedItems.buildIdentityState(itemIdentityCounts)
+        val oldItems = items.toList()
+        val newItemCount = list.size
 
-                    items.addAll(appendedItems)
-                    itemIdentities = itemIdentities + appendedIdentityState.identities
-                    itemIdentityCounts = appendedIdentityState.counts
-                    itemStableIds = itemStableIds + appendedIdentityState.stableIds
+        if (oldItems.isEmpty()) {
+            val newIdentityState = list.buildIdentityState()
+            items.clear()
+            items.addAll(list)
+            itemIdentities = newIdentityState.identities
+            itemIdentityCounts = newIdentityState.counts
+            itemStableIds = newIdentityState.stableIds
+            notifyDataSetChanged()
+            return
+        }
 
-                    notifyItemRangeInserted(
-                        oldItems.size + (header?.let { 1 } ?: 0),
-                        appendedItems.size
-                    )
+        if (oldItems.size <= newItemCount && oldItems == list.subList(0, oldItems.size)) {
+            val appendedItems = list.subList(oldItems.size, newItemCount)
+            if (appendedItems.isNotEmpty()) {
+                val appendedIdentityState = appendedItems.buildIdentityState(itemIdentityCounts)
+
+                items.addAll(appendedItems)
+                itemIdentities = itemIdentities + appendedIdentityState.identities
+                itemIdentityCounts = appendedIdentityState.counts
+                itemStableIds = itemStableIds + appendedIdentityState.stableIds
+
+                notifyItemRangeInserted(
+                    oldItems.size + (header?.let { 1 } ?: 0),
+                    appendedItems.size
+                )
+            }
+            return
+        }
+
+        val oldIdentities = itemIdentities
+        diffExecutor.execute {
+            val newIdentityState = list.buildIdentityState()
+            val newIdentities = newIdentityState.identities
+
+            val result = DiffUtil.calculateDiff(object : DiffUtil.Callback() {
+                override fun getOldListSize() = oldItems.size
+                override fun getNewListSize() = list.size
+                override fun areItemsTheSame(oldItemPosition: Int, newItemPosition: Int): Boolean {
+                    val oldItem = oldItems[oldItemPosition]
+                    val newItem = list[newItemPosition]
+                    return oldIdentities.getOrNull(oldItemPosition) == newIdentities.getOrNull(newItemPosition) &&
+                            oldItem::class == newItem::class
                 }
-            } else {
-                val oldIdentities = itemIdentities
-                val newIdentityState = list.buildIdentityState()
-                val newIdentities = newIdentityState.identities
+                override fun areContentsTheSame(oldItemPosition: Int, newItemPosition: Int): Boolean {
+                    val oldItem = oldItems[oldItemPosition]
+                    val newItem = list[newItemPosition]
+                    return oldItem == newItem
+                }
+            })
 
-                val result = DiffUtil.calculateDiff(object : DiffUtil.Callback() {
-                    override fun getOldListSize() = items.size
-                    override fun getNewListSize() = list.size
-                    override fun areItemsTheSame(oldItemPosition: Int, newItemPosition: Int): Boolean {
-                        val oldItem = oldItems[oldItemPosition]
-                        val newItem = list[newItemPosition]
-                        return oldIdentities.getOrNull(oldItemPosition) == newIdentities.getOrNull(newItemPosition) &&
-                                oldItem::class == newItem::class
-                    }
-                    override fun areContentsTheSame(oldItemPosition: Int, newItemPosition: Int): Boolean {
-                        val oldItem = oldItems[oldItemPosition]
-                        val newItem = list[newItemPosition]
-                        return oldItem == newItem
-                    }
-                })
-
+            android.os.Handler(android.os.Looper.getMainLooper()).post {
                 val newStates = mutableMapOf<Int, android.os.Parcelable?>()
                 val headerOffset = header?.let { 1 } ?: 0
                 for (newItemPosition in list.indices) {
@@ -793,7 +817,7 @@ class AppAdapter(
                 itemIdentities = newIdentities
                 itemIdentityCounts = newIdentityState.counts
                 itemStableIds = newIdentityState.stableIds
-                
+
                 result.dispatchUpdatesTo(object : androidx.recyclerview.widget.ListUpdateCallback {
                     override fun onInserted(position: Int, count: Int) {
                         notifyItemRangeInserted(position + headerOffset, count)
@@ -809,13 +833,6 @@ class AppAdapter(
                     }
                 })
             }
-        }
-
-        // Execute immediately if possible, or post to main thread
-        if (android.os.Looper.myLooper() == android.os.Looper.getMainLooper()) {
-            updateBlock()
-        } else {
-            android.os.Handler(android.os.Looper.getMainLooper()).post { updateBlock() }
         }
     }
 

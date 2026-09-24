@@ -17,7 +17,6 @@ import com.nexastream.app.R
 import com.nexastream.app.databinding.DialogSportsServersBinding
 import com.nexastream.app.databinding.ItemServerLinkBinding
 import com.nexastream.app.models.Video
-import com.nexastream.app.providers.AkSportsLiveProvider
 import kotlinx.coroutines.launch
 
 class SportsServersDialogFragment : DialogFragment() {
@@ -55,7 +54,7 @@ class SportsServersDialogFragment : DialogFragment() {
         viewLifecycleOwner.lifecycleScope.launch {
             try {
                 Log.d("SportsServers", "Loading servers for: ${args.id}")
-                val servers = AkSportsLiveProvider.getServers(args.id, args.videoType)
+                val servers = emptyList<Video.Server>()
                 
                 if (servers.isEmpty()) {
                     Log.w("SportsServers", "No servers found for: ${args.id}")

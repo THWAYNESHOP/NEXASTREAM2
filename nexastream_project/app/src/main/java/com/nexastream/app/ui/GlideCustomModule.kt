@@ -10,7 +10,6 @@ import com.bumptech.glide.module.AppGlideModule
 import com.nexastream.app.utils.ArtworkRequestHeaders
 import com.nexastream.app.utils.DnsResolver
 import com.nexastream.app.utils.NetworkClient
-import com.nexastream.app.providers.AnimeOnlineNinjaProvider
 import okhttp3.*
 import okhttp3.OkHttpClient.Builder
 import okhttp3.logging.HttpLoggingInterceptor
@@ -118,10 +117,6 @@ class GlideCustomModule : AppGlideModule() {
     }
 
     private fun animeOnlineCookieHeader(url: HttpUrl): String? {
-        AnimeOnlineNinjaProvider.run {
-            clearanceCookieForGlide()?.takeIf { it.isNotBlank() }?.let { return it }
-        }
-
         val cookieManager = CookieManager.getInstance()
         val exact = url.newBuilder().fragment(null).build().toString()
         val root = url.newBuilder().encodedPath("/").query(null).fragment(null).build().toString()
