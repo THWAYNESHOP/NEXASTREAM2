@@ -210,7 +210,7 @@ object NexaHomeProvider : Provider {
             async { runCatching { tmdb.getGenreTv(10759, "Action & Adventure Series") }.getOrNull() },
             async { runCatching { tmdb.getGenreTv(35, "Comedy Series") }.getOrNull() },
             async { runCatching { tmdb.getGenreTv(80, "Crime Series") }.getOrNull() },
-            async { runCatching { tmdb.getTeenRomance(false, "Teen Romance Series") }.getOrNull() },
+            async { runCatching { tmdb.getTeenRomance(isMovie = false, name = "Teen Romance Series") }.getOrNull() },
             async { runCatching { tmdb.getGenreTv(99, "Documentary Series") }.getOrNull() },
             async { runCatching { tmdb.getGenreTv(18, "Drama Series") }.getOrNull() },
             async { runCatching { tmdb.getGenreTv(10751, "Family Series") }.getOrNull() },
@@ -243,6 +243,7 @@ object NexaHomeProvider : Provider {
             async { runCatching { tmdb.getGenreMovies(35, "Comedy Movies") }.getOrNull() },
             async { runCatching { tmdb.getGenreMovies(53, "Thriller Movies") }.getOrNull() },
             async { runCatching { tmdb.getGenreMovies(10749, "Romance Movies") }.getOrNull() },
+            async { runCatching { tmdb.getTeenRomance(isMovie = true, name = "Teen Romance Movies") }.getOrNull() },
             async { runCatching { tmdb.getGenreMovies(878, "Sci-Fi Movies") }.getOrNull() },
             async { runCatching { tmdb.getGenreMovies(99, "Documentary Movies") }.getOrNull() },
             async { runCatching { tmdb.getGenreMovies(27, "Horror Movies") }.getOrNull() },
@@ -332,18 +333,12 @@ object NexaHomeProvider : Provider {
             }
         }
         id == "teen_romance_movies" -> {
-            if (page > 1) Genre(id = id, name = "Teen Romance", shows = emptyList())
-            else {
-                val cat = tmdb.getTeenRomance(isMovie = true, name = "Teen Romance")
-                Genre(id = id, name = cat.name, shows = cat.list)
-            }
+            val cat = tmdb.getTeenRomance(isMovie = true, page = page, name = "Teen Romance")
+            Genre(id = id, name = cat.name, shows = cat.list)
         }
         id == "teen_romance_series" -> {
-            if (page > 1) Genre(id = id, name = "Teen Romance", shows = emptyList())
-            else {
-                val cat = tmdb.getTeenRomance(isMovie = false, name = "Teen Romance")
-                Genre(id = id, name = cat.name, shows = cat.list)
-            }
+            val cat = tmdb.getTeenRomance(isMovie = false, page = page, name = "Teen Romance")
+            Genre(id = id, name = cat.name, shows = cat.list)
         }
         id == "biography_movies" -> {
             if (page > 1) Genre(id = id, name = "Biography", shows = emptyList())

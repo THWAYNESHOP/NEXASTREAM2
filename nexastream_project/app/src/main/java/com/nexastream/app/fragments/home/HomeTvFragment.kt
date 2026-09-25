@@ -184,22 +184,32 @@ class HomeTvFragment : Fragment() {
 
     private var swiperHasLastFocus: Boolean = false
     fun updateBackground(uri: String?, swiperHasFocus: Boolean? = false) {
+        val binding = _binding ?: return
+        val ctx = context ?: return
+        if (!isAdded || isDetached) return
         if (swiperHasFocus == null && isBackgroundPinned) return
         if (swiperHasFocus == null && !swiperHasLastFocus) return
 
-        Glide.with(requireContext())
-            .load(uri)
-            .transition(DrawableTransitionOptions.withCrossFade())
-            .into(binding.ivHomeBackground)
+        runCatching {
+            Glide.with(ctx)
+                .load(uri)
+                .transition(DrawableTransitionOptions.withCrossFade())
+                .into(binding.ivHomeBackground)
+        }
         swiperHasLastFocus = swiperHasFocus ?: swiperHasLastFocus
     }
 
     fun pinBackground(uri: String?) {
+        val binding = _binding ?: return
+        val ctx = context ?: return
+        if (!isAdded || isDetached) return
         isBackgroundPinned = true
-        Glide.with(requireContext())
-            .load(uri)
-            .transition(DrawableTransitionOptions.withCrossFade())
-            .into(binding.ivHomeBackground)
+        runCatching {
+            Glide.with(ctx)
+                .load(uri)
+                .transition(DrawableTransitionOptions.withCrossFade())
+                .into(binding.ivHomeBackground)
+        }
     }
 
     fun releasePinnedBackground() {
@@ -484,6 +494,7 @@ class HomeTvFragment : Fragment() {
                     .filterIsInstance<Category>()
                     .find { it.name == Category.FEATURED }
                     ?.let { category ->
+                        if (category.list.isEmpty()) return@let null
                         category.selectedIndex = (category.selectedIndex + 1) % category.list.size
                         
                         // Update background when swiper rotates automatically

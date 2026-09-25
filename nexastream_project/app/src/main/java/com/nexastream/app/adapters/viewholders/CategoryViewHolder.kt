@@ -351,11 +351,14 @@ class CategoryViewHolder(
                             when (val fragment = context.toActivity()?.getCurrentFragment()) {
                                 is HomeTvFragment -> fragment.resetSwiperSchedule()
                             }
-                            category.selectedIndex = (category.selectedIndex + 1) % category.list.size
-                            when (val fragment = context.toActivity()?.getCurrentFragment()) {
-                                is HomeTvFragment -> when (val it = category.list[category.selectedIndex]) {
-                                    is Movie -> fragment.updateBackground(it.banner, true)
-                                    is TvShow -> fragment.updateBackground(it.banner, true)
+                            if (category.list.isNotEmpty()) {
+                                category.selectedIndex = (category.selectedIndex + 1) % category.list.size
+                                when (val fragment = context.toActivity()?.getCurrentFragment()) {
+                                    is HomeTvFragment -> when (val it = category.list.getOrNull(category.selectedIndex)) {
+                                        is Movie -> fragment.updateBackground(it.banner, true)
+                                        is TvShow -> fragment.updateBackground(it.banner, true)
+                                        else -> {}
+                                    }
                                 }
                             }
                             bindingAdapter?.notifyItemChanged(bindingAdapterPosition)

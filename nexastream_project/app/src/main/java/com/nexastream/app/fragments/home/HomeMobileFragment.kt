@@ -72,13 +72,19 @@ class HomeMobileFragment : Fragment() {
 
         // Bind header controls
         binding.ivSearch.setOnClickListener {
-            findNavController().navigate(R.id.search)
+            if (findNavController().currentDestination?.id == R.id.home) {
+                findNavController().navigate(R.id.search)
+            }
         }
         binding.ivChangeProvider.setOnClickListener {
-            findNavController().navigate(R.id.providers)
+            if (findNavController().currentDestination?.id == R.id.home) {
+                findNavController().navigate(R.id.providers)
+            }
         }
         binding.ivSettings.setOnClickListener {
-            findNavController().navigate(R.id.settings)
+            if (findNavController().currentDestination?.id == R.id.home) {
+                findNavController().navigate(R.id.settings)
+            }
         }
 
         updateProviderLogo()
@@ -290,7 +296,7 @@ class HomeMobileFragment : Fragment() {
                         }
                     }
                     
-                    if (genreId.isNotEmpty()) {
+                    if (genreId.isNotEmpty() && findNavController().currentDestination?.id == R.id.home) {
                         findNavController().navigate(
                             HomeMobileFragmentDirections.actionHomeToGenre(
                                 id = genreId,
@@ -385,7 +391,7 @@ class HomeMobileFragment : Fragment() {
                 "Documentary Series", "Drama Series", "Family Series", "Sci-Fi & Fantasy Series",
                 "History Series", "Horror Series", "Mystery Series", "Romance Series",
                 "Thriller Series", "War & Politics Series", "Biography Series", "Reality TV", "Sport Series", "Western Series",
-                "All TV Shows", "Top TV Shows", "New Season & Episode", "Teen Romance", "Musical Series"
+                "All TV Shows", "Top TV Shows", "New Season & Episode", "Musical Series"
             )
 
             when (tabIndex) {

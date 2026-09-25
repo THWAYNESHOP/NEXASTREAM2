@@ -119,7 +119,8 @@ abstract class Extractor {
             ZillaExtractor(),
             PDrainExtractor(),
             MaxstreamExtractor(),
-            VidxGoExtractor()
+            VidxGoExtractor(),
+            SnifferExtractor()
         )
 
         suspend fun extract(link: String, server: Video.Server? = null): Video {
@@ -231,7 +232,12 @@ abstract class Extractor {
                 return video
             }
 
-            throw Exception("No extractors found for URL: $finalLink")
+            Log.i("NexaStream", "[EXTRACTOR] -> No specific extractor matched for $finalLink. Attempting WebSniffer fallback...")
+            return runCatching {
+                SnifferExtractor().extract(finalLink)
+            }.getOrElse { snifferError ->
+                throw Exception("No extractors found for URL: $finalLink (WebSniffer fallback error: ${snifferError.message})", snifferError)
+            }
         }
     }
 }

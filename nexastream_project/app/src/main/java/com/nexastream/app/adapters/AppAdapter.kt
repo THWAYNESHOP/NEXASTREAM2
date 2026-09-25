@@ -818,20 +818,24 @@ class AppAdapter(
                 itemIdentityCounts = newIdentityState.counts
                 itemStableIds = newIdentityState.stableIds
 
-                result.dispatchUpdatesTo(object : androidx.recyclerview.widget.ListUpdateCallback {
-                    override fun onInserted(position: Int, count: Int) {
-                        notifyItemRangeInserted(position + headerOffset, count)
-                    }
-                    override fun onRemoved(position: Int, count: Int) {
-                        notifyItemRangeRemoved(position + headerOffset, count)
-                    }
-                    override fun onMoved(fromPosition: Int, toPosition: Int) {
-                        notifyItemMoved(fromPosition + headerOffset, toPosition + headerOffset)
-                    }
-                    override fun onChanged(position: Int, count: Int, payload: Any?) {
-                        notifyItemRangeChanged(position + headerOffset, count, payload)
-                    }
-                })
+                try {
+                    result.dispatchUpdatesTo(object : androidx.recyclerview.widget.ListUpdateCallback {
+                        override fun onInserted(position: Int, count: Int) {
+                            notifyItemRangeInserted(position + headerOffset, count)
+                        }
+                        override fun onRemoved(position: Int, count: Int) {
+                            notifyItemRangeRemoved(position + headerOffset, count)
+                        }
+                        override fun onMoved(fromPosition: Int, toPosition: Int) {
+                            notifyItemMoved(fromPosition + headerOffset, toPosition + headerOffset)
+                        }
+                        override fun onChanged(position: Int, count: Int, payload: Any?) {
+                            notifyItemRangeChanged(position + headerOffset, count, payload)
+                        }
+                    })
+                } catch (_: Exception) {
+                    notifyDataSetChanged()
+                }
             }
         }
     }

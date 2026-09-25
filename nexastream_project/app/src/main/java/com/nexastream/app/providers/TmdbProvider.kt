@@ -360,151 +360,248 @@ class TmdbProvider(override val language: String) : Provider {
         Category(name = "New Season and Episode", list = results)
     }
 
-    suspend fun getTeenRomance(isMovie: Boolean, name: String = "Teen Romance"): Category = coroutineScope {
-        val curatedSeries = if (!isMovie) {
-            listOf(
-                TMDb3.Tv(id = 199001, name = "My Life with the Walter Boys", posterPath = "/dQOwpTpBQEqRUcev4423LrU32G6.jpg", overview = "A teenage girl's life is turned upside down when she moves in with a big family in rural Colorado.", firstAirDate = "2023", popularity = 10000f, backdropPath = null, voteAverage = 7.8f, voteCount = 500, originCountry = emptyList(), genresIds = listOf(10749), originalLanguage = "en", originalName = "My Life with the Walter Boys"),
-                TMDb3.Tv(id = 283297, name = "Sterling Point", posterPath = "/cThLWEGs6BEqY0QZMbU4FAeWwPT.jpg", overview = "Sterling Point", firstAirDate = "2026", popularity = 9999f, backdropPath = null, voteAverage = 8.3f, voteCount = 100, originCountry = emptyList(), genresIds = listOf(10749), originalLanguage = "en", originalName = "Sterling Point"),
-                TMDb3.Tv(id = 298168, name = "The Shards", posterPath = "/wP0GdqwVu2g1y3q1KzBXuSrdTvX.jpg", overview = "The Shards", firstAirDate = "2026", popularity = 9998f, backdropPath = null, voteAverage = 7.3f, voteCount = 100, originCountry = emptyList(), genresIds = listOf(10749), originalLanguage = "en", originalName = "The Shards"),
-                TMDb3.Tv(id = 288671, name = "The Map of Longing", posterPath = "/wcgjZ7koqOYDcKUn6DmnNolqmUS.jpg", overview = "The Map of Longing", firstAirDate = "2026", popularity = 9997f, backdropPath = null, voteAverage = 8.3f, voteCount = 100, originCountry = emptyList(), genresIds = listOf(10749), originalLanguage = "en", originalName = "The Map of Longing"),
-                TMDb3.Tv(id = 254420, name = "Elle", posterPath = "/dpH7Lyrs7z7MlTGgfeibryGnWAv.jpg", overview = "Elle", firstAirDate = "2026", popularity = 9996f, backdropPath = null, voteAverage = 7.9f, voteCount = 100, originCountry = emptyList(), genresIds = listOf(10749), originalLanguage = "en", originalName = "Elle"),
-                TMDb3.Tv(id = 260592, name = "Every Year After", posterPath = "/nZGf0jnSJNXLf8o7iSzzX8qxHX9.jpg", overview = "Every Year After", firstAirDate = "2026", popularity = 9995f, backdropPath = null, voteAverage = 8.3f, voteCount = 100, originCountry = emptyList(), genresIds = listOf(10749), originalLanguage = "en", originalName = "Every Year After"),
-                TMDb3.Tv(id = 273240, name = "Off Campus", posterPath = "/tcPc5ZMBO4y2BtCJMe3o2nwZb2B.jpg", overview = "Off Campus", firstAirDate = "2026", popularity = 9994f, backdropPath = null, voteAverage = 8.9f, voteCount = 100, originCountry = emptyList(), genresIds = listOf(10749), originalLanguage = "en", originalName = "Off Campus"),
-                TMDb3.Tv(id = 118833, name = "Cruel Summer", posterPath = "/6pZv8bY69HqHqL1P1bXo7v8m8rL.jpg", overview = "Cruel Summer teen drama fake dating crew girl", firstAirDate = "2021", popularity = 9993f, backdropPath = null, voteAverage = 7.5f, voteCount = 200, originCountry = emptyList(), genresIds = listOf(10749), originalLanguage = "en", originalName = "Cruel Summer"),
-                TMDb3.Tv(id = 85552, name = "Euphoria", posterPath = "/3sc86TRMHkZg6YgIiw624hz6STk.jpg", overview = "A look at life for a group of high school students as they navigate love and friendships.", firstAirDate = "2019", popularity = 9992f, backdropPath = null, voteAverage = 8.4f, voteCount = 9000, originCountry = emptyList(), genresIds = listOf(10749), originalLanguage = "en", originalName = "Euphoria"),
-                TMDb3.Tv(id = 154825, name = "XO, Kitty", posterPath = "/7mId706WvD8p66pMuxvW7O7qOsk.jpg", overview = "A new love story unfolds when teen matchmaker Kitty song Covey reunites with her long-distance boyfriend.", firstAirDate = "2023", popularity = 9991f, backdropPath = null, voteAverage = 8.1f, voteCount = 400, originCountry = emptyList(), genresIds = listOf(10749), originalLanguage = "en", originalName = "XO, Kitty")
-            )
-        } else {
-            emptyList()
+    data class TeenRomanceCandidate(
+        val item: TMDb3.MultiItem,
+        val compositeScore: Double,
+        val matrixPriority: Int,
+        val tropeScore: Int,
+        val glossyScore: Int,
+        val popularity: Float,
+        val voteAverage: Float,
+        val franchiseKey: String
+    )
+
+    fun evaluateTeenRomanceCandidate(rawItem: TMDb3.MultiItem): TeenRomanceCandidate? {
+        val genresIds = when (rawItem) {
+            is TMDb3.Movie -> rawItem.genresIds
+            is TMDb3.Tv -> rawItem.genresIds
+            else -> return null
         }
 
-        val rawItems = (if (isMovie) {
-            val p1 = async { runCatching { TMDb3.Discover.movie(language = language, withKeywords = TMDb3.Params.WithBuilder<TMDb3.Keyword.KeywordId>(14534), page = 1).results }.getOrElse { emptyList() } }
-            val p2 = async { runCatching { TMDb3.Discover.movie(language = language, withKeywords = TMDb3.Params.WithBuilder<TMDb3.Keyword.KeywordId>(14534), page = 2).results }.getOrElse { emptyList() } }
-            p1.await() + p2.await()
+        // Rule 1: Exclude Animation (Genre ID 16)
+        if (genresIds.contains(16)) return null
+
+        val dateStr = when (rawItem) {
+            is TMDb3.Movie -> rawItem.releaseDate
+            is TMDb3.Tv -> rawItem.firstAirDate
+            else -> null
+        }
+        val year = dateStr?.take(4)?.toIntOrNull()
+
+        val title = when (rawItem) {
+            is TMDb3.Movie -> rawItem.title
+            is TMDb3.Tv -> rawItem.name
+            else -> ""
+        }
+        val overview = when (rawItem) {
+            is TMDb3.Movie -> rawItem.overview
+            is TMDb3.Tv -> rawItem.overview
+            else -> ""
+        }
+        val text = "$title $overview".lowercase()
+
+        // Category-scoped trope matching
+        val romanceTropes = listOf(
+            Pair(12, listOf("fake date", "fake dating", "pretend relationship", "pretend dating")),
+            Pair(11, listOf("childhood friend", "best friend", "friends to lovers", "friendship turns")),
+            Pair(11, listOf("rivalry", "heated rivalry", "rival", "figure skating", "hockey", "crew", "sports romance", "finding her edge")),
+            Pair(10, listOf("enemies to lovers", "rivals", "opposites attract", "hate each other")),
+            Pair(10, listOf("heartbreak high", "euphoria", "walter boys", "off campus", "xo, kitty", "xo kitty", "teen matchmaker")),
+            Pair(9, listOf("love triangle", "between two lovers", "choose between", "torn between")),
+            Pair(8, listOf("first love", "summer romance", "secret relationship", "forbidden love"))
+        )
+
+        val teenSettingTropes = listOf(
+            Pair(8, listOf("prom", "homecoming", "makeover", "school dance", "high school", "boarding school", "college freshman", "coming of age", "hockey", "sports romance", "figure skating", "skating", "crew", "heated rivalry"))
+        )
+
+        var tropeScore = 0
+        var romanceTropeMatches = 0
+        for ((weight, patterns) in romanceTropes) {
+            if (patterns.any { text.contains(it) }) {
+                tropeScore += weight
+                romanceTropeMatches++
+            }
+        }
+
+        var teenTropeMatches = 0
+        for ((weight, patterns) in teenSettingTropes) {
+            if (patterns.any { text.contains(it) }) {
+                tropeScore += weight
+                teenTropeMatches++
+            }
+        }
+
+        val glossySignals = listOf("party", "popular", "dare", "school", "summer", "music", "dance", "secret", "fashion", "wedding", "comedy", "teen", "rivalry", "hockey", "skating")
+        val glossyScore = glossySignals.distinct().count { text.contains(it) }
+
+        // Dual Evidence Checking: Requires BOTH Romantic Content AND Teen/YA Setting
+        val hasRomanceGenre = genresIds.contains(10749)
+        val romanceTextKeywords = listOf("love", "romance", "dating", "crush", "crushes", "kiss", "kissing", "relationship", "boyfriend", "girlfriend", "lovers", "matchmaker", "heartbreaker", "fall in love", "falls in love", "falling in love", "catches the eye", "romantic", "affection", "couple", "rivalry", "heated rivalry", "walter boys", "xo, kitty", "xo kitty", "heartbreak high", "finding her edge", "crew girl")
+        val hasRomanceText = romanceTextKeywords.any { text.contains(it) } || romanceTropeMatches > 0
+        val hasRomanceEvidence = hasRomanceGenre || hasRomanceText
+
+        val teenTextKeywords = listOf("teen", "teens", "teenager", "teenagers", "high school", "boarding school", "prep school", "school", "prom", "homecoming", "coming of age", "youth", "student", "students", "college", "freshman", "young", "young adult", "crush", "first love", "summer vacation", "summer romance", "girl", "boy", "girls", "boys", "euphoria", "heartbreak high", "off campus", "sterling point", "the shards", "the map of longing", "every year after")
+        val hasTeenText = teenTextKeywords.any { text.contains(it) } || teenTropeMatches > 0
+        val hasTeenEvidence = hasTeenText
+
+        val hasMetadata = title.isNotEmpty() || overview.isNotEmpty() || genresIds.isNotEmpty()
+        if (hasMetadata && (!hasRomanceEvidence || !hasTeenEvidence)) {
+            return null
+        }
+
+        // Classic Titles Exception Check (pre-2012)
+        val voteCount = when (rawItem) {
+            is TMDb3.Movie -> rawItem.voteCount
+            is TMDb3.Tv -> rawItem.voteCount
+            else -> 0
+        }
+        val voteAverage = when (rawItem) {
+            is TMDb3.Movie -> rawItem.voteAverage
+            is TMDb3.Tv -> rawItem.voteAverage
+            else -> 0f
+        }
+
+        val isClassicCandidate = year != null && year < 2012
+        if (isClassicCandidate) {
+            val hasStrongAcclaim = voteCount >= 500 || (voteAverage >= 7.0f && voteCount >= 200)
+            val hasStrongTeenRomanceEvidence = (romanceTropeMatches >= 1 || (hasRomanceGenre && hasRomanceText)) && (teenTropeMatches >= 1 || hasTeenText)
+            if (!hasStrongAcclaim || !hasStrongTeenRomanceEvidence) {
+                return null
+            }
+        }
+
+        val popularity = when (rawItem) {
+            is TMDb3.Movie -> rawItem.popularity
+            is TMDb3.Tv -> rawItem.popularity
+            else -> 0f
+        }
+
+        val safeYear = year ?: 2020
+        val recentReleaseBoost = when {
+            safeYear >= 2024 -> 6.0
+            safeYear >= 2021 -> 3.0
+            else -> 0.0
+        }
+
+        val romanceBonus = if (hasRomanceGenre) 15.0 else (if (hasRomanceText) 8.0 else 0.0)
+        val teenRelevance = if (hasTeenText) 15.0 else 5.0
+
+        val normalizedPopularity = kotlin.math.min(kotlin.math.log10(popularity.toDouble() + 1.0) * 5.0, 15.0)
+        val ratingBonus = if (voteCount >= 20) (voteAverage.toDouble() / 10.0) * 10.0 else 0.0
+
+        val compositeScore = (tropeScore.toDouble() * 1.5) +
+                (glossyScore.toDouble() * 0.8) +
+                romanceBonus +
+                teenRelevance +
+                normalizedPopularity +
+                ratingBonus +
+                recentReleaseBoost
+
+        // Vibe Priority Matrix:
+        // Priority 1: Core Standard YA / Glossy Romance (Primary)
+        // Priority 2: Atmospheric / Scenic
+        // Priority 3: Elite / Ambition
+        // Priority 4: Dark / Gritty / Mystery
+        val isDarkGritty = text.contains("neon") || text.contains("gritty") || text.contains("mystery") || text.contains("dark")
+        val isEliteAmbition = text.contains("sports") || text.contains("boarding-school") || text.contains("academy") || text.contains("ambition")
+        val isAtmosphericScenic = text.contains("coastal") || text.contains("beach") || text.contains("island")
+
+        val matrixPriority = when {
+            isDarkGritty -> 4
+            isEliteAmbition -> 3
+            isAtmosphericScenic -> 2
+            else -> 1
+        }
+
+        val franchiseKey = extractFranchiseKey(rawItem, title)
+
+        return TeenRomanceCandidate(
+            item = rawItem,
+            compositeScore = compositeScore,
+            matrixPriority = matrixPriority,
+            tropeScore = tropeScore,
+            glossyScore = glossyScore,
+            popularity = popularity,
+            voteAverage = voteAverage,
+            franchiseKey = franchiseKey
+        )
+    }
+
+    private fun extractFranchiseKey(item: TMDb3.MultiItem, title: String): String {
+        val cleanTitle = title.lowercase()
+            .replace(Regex("[:\\-–—].*"), "")
+            .replace(Regex("\\b(1|2|3|4|5|i|ii|iii|iv|v|chapter|part)\\b"), "")
+            .trim()
+        return if (cleanTitle.length >= 4) cleanTitle else title.lowercase().trim()
+    }
+
+    suspend fun getTeenRomance(isMovie: Boolean, page: Int = 1, name: String = "Teen Romance"): Category = coroutineScope {
+        val targetPage = if (page < 1) 1 else page
+        val rawResults = if (isMovie) {
+            val p1 = async { runCatching { TMDb3.Discover.movie(language = language, withKeywords = TMDb3.Params.WithBuilder<TMDb3.Keyword.KeywordId>(14534), page = targetPage, sortBy = TMDb3.Params.SortBy.Movie.POPULARITY_DESC).results }.getOrElse { emptyList() } }
+            val p2 = async { runCatching { TMDb3.Discover.movie(language = language, withKeywords = TMDb3.Params.WithBuilder<TMDb3.Keyword.KeywordId>(14534), page = targetPage + 1, sortBy = TMDb3.Params.SortBy.Movie.POPULARITY_DESC).results }.getOrElse { emptyList() } }
+            val p3 = async { runCatching { TMDb3.Discover.movie(language = language, withKeywords = TMDb3.Params.WithBuilder<TMDb3.Keyword.KeywordId>(9840), withGenres = TMDb3.Params.WithBuilder<TMDb3.Genre.Movie>(10749), page = targetPage, sortBy = TMDb3.Params.SortBy.Movie.POPULARITY_DESC).results }.getOrElse { emptyList() } }
+            val p4 = async { runCatching { TMDb3.Discover.movie(language = language, withKeywords = TMDb3.Params.WithBuilder<TMDb3.Keyword.KeywordId>(11108), withGenres = TMDb3.Params.WithBuilder<TMDb3.Genre.Movie>(10749), page = targetPage, sortBy = TMDb3.Params.SortBy.Movie.POPULARITY_DESC).results }.getOrElse { emptyList() } }
+            val p5 = async { runCatching { TMDb3.Discover.movie(language = language, withKeywords = TMDb3.Params.WithBuilder<TMDb3.Keyword.KeywordId>(158718), page = targetPage, sortBy = TMDb3.Params.SortBy.Movie.POPULARITY_DESC).results }.getOrElse { emptyList() } }
+            val p6 = async { runCatching { TMDb3.Discover.movie(language = language, withKeywords = TMDb3.Params.WithBuilder<TMDb3.Keyword.KeywordId>(209090), page = targetPage, sortBy = TMDb3.Params.SortBy.Movie.POPULARITY_DESC).results }.getOrElse { emptyList() } }
+            val seeds = if (targetPage == 1) async { runCatching { listOf("The Kissing Booth", "To All the Boys", "Through My Window", "Culpa Mia", "Purple Hearts", "The Tearsmith", "Finding Her Edge").flatMap { TMDb3.Search.multi(query = it, language = language).results }.filterIsInstance<TMDb3.Movie>() }.getOrElse { emptyList() } } else null
+            p1.await() + p2.await() + p3.await() + p4.await() + p5.await() + p6.await() + (seeds?.await() ?: emptyList())
         } else {
-            val p1 = async { runCatching { TMDb3.Discover.tv(language = language, withKeywords = TMDb3.Params.WithBuilder<TMDb3.Keyword.KeywordId>(14534), page = 1).results }.getOrElse { emptyList() } }
-            val p2 = async { runCatching { TMDb3.Discover.tv(language = language, withKeywords = TMDb3.Params.WithBuilder<TMDb3.Keyword.KeywordId>(14534), page = 2).results }.getOrElse { emptyList() } }
-            curatedSeries + p1.await() + p2.await()
-        }).distinctBy { 
+            val p1 = async { runCatching { TMDb3.Discover.tv(language = language, withKeywords = TMDb3.Params.WithBuilder<TMDb3.Keyword.KeywordId>(14534), page = targetPage, sortBy = TMDb3.Params.SortBy.Tv.POPULARITY_DESC).results }.getOrElse { emptyList() } }
+            val p2 = async { runCatching { TMDb3.Discover.tv(language = language, withKeywords = TMDb3.Params.WithBuilder<TMDb3.Keyword.KeywordId>(14534), page = targetPage + 1, sortBy = TMDb3.Params.SortBy.Tv.POPULARITY_DESC).results }.getOrElse { emptyList() } }
+            val p3 = async { runCatching { TMDb3.Discover.tv(language = language, withKeywords = TMDb3.Params.WithBuilder<TMDb3.Keyword.KeywordId>(9840), page = targetPage, sortBy = TMDb3.Params.SortBy.Tv.POPULARITY_DESC).results }.getOrElse { emptyList() } }
+            val p4 = async { runCatching { TMDb3.Discover.tv(language = language, withKeywords = TMDb3.Params.WithBuilder<TMDb3.Keyword.KeywordId>(11108), page = targetPage, sortBy = TMDb3.Params.SortBy.Tv.POPULARITY_DESC).results }.getOrElse { emptyList() } }
+            val p5 = async { runCatching { TMDb3.Discover.tv(language = language, withKeywords = TMDb3.Params.WithBuilder<TMDb3.Keyword.KeywordId>(209090), page = targetPage, sortBy = TMDb3.Params.SortBy.Tv.POPULARITY_DESC).results }.getOrElse { emptyList() } }
+            val p6 = async { runCatching { TMDb3.Discover.tv(language = language, withKeywords = TMDb3.Params.WithBuilder<TMDb3.Keyword.KeywordId>(10229), page = targetPage, sortBy = TMDb3.Params.SortBy.Tv.POPULARITY_DESC).results }.getOrElse { emptyList() } }
+            val seeds = if (targetPage == 1) async { runCatching { listOf("Walter Boys", "XO Kitty", "Euphoria", "Heartbreak High", "Off Campus", "Heated Rivalry", "Finding Her Edge", "Crew Girl", "The Shards", "Sterling Point", "The Map of Longing", "Elle", "Every Year After").flatMap { TMDb3.Search.multi(query = it, language = language).results }.filterIsInstance<TMDb3.Tv>() }.getOrElse { emptyList() } } else null
+            p1.await() + p2.await() + p3.await() + p4.await() + p5.await() + p6.await() + (seeds?.await() ?: emptyList())
+        }
+
+        android.util.Log.d("TmdbTeenRomance", "[$name] Stage 1: Raw TMDb items fetched = ${rawResults.size}")
+
+        val rawItems = rawResults.distinctBy { 
             when (it) {
                 is TMDb3.Movie -> it.id
                 is TMDb3.Tv -> it.id
                 else -> 0
             }
         }
+        android.util.Log.d("TmdbTeenRomance", "[$name] Stage 2: Deduplicated by TMDb ID = ${rawItems.size}")
 
-        class ScoredItem(
-            val item: TMDb3.MultiItem,
-            val trendingScore: Double,
-            val matrixPriority: Int,
-            val tropeScore: Int,
-            val glossyScore: Int,
-            val popularity: Float,
-            val voteAverage: Float
-        )
+        val candidates = rawItems.mapNotNull { evaluateTeenRomanceCandidate(it) }
+        android.util.Log.d("TmdbTeenRomance", "[$name] Stages 3-5: Evidence & Eligibility Filtered Candidates = ${candidates.size}")
 
-        val tropes = listOf(
-            Pair(12, listOf("fake date", "fake dating", "pretend relationship", "pretend dating")),
-            Pair(11, listOf("childhood friend", "best friend", "friends to lovers", "friendship turns")),
-            Pair(10, listOf("enemies to lovers", "rivals", "opposites attract", "hate each other")),
-            Pair(9, listOf("love triangle", "between two", "choose between", "torn between")),
-            Pair(8, listOf("prom", "homecoming", "makeover", "school dance", "high school")),
-            Pair(7, listOf("first love", "summer romance", "secret relationship", "forbidden love"))
-        )
-
-        val glossySignals = listOf("party", "popular", "dare", "school", "summer", "music", "dance", "secret", "fashion", "wedding", "comedy", "teen")
-        val teenSignals = listOf("teen", "school", "college", "young love", "coming of age")
-
-        val scoredList = rawItems.mapNotNull { rawItem ->
-            val genresIds = when (rawItem) {
-                is TMDb3.Movie -> rawItem.genresIds
-                is TMDb3.Tv -> rawItem.genresIds
-                else -> return@mapNotNull null
-            }
-            
-            if (genresIds.contains(16)) return@mapNotNull null // Exclude Animation
-            
-            val dateStr = when (rawItem) {
-                is TMDb3.Movie -> rawItem.releaseDate
-                is TMDb3.Tv -> rawItem.firstAirDate
-                else -> null
-            }
-            val year = dateStr?.take(4)?.toIntOrNull() ?: return@mapNotNull null
-            if (year < 2018) return@mapNotNull null // 2018 or newer cutoff
-
-            val title = when (rawItem) {
-                is TMDb3.Movie -> rawItem.title
-                is TMDb3.Tv -> rawItem.name
-                else -> ""
-            }
-            val overview = when (rawItem) {
-                is TMDb3.Movie -> rawItem.overview
-                is TMDb3.Tv -> rawItem.overview
-                else -> ""
-            }
-            val text = "$title $overview".lowercase()
-
-            var tropeScore = 0
-            for ((weight, patterns) in tropes) {
-                if (patterns.any { text.contains(it) }) {
-                    tropeScore += weight
-                }
-            }
-
-            val glossyScore = glossySignals.count { text.contains(it) }
-
-            val recentReleaseBoost = when {
-                year >= 2024 -> 8
-                year >= 2022 -> 4
-                else -> 0
-            }
-
-            val romanceRelevance = if (genresIds.contains(10749)) 20 else 0
-            val teenRelevance = teenSignals.count { text.contains(it) } * 5
-
-            val popularity = when (rawItem) {
-                is TMDb3.Movie -> rawItem.popularity
-                is TMDb3.Tv -> rawItem.popularity
-                else -> 0f
-            }
-            val voteCount = when (rawItem) {
-                is TMDb3.Movie -> rawItem.voteCount
-                is TMDb3.Tv -> rawItem.voteCount
-                else -> 0
-            }
-            val voteAverage = when (rawItem) {
-                is TMDb3.Movie -> rawItem.voteAverage
-                is TMDb3.Tv -> rawItem.voteAverage
-                else -> 0f
-            }
-
-            val trendingScore = popularity + kotlin.math.min(voteCount / 100.0, 10.0) + recentReleaseBoost + romanceRelevance + teenRelevance
-
-            val isDarkGritty = text.contains("neon") || text.contains("gritty") || text.contains("mystery") || text.contains("dark")
-            val isEliteAmbition = text.contains("sports") || text.contains("college") || text.contains("boarding-school") || text.contains("ambition")
-            val isAtmosphericScenic = text.contains("coastal") || text.contains("beach") || text.contains("adventure") || text.contains("summer")
-            
-            val matrixPriority = when {
-                isDarkGritty -> 1
-                isEliteAmbition -> 2
-                isAtmosphericScenic -> 3
-                else -> 4
-            }
-
-            ScoredItem(rawItem, trendingScore, matrixPriority, tropeScore, glossyScore, popularity, voteAverage)
-        }
-
-        val sortedResults = scoredList.sortedWith(
-            compareByDescending<ScoredItem> { it.trendingScore }
-                .thenByDescending { it.matrixPriority }
+        val sortedCandidates = candidates.sortedWith(
+            compareByDescending<TeenRomanceCandidate> { it.compositeScore }
+                .thenBy { it.matrixPriority }
                 .thenByDescending { it.tropeScore }
-                .thenByDescending { it.glossyScore }
-                .thenByDescending { it.popularity }
                 .thenByDescending { it.voteAverage }
-        ).map { it.item }
+                .thenByDescending { it.popularity }
+                .thenBy { 
+                    when (val raw = it.item) {
+                        is TMDb3.Movie -> raw.id.toString()
+                        is TMDb3.Tv -> raw.id.toString()
+                        else -> ""
+                    }
+                }
+        )
+        android.util.Log.d("TmdbTeenRomance", "[$name] Stage 6: Ranked Candidates = ${sortedCandidates.size}")
 
-        val results = sortedResults.mapNotNull { mapMulti(it) }
+        val franchiseCounts = mutableMapOf<String, Int>()
+        val filteredList = mutableListOf<TMDb3.MultiItem>()
+
+        for (candidate in sortedCandidates) {
+            val key = candidate.franchiseKey
+            val count = franchiseCounts.getOrDefault(key, 0)
+            if (count < 2) {
+                franchiseCounts[key] = count + 1
+                filteredList.add(candidate.item)
+            }
+        }
+        android.util.Log.d("TmdbTeenRomance", "[$name] Stage 7: Final Franchise Capped Count = ${filteredList.size}")
+
+        val results = filteredList.mapNotNull { mapMulti(it) }
         Category(name = name, list = results)
     }
 

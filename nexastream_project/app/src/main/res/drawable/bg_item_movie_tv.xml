@@ -3,16 +3,19 @@
 
     <item android:state_focused="true">
         <layer-list>
-            <item android:bottom="-3dp" android:left="-3dp" android:right="-3dp" android:top="-3dp">
+            <item>
                 <shape android:shape="rectangle">
-                    <stroke android:width="3dp" android:color="#FFFFFF" />
+                    <corners android:radius="8dp" />
+                    <stroke android:width="4dp" android:color="#FFFFFF" />
                 </shape>
             </item>
         </layer-list>
     </item>
 
     <item>
-        <shape android:shape="rectangle"></shape>
+        <shape android:shape="rectangle">
+            <corners android:radius="8dp" />
+        </shape>
     </item>
 
 </selector>
